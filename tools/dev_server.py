@@ -25,7 +25,10 @@ class DevHandler(SimpleHTTPRequestHandler):
         if urlsplit(self.path).path != "/__dev_version":
             return super().do_GET()
         revision = hashlib.sha256()
-        for path in sorted([ROOT / "index.html", ROOT / "sounds.js", *ROOT.glob("models/*.glb"), *ROOT.glob("audio/*.wav")]):
+        for path in sorted([
+            ROOT / "index.html", ROOT / "sounds.js", *ROOT.glob("peak.html"), *ROOT.glob("peak/*.js"),
+            *ROOT.glob("models/*.glb"), *ROOT.glob("audio/*.wav"),
+        ]):
             stat = path.stat()
             revision.update(f"{path.name}:{stat.st_mtime_ns}:{stat.st_size}".encode())
         body = json.dumps({"version": revision.hexdigest()}).encode()

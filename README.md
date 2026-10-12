@@ -15,7 +15,9 @@ A soda can with big glasses and rubber-hose arms and legs, rigged and animated f
 | `tools/dev_server.py` | Local server with cache disabled and automatic browser reload when code, GLB or WAV sounds change. |
 
 View it: `python tools/dev_server.py`, then open <http://127.0.0.1:5280/>.
-The browser checks for source changes every 750 ms and reloads automatically. Local responses use
+The browser checks for source changes every 750 ms and reloads automatically. The version hash watches
+`index.html`, `sounds.js`, `peak.html`, `peak/*.js`, GLB models and WAV sounds, including newly created Peak files.
+Local responses use
 `Cache-Control: no-store`, so edited code and models load fresh. After switching from the old static server,
 refresh an already open tab once to enable live reload.
 
