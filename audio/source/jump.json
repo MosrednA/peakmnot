@@ -1,0 +1,9 @@
+{
+  "name": "jump",
+  "prompt": "Cosy game SFX for a tiny plush-like mascot. Warm, rounded, cushioned and very soft. Dry and isolated. No metal, rattle, creak, crackle, hiss, music or voices. One short soft rubber spring jump: a compressed bup releases into a round playful boing. A tiny plush character pushes off a cushion. Warm rubbery body, gentle attack and a short springy tail. No air, wind, whoosh or swoosh. Immediate onset, one jump.",
+  "duration": 0.5,
+  "loop": false,
+  "model": "eleven_text_to_sound_v2",
+  "character_cost": 5,
+  "source": "audio/source/jump.mp3"
+}

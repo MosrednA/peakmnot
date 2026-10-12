@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mnot Viewer</title>
+<style>
+  :root { --bg: #20242b; --panel: rgba(20, 23, 28, 0.82); --text: #e9edf2; --muted: #9aa5b1; --accent: #e23b2e; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+  canvas { display: block; touch-action: none; }
+  #ui { position: fixed; left: 16px; right: 16px; bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px;
+    align-items: center; justify-content: center; pointer-events: none; }
+  #ui > * { pointer-events: auto; }
+  .group { display: flex; gap: 4px; background: var(--panel); padding: 4px; border-radius: 12px; }
+  button { font: inherit; color: var(--text); background: transparent; border: 0; padding: 8px 14px;
+    border-radius: 9px; cursor: pointer; }
+  button:hover { background: rgba(255, 255, 255, 0.08); }
+  button.on { background: var(--accent); color: #fff; }
+  #info { position: fixed; top: 14px; left: 16px; right: 16px; color: var(--muted); font-size: 12px;
+    pointer-events: none; }
+  #info b { color: var(--text); font-size: 15px; }
+</style>
+</head>
+<body>
+<div id="info"><b>Mnot</b> · <span id="stats">loading…</span><br>WASD / arrow keys to walk · Shift to run · Space to jump · E to wave · M to mute · drag to orbit</div>
+<div id="ui">
+  <div class="group" id="clips"></div>
+  <div class="group"><button id="stroll">Stroll</button><button id="runlaps">Run laps</button></div>
+  <div class="group"><button id="jump">Jump</button><button id="highjump">High jump</button></div>
+  <div class="group"><button id="toon" class="on">Toon</button><button id="pbr">Standard</button></div>
+  <div class="group"><button id="sound" aria-pressed="true">Sound on</button></div>
+</div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { MnotSounds } from './sounds.js';
+
+const sounds = new MnotSounds();
+function refreshSoundButton() {
+  const button = document.getElementById('sound');
+  button.textContent = sounds.enabled ? 'Sound on' : 'Sound off';
+  button.setAttribute('aria-pressed', String(sounds.enabled));
+}
+function toggleSound() {
+  sounds.setEnabled(!sounds.enabled);
+  refreshSoundButton();
+}
+document.getElementById('sound').onclick = toggleSound;
+refreshSoundButton();
+// Browsers allow audio after a real user gesture; synthetic animation checks stay silent.
+addEventListener('pointerdown', e => { if (e.isTrusted) void sounds.unlock(); }, { capture: true });
+addEventListener('focus', () => sounds.resume());
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+document.body.appendChild(renderer.domElement);
+const outline = new OutlineEffect(renderer, { defaultThickness: 0.0045, defaultColor: [0.09, 0.3, 0.38] });
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#20242b');
+scene.fog = new THREE.Fog('#20242b', 9, 24);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.6;
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(1.7, 1.6, 4.4);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.85, 0);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.minDistance = 1.5;
+controls.maxDistance = 12;
+
+scene.add(new THREE.HemisphereLight('#e4f1ff', '#3a3f47', 1.3));
+const sun = new THREE.DirectionalLight('#fff3df', 2.4);
+sun.position.set(-3, 6, 4);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 3, bottom: -3, near: 0.5, far: 20 });
+sun.shadow.bias = -0.0005;
+sun.shadow.normalBias = 0.02;
+scene.add(sun, sun.target);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ color: '#2b3139', roughness: 1 }));
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+ground.material.userData.outlineParameters = { visible: false };
+scene.add(ground);
+const grid = new THREE.GridHelper(80, 80, '#3b434d', '#343b44');
+grid.position.y = 0.002;
+grid.material.userData.outlineParameters = { visible: false };
+scene.add(grid);
+
+// two tones, like the flat drawing; the metal gets a third, so the lid's seam, groove and tab read
+function toonRamp(...tones) {
+  const ramp = new THREE.DataTexture(new Uint8Array(tones.flatMap((t) => [t, t, t, 255])), tones.length, 1);
+  ramp.minFilter = ramp.magFilter = THREE.NearestFilter;
+  ramp.needsUpdate = true;
+  return ramp;
+}
+const ramp = toonRamp(120, 255), metalRamp = toonRamp(95, 170, 255);
+
+const looks = [];
+let useToon = true;
+function setLook(toon) {
+  useToon = toon;
+  for (const { mesh, std, cel } of looks) mesh.material = toon ? cel : std;
+  document.getElementById('toon').classList.toggle('on', toon);
+  document.getElementById('pbr').classList.toggle('on', !toon);
+}
+
+let mnot, mixer, current, walkSpeed = 0.625, runSpeed = 2.08;
+const actions = new Map();
+const poseEntries = new Map(); // temporary entry action -> looping target action
+let pendingAnimation = null;
+let mode = 'Idle';            // a clip name, 'stroll' (walking or running laps) or 'keys'
+let strollGait = 'Walk';
+const strollRadius = 2.6;
+const strollCenter = new THREE.Vector3(), velocity = new THREE.Vector3();
+let strollAngle = 0;
+// The jump has three parts: a take-off clip, the Fall loop while the root flies under gravity, and a landing clip
+// picked by touch-down speed and movement. LeapStart covers a whole running jump; Fall follows only a longer flight.
+// jumpPhase is null on the ground, then 'takeoff', 'air' and 'landing'.
+let jumpPhase = null, jumpBuffer = 0, requestedHeight = null, airSpeed = 0, launchSpeed = 0, verticalSpeed = 0;
+let cameraLift = 0;
+const jumpRig = { jump_takeoff: 0.12, leap_takeoff: 0.12, jump_gravity: 15, jump_height: 0.6, run_jump_height: 0.8,
+  hard_landing_speed: 6 }; // replaced by the values stored on the rig
+const HIGH_JUMP = 2.2;
+const TAKEOFFS = ['JumpStart', 'LeapStart'], LANDINGS = ['Land', 'LeapLand', 'LandHard'];
+const ONE_SHOTS = [...TAKEOFFS, ...LANDINGS];
+const SETTLED = ['Land', 'LandHard']; // landings that end in the Idle pose
+// Seconds into a landing before input cuts it short: walking off a soft landing, anything after a hard one.
+const MOVE_LAG = { Land: 0.1, LandHard: 0.5 }, JUMP_LAG = { LandHard: 0.5 };
+const GAITS = ['Walk', 'Run'];
+const takeoffTime = name => jumpRig[name === 'JumpStart' ? 'jump_takeoff' : 'leap_takeoff'];
+
+new GLTFLoader().load('models/mnot.glb', (gltf) => {
+  mnot = gltf.scene;
+  let verts = 0, bones = 0;
+  mnot.traverse((o) => {
+    if (o.isBone) bones++;
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    o.frustumCulled = false;
+    verts += o.geometry.attributes.position.count;
+    const std = o.material;
+    const params = { name: std.name, color: std.color, transparent: std.transparent, opacity: std.opacity,
+      depthWrite: std.depthWrite };
+    // the lenses stay flat and unlit, like the drawing
+    const cel = std.name === 'Lens' ? new THREE.MeshBasicMaterial(params)
+      : new THREE.MeshToonMaterial({ ...params, gradientMap: ramp });
+    if (std.name === 'Aluminium' || std.name === 'Tab') {
+      cel.color = std.color.clone().multiplyScalar(1.1);
+      cel.gradientMap = metalRamp;
+    }
+    if (std.name === 'Lens') { cel.userData.outlineParameters = { visible: false }; o.castShadow = false; }
+    looks.push({ mesh: o, std, cel });
+  });
+  const rig = mnot.getObjectByName('MnotRig');
+  walkSpeed = rig?.userData.walk_speed ?? walkSpeed;
+  runSpeed = rig?.userData.run_speed ?? runSpeed;
+  for (const key of Object.keys(jumpRig)) jumpRig[key] = rig?.userData[key] ?? jumpRig[key];
+  scene.add(mnot);
+  setLook(true);
+
+  mixer = new THREE.AnimationMixer(mnot);
+  mixer.addEventListener('finished', (e) => {
+    if (e.action !== current) return;
+    if (poseEntries.has(e.action)) {
+      const target = poseEntries.get(e.action);
+      playAction(target, target.getClip().name === 'Idle' ? 0.08 : 0.12);
+    }
+    else if (TAKEOFFS.includes(e.action.getClip().name) && jumpPhase === 'air') playAction(actions.get('Fall'), 0.25);
+    else if (LANDINGS.includes(e.action.getClip().name)) landed();
+  });
+  for (const clip of gltf.animations) {
+    const action = mixer.clipAction(clip).setEffectiveWeight(0);
+    actions.set(clip.name, action);
+    if (ONE_SHOTS.includes(clip.name)) {
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;   // hold the last pose until the next clip has faded in
+    }
+  }
+  // The loops preview in place; the take-offs and landings play in a real jump (Space or the jump buttons).
+  const box = document.getElementById('clips');
+  for (const name of ['Idle', 'Walk', 'Run', 'Fall', 'Wave'].filter(name => actions.has(name))) {
+    const b = document.createElement('button');
+    b.textContent = name;
+    b.dataset.clip = name;
+    b.onclick = () => preview(name);
+    box.appendChild(b);
+  }
+  play('Idle', 0);
+  document.getElementById('stats').textContent =
+    `${verts.toLocaleString('en')} vertices · ${bones} bones · walk ${walkSpeed} m/s · run ${runSpeed} m/s`;
+});
+
+function idleEntryDuration(property, start, end, limb, travel) {
+  const distance = property === 'quaternion'
+    ? new THREE.Quaternion().fromArray(start).angleTo(new THREE.Quaternion().fromArray(end))
+    : new THREE.Vector3().fromArray(start).distanceTo(new THREE.Vector3().fromArray(end));
+  const poseTime = distance / (property === 'quaternion' ? (limb === 'body' ? 0.65 : 2.5) : 0.25);
+  // smootherstep's peak speed is 1.875 times its mean speed.
+  return THREE.MathUtils.clamp(Math.max(poseTime, travel * 1.875 / 1.1), limb === 'body' ? 0.18 : 0.08, 0.6);
+}
+
+function makePoseEntry(target, durationForPose) {
+  const frames = 30;
+  const poses = target.getClip().tracks.map(source => {
+    const { nodeName, propertyName } = THREE.PropertyBinding.parseTrackName(source.name);
+    const node = mnot.getObjectByName(nodeName);
+    if (!node || !['position', 'quaternion', 'scale'].includes(propertyName)) {
+      throw new Error(`Unsupported pose track: ${source.name}`);
+    }
+    const start = node[propertyName].toArray();
+    const end = source.createInterpolant().evaluate(0);
+    // Keep each limb's joints together, but let a small movement finish before a large swing.
+    const limb = nodeName.match(/^(upper_arm|forearm|hand)_(L|R)$/) ? 'arm_' + nodeName.slice(-1)
+      : nodeName.match(/^(thigh|shin|foot)_(L|R)$/) ? 'leg_' + nodeName.slice(-1) : 'body';
+    return { source, node, propertyName, start, end, limb };
+  });
+  // Measure each hand/foot's remaining travel in the destination pose, then restore the displayed pose.
+  mnot.updateMatrixWorld(true);
+  const tips = new Map(['arm_L', 'arm_R', 'leg_L', 'leg_R'].map(limb => {
+    const node = mnot.getObjectByName((limb.startsWith('arm') ? 'hand_' : 'foot_') + limb.slice(-1));
+    return [limb, { node, start: node.getWorldPosition(new THREE.Vector3()) }];
+  }));
+  for (const { node, propertyName, end } of poses) node[propertyName].fromArray(end);
+  mnot.updateMatrixWorld(true);
+  const travel = new Map([...tips].map(([limb, tip]) => [limb,
+    tip.start.distanceTo(tip.node.getWorldPosition(new THREE.Vector3()))]));
+  for (const { node, propertyName, start } of poses) node[propertyName].fromArray(start);
+  mnot.updateMatrixWorld(true);
+  const durations = new Map();
+  for (const { propertyName, start, end, limb } of poses) {
+    durations.set(limb, Math.max(durations.get(limb) ?? 0,
+      durationForPose(propertyName, start, end, limb, travel.get(limb) ?? 0)));
+  }
+  const tracks = poses.map(({ source, propertyName, start, end, limb }) => {
+    const duration = durations.get(limb);
+    const size = source.getValueSize(), track = source.clone();
+    track.times = new Float32Array(frames + 1);
+    track.values = new Float32Array((frames + 1) * size);
+    const startRotation = propertyName === 'quaternion' ? new THREE.Quaternion().fromArray(start) : null;
+    const endRotation = propertyName === 'quaternion' ? new THREE.Quaternion().fromArray(end) : null;
+    const rotation = new THREE.Quaternion();
+    for (let frame = 0; frame <= frames; frame++) {
+      const progress = frame / frames;
+      const eased = THREE.MathUtils.smootherstep(progress, 0, 1);
+      track.times[frame] = progress * duration;
+      if (propertyName === 'quaternion') {
+        rotation.slerpQuaternions(startRotation, endRotation, eased).toArray(track.values, frame * size);
+      } else {
+        for (let i = 0; i < size; i++) track.values[frame * size + i] = THREE.MathUtils.lerp(start[i], end[i], eased);
+      }
+    }
+    return track;
+  });
+  const clip = new THREE.AnimationClip(target.getClip().name + 'Enter', -1, tracks);
+  const action = mixer.clipAction(clip).setLoop(THREE.LoopOnce, 1).setEffectiveWeight(0);
+  clip.userData = { limbDurations: Object.fromEntries(durations) };
+  action.clampWhenFinished = true;
+  poseEntries.set(action, target);
+  actions.set(clip.uuid, action);
+  return action;
+}
+
+function play(name, fade = 0.14) {
+  const target = actions.get(name);
+  if (!target) return false;
+  if (target !== current && (name === 'Wave' || name === 'Idle' && current
+    && !SETTLED.includes(current.getClip().name))) {
+    pendingAnimation = null;
+    if (poseEntries.get(current) === target) return true;
+    const started = playAction(makePoseEntry(target, name === 'Wave' ? () => 0.5 : idleEntryDuration), 0.06);
+    if (started && name === 'Wave') sounds.play('wave');
+    return started;
+  }
+  return playAction(target, fade);
+}
+
+function playAction(next, fade) {
+  const name = next.getClip().name;
+  if (next === current) {
+    pendingAnimation = null;
+    // A buffered repeat starts at the matching end/start pose of the finished jump.
+    if (ONE_SHOTS.includes(name) && next.paused) next.reset().setEffectiveWeight(1).play();
+    return true;
+  }
+  // Native fadeIn starts at zero. Finish fading an already contributing target out before reusing it,
+  // so rapid reversals never drop its current pose or restart it at a different foot phase.
+  if (next.isScheduled() && next.getEffectiveWeight() > 0) {
+    if (!ONE_SHOTS.includes(name)) pendingAnimation = { name, fade };
+    return false;
+  }
+  pendingAnimation = null;
+  const changingGait = current && GAITS.includes(name) && GAITS.includes(current.getClip().name);
+  const phase = changingGait ? current.time / current.getClip().duration : 0;
+  const duration = changingGait ? 0.2 : fade;
+  // Rebase outgoing native fades at their current influence when a third animation interrupts them.
+  for (const action of actions.values()) {
+    if (action.isScheduled()) action.setEffectiveWeight(action.getEffectiveWeight());
+  }
+  next.reset().setEffectiveWeight(1).setEffectiveTimeScale(1).play();
+  next.time = phase * next.getClip().duration;
+  if (current && duration > 0) {
+    current.crossFadeTo(next, duration, false);
+    for (const action of actions.values()) {
+      if (action !== current && action !== next && action.isScheduled()) action.fadeOut(duration);
+    }
+  } else {
+    for (const action of actions.values()) {
+      if (action !== next && action.isScheduled()) action.stop().setEffectiveWeight(0);
+    }
+  }
+  current = next;
+  mixer.update(0); // apply the native fade's initial weights without advancing clip time
+  refreshButtons();
+  return true;
+}
+
+function finishTransitions() {
+  for (const action of actions.values()) {
+    if (action !== current && action.isScheduled() && action.getEffectiveWeight() === 0) {
+      action.stop().setEffectiveWeight(0);
+      if (poseEntries.delete(action)) {
+        const clip = action.getClip();
+        actions.delete(clip.uuid);
+        mixer.uncacheAction(clip);
+      }
+    }
+  }
+  if (pendingAnimation) play(pendingAnimation.name, pendingAnimation.fade);
+}
+
+function refreshButtons() {
+  const name = poseEntries.get(current)?.getClip().name ?? current?.getClip().name;
+  for (const b of document.querySelectorAll('#clips button')) b.classList.toggle('on', b.dataset.clip === name);
+  document.getElementById('stroll').classList.toggle('on', mode === 'stroll' && strollGait === 'Walk');
+  document.getElementById('runlaps').classList.toggle('on', mode === 'stroll' && strollGait === 'Run');
+}
+
+function preview(name) {
+  if (jumpPhase) return; // never blend the body back to the floor halfway through a jump
+  velocity.set(0, 0, 0);
+  mode = name;
+  play(name);
+}
+
+// Resolve keyboard intent in tick(), so W + Space on the same frame selects a moving jump.
+function jump(height = null) {
+  if (!mnot) return;
+  requestedHeight = height;
+  jumpBuffer = 0.12;
+}
+
+function canJump() {
+  return !jumpPhase || jumpPhase === 'landing' && current.time >= (JUMP_LAG[current.getClip().name] ?? 0);
+}
+
+function startJump(running) {
+  const moving = move.lengthSq() > 0 || velocity.length() > 0.08 || mode === 'stroll';
+  // a longer blend into the leap, so the feet don't snap from wherever the stride was
+  if (!play(moving ? 'LeapStart' : 'JumpStart', moving ? 0.1 : 0.06)) return;
+  const height = requestedHeight ?? (running ? jumpRig.run_jump_height : jumpRig.jump_height);
+  launchSpeed = Math.sqrt(2 * jumpRig.jump_gravity * height);
+  jumpPhase = 'takeoff';
+  airSpeed = running ? runSpeed : walkSpeed;
+  jumpBuffer = 0;
+  requestedHeight = null;
+}
+
+// The take-off clip has pushed off, so the root flies from here, including the part of the frame past take-off.
+function launch() {
+  const late = current.time - takeoffTime(current.getClip().name);
+  jumpPhase = 'air';
+  verticalSpeed = launchSpeed - jumpRig.jump_gravity * late;
+  mnot.position.y = Math.max(0, launchSpeed * late - jumpRig.jump_gravity * late * late / 2);
+  sounds.play('jump');
+}
+
+function touchDown() {
+  const impact = -verticalSpeed;
+  mnot.position.y = verticalSpeed = 0;
+  const moving = mode === 'stroll' || move.lengthSq() > 0;
+  jumpPhase = 'landing';
+  const hard = impact >= jumpRig.hard_landing_speed;
+  sounds.stopFall();
+  sounds.play(hard ? 'land-hard' : 'land-soft');
+  const landing = hard ? 'LandHard' : moving ? 'LeapLand' : 'Land';
+  if (!play(landing, landing === 'LeapLand' ? 0.08 : 0.05)) landed();
+}
+
+function airborne() {
+  return jumpPhase === 'air';
+}
+
+function landed() {
+  jumpPhase = null;
+  if (jumpBuffer > 0) {
+    startJump(mode === 'stroll' ? strollGait === 'Run' : keys.has('ShiftLeft') || keys.has('ShiftRight'));
+    if (jumpPhase) return;
+  }
+  if (mode === 'stroll') play(strollGait, 0.1);
+  else if (mode === 'keys') play(velocity.length() > 0.025 ? groundGait() : 'Idle', 0.1);
+  else play(mode, 0.1);
+}
+
+function stroll(gait) {
+  if (!mnot || jumpPhase) return;
+  if (mode !== 'stroll') {
+    // Start a circle tangent to the current heading, at the current position, without a radius snap.
+    strollAngle = -mnot.rotation.y;
+    strollCenter.copy(mnot.position).sub(new THREE.Vector3(Math.cos(strollAngle) * strollRadius, 0,
+      Math.sin(strollAngle) * strollRadius));
+  }
+  mode = 'stroll';
+  strollGait = gait;
+  refreshButtons();
+}
+document.getElementById('stroll').onclick = () => stroll('Walk');
+document.getElementById('runlaps').onclick = () => stroll('Run');
+document.getElementById('jump').onclick = () => jump();
+document.getElementById('highjump').onclick = () => jump(HIGH_JUMP);
+document.getElementById('toon').onclick = () => setLook(true);
+document.getElementById('pbr').onclick = () => setLook(false);
+
+const keys = new Set();
+const CONTROL_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+  'ShiftLeft', 'ShiftRight', 'Space', 'KeyE', 'KeyM']);
+addEventListener('keydown', (e) => {
+  if (!CONTROL_KEYS.has(e.code) || e.ctrlKey || e.metaKey || e.altKey
+    || e.target.closest?.('input, textarea, select, button, [contenteditable="true"]')) return;
+  e.preventDefault();
+  if (e.isTrusted) void sounds.unlock();
+  keys.add(e.code);
+  if (e.code === 'KeyM' && !e.repeat) toggleSound();
+  if (e.code === 'KeyE' && !e.repeat) preview('Wave');
+  if (e.code === 'Space' && !e.repeat) jump();
+});
+// keep the buttons from taking focus, so Space never clicks the last one pressed
+addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
+addEventListener('keyup', (e) => keys.delete(e.code));
+function clearInput() {
+  keys.clear();
+  velocity.set(0, 0, 0);
+  jumpBuffer = 0;
+  requestedHeight = null;
+  sounds.pause();
+}
+addEventListener('blur', clearInput);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) clearInput(); else sounds.resume();
+});
+
+window.viewer = { camera, controls, get mnot() { return mnot; }, get mode() { return mode; },   // for debugging
+  get sound() { return sounds.state; },
+  get clip() { return poseEntries.get(current)?.getClip().name ?? current?.getClip().name; }, jump,
+  get motion() { return { velocity: velocity.toArray(), speed: velocity.length(), jumping: jumpPhase !== null,
+    jumpPhase, airborne: airborne(), height: mnot?.position.y ?? 0, verticalSpeed,
+    jumpHeight: launchSpeed ** 2 / (2 * jumpRig.jump_gravity), clipTime: current?.time,
+    waveEntryTime: poseEntries.get(current)?.getClip().name === 'Wave' ? current.time : null,
+    waveEntryCount: [...poseEntries.values()].filter(action => action.getClip().name === 'Wave').length,
+    idleEntryTime: poseEntries.get(current)?.getClip().name === 'Idle' ? current.time : null,
+    idleEntryDuration: poseEntries.get(current)?.getClip().name === 'Idle' ? current.getClip().duration : null,
+    idleLimbDurations: poseEntries.get(current)?.getClip().name === 'Idle' ? current.getClip().userData.limbDurations : null,
+    poseEntryCount: poseEntries.size,
+    weights: [...actions].map(([name, action]) => [poseEntries.has(action) ? action.getClip().name : name, action.getEffectiveWeight()]),
+    gaits: GAITS.map(name => { const action = actions.get(name); return { name,
+      phase: action.time / action.getClip().duration, rate: action.getEffectiveTimeScale() / action.getClip().duration }; })
+  }; } };
+
+const timer = new THREE.Timer();
+timer.connect(document);
+const move = new THREE.Vector3(), desired = new THREE.Vector3(), fwd = new THREE.Vector3();
+const right = new THREE.Vector3(), before = new THREE.Vector3(), delta = new THREE.Vector3();
+
+function turnTowards(yaw, dt) {
+  let d = yaw - mnot.rotation.y;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  mnot.rotation.y += d * (1 - Math.exp(-18 * dt));
+}
+
+function groundGait() {
+  if (mode === 'stroll') return strollGait;
+  return keys.has('ShiftLeft') || keys.has('ShiftRight') ? 'Run' : 'Walk';
+}
+
+function updateGaitRate() {
+  const previewingGait = GAITS.includes(mode) && !jumpPhase;
+  // Both gaits must advance at the same normalized phase throughout a transition. Their natural
+  // stride lengths differ, so independently scaling each to travel speed would separate the feet.
+  let weight = 0, stride = 0, cadence = 0;
+  for (const name of GAITS) {
+    const action = actions.get(name), influence = action.getEffectiveWeight();
+    weight += influence;
+    stride += influence * (name === 'Run' ? runSpeed : walkSpeed) * action.getClip().duration;
+    cadence += influence / action.getClip().duration;
+  }
+  if (weight === 0) return;
+  // Outgoing gaits follow travel speed during their short fade into the captured entry pose.
+  const frequency = previewingGait ? cadence / weight : velocity.length() / (stride / weight);
+  for (const name of GAITS) {
+    const action = actions.get(name);
+    action.setEffectiveTimeScale(frequency * action.getClip().duration);
+  }
+}
+
+let previousFootPhase = null;
+function updateStepSounds() {
+  const gait = current.getClip().name;
+  const weight = GAITS.reduce((sum, name) => sum + actions.get(name).getEffectiveWeight(), 0);
+  if (jumpPhase || !GAITS.includes(gait) || weight < 0.25) {
+    previousFootPhase = null;
+    return;
+  }
+  // Walk and Run share their stride phase: one foot contact at phase 0 and one at 0.5.
+  // Keep that phase through their crossfade so switching gait never doubles a footstep.
+  const phase = Math.floor(current.time / current.getClip().duration * 2) % 2;
+  if (phase !== previousFootPhase) sounds.step(gait);
+  previousFootPhase = phase;
+}
+
+function tick(timestamp) {
+  timer.update(timestamp);
+  const dt = Math.min(timer.getDelta(), 0.05);
+  if (mnot) {
+    before.copy(mnot.position);
+    camera.getWorldDirection(fwd);
+    fwd.y = 0;
+    fwd.normalize();
+    right.crossVectors(fwd, THREE.Object3D.DEFAULT_UP);
+    move.set(0, 0, 0);
+    if (keys.has('KeyW') || keys.has('ArrowUp')) move.add(fwd);
+    if (keys.has('KeyS') || keys.has('ArrowDown')) move.sub(fwd);
+    if (keys.has('KeyD') || keys.has('ArrowRight')) move.add(right);
+    if (keys.has('KeyA') || keys.has('ArrowLeft')) move.sub(right);
+    let running = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    if (move.lengthSq() > 0) {
+      mode = 'keys';
+      move.normalize();
+    }
+    if (mode === 'stroll') running = strollGait === 'Run';
+    if (jumpBuffer > 0 && canJump()) startJump(running);
+    jumpBuffer = Math.max(0, jumpBuffer - dt);
+    const landing = jumpPhase === 'landing' ? current.getClip().name : null;
+    if (landing && move.lengthSq() > 0 && current.time >= (MOVE_LAG[landing] ?? Infinity)) landed();
+    const stopped = landing === 'LandHard' && jumpPhase === 'landing'; // no travel while recovering from a hard landing
+
+    if (mode === 'stroll') {
+      const speed = THREE.MathUtils.damp(velocity.length(), stopped ? 0 : running ? runSpeed : walkSpeed, 20, dt);
+      strollAngle += speed * dt / strollRadius;
+      mnot.position.x = strollCenter.x + Math.cos(strollAngle) * strollRadius;
+      mnot.position.z = strollCenter.z + Math.sin(strollAngle) * strollRadius;
+      velocity.set(-Math.sin(strollAngle) * speed, 0, Math.cos(strollAngle) * speed);
+    } else {
+      desired.copy(move).multiplyScalar(stopped ? 0 : airborne() ? airSpeed : running ? runSpeed : walkSpeed);
+      // In the air, retain momentum on release and steer gradually. Brake as soon as the feet land.
+      if (!airborne() || move.lengthSq() > 0) {
+        const response = airborne() ? 6 : move.lengthSq() > 0 ? 20 : 26;
+        velocity.lerp(desired, 1 - Math.exp(-response * dt));
+      }
+      if (velocity.length() < 0.015) velocity.set(0, 0, 0);
+      mnot.position.addScaledVector(velocity, dt);
+    }
+    if (velocity.lengthSq() > 0) turnTowards(Math.atan2(velocity.x, velocity.z), dt);
+    if (jumpPhase === 'air') {
+      mnot.position.y += verticalSpeed * dt - jumpRig.jump_gravity * dt * dt / 2;
+      verticalSpeed -= jumpRig.jump_gravity * dt;
+      if (mnot.position.y <= 0) touchDown();
+    }
+
+    if (!jumpPhase && (mode === 'keys' || mode === 'stroll')) {
+      if (mode === 'stroll' || move.lengthSq() > 0) play(groundGait());
+      else { mode = 'Idle'; play('Idle'); }
+    }
+    // the camera follows the character
+    delta.copy(mnot.position).sub(before);
+    // height changes follow with a short lag, so jumps don't shake the view
+    const lift = THREE.MathUtils.damp(cameraLift, mnot.position.y, 6, dt);
+    delta.y = lift - cameraLift;
+    cameraLift = lift;
+    camera.position.add(delta);
+    controls.target.add(delta);
+    sun.position.set(mnot.position.x - 3, 6, mnot.position.z + 4);
+    sun.target.position.copy(mnot.position);
+    updateGaitRate();
+    mixer.update(dt);
+    finishTransitions();
+    if (jumpPhase === 'takeoff' && TAKEOFFS.includes(current.getClip().name)
+      && current.time >= takeoffTime(current.getClip().name)) launch();
+    updateStepSounds();
+    // A normal standing jump briefly uses the Fall pose too; reserve its sound for a longer flight.
+    const longFlight = airborne() && launchSpeed > Math.sqrt(2 * jumpRig.jump_gravity * jumpRig.run_jump_height);
+    if (current.getClip().name === 'Fall' && (longFlight || mode === 'Fall' && !jumpPhase)) sounds.startFall();
+    else sounds.stopFall();
+  }
+  controls.update();
+  if (useToon) outline.render(scene, camera); else renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+tick();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+<script>
+// The local development server disables caching and watches code, models and sound assets.
+if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)) {
+  let version;
+  async function checkUpdates() {
+    try {
+      const response = await fetch('/__dev_version', { cache: 'no-store' });
+      if (!response.ok) return;
+      const update = await response.json();
+      if (version !== undefined && update.version !== version) location.reload();
+      version = update.version;
+    } catch { /* The viewer stays usable while the development server restarts. */ }
+  }
+  checkUpdates();
+  setInterval(checkUpdates, 750);
+}
+</script>
+</body>
+</html>

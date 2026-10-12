@@ -1,0 +1,9 @@
+{
+  "name": "walk-3",
+  "prompt": "Cosy game SFX for a tiny plush-like mascot. Warm, rounded, cushioned and very soft. Dry and isolated. No metal, rattle, creak, crackle, hiss, music or voices. One single light padded slipper footstep on a soft mat. A warm mellow pup, with a smooth soft attack and short pillowy decay. Immediate onset, only one footfall.",
+  "duration": 0.5,
+  "loop": false,
+  "model": "eleven_text_to_sound_v2",
+  "character_cost": 5,
+  "source": "audio/source/walk-3.mp3"
+}

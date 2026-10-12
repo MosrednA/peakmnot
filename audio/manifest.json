@@ -1,0 +1,107 @@
+{
+  "provider": "ElevenLabs",
+  "model": "eleven_text_to_sound_v2",
+  "sample_rate": 22050,
+  "sounds": [
+    {
+      "name": "fall",
+      "file": "audio/fall.wav",
+      "duration": 2.538004535147392,
+      "peak": 0.3499999940395355,
+      "rms": 0.06703788787126541,
+      "onset": 0.0,
+      "source_trim": 0.0,
+      "loop": true
+    },
+    {
+      "name": "jump",
+      "file": "audio/jump.wav",
+      "duration": 0.3366439909297052,
+      "peak": 0.3500000238418579,
+      "rms": 0.025817835703492165,
+      "onset": 0.0014965986394557824,
+      "source_trim": 0.0,
+      "loop": false
+    },
+    {
+      "name": "land-hard",
+      "file": "audio/land-hard.wav",
+      "duration": 0.6,
+      "peak": 0.2196895182132721,
+      "rms": 0.03500000014901161,
+      "onset": 0.0012698412698412698,
+      "source_trim": 0.0,
+      "loop": false
+    },
+    {
+      "name": "land-soft",
+      "file": "audio/land-soft.wav",
+      "duration": 0.24494331065759636,
+      "peak": 0.3499999940395355,
+      "rms": 0.01234348863363266,
+      "onset": 0.006439909297052154,
+      "source_trim": 0.047551020408163266,
+      "loop": false
+    },
+    {
+      "name": "run-1",
+      "file": "audio/run-1.wav",
+      "duration": 0.16,
+      "peak": 0.26506105065345764,
+      "rms": 0.02499999850988388,
+      "onset": 0.004807256235827664,
+      "source_trim": 0.0,
+      "loop": false
+    },
+    {
+      "name": "run-2",
+      "file": "audio/run-2.wav",
+      "duration": 0.16,
+      "peak": 0.34991177916526794,
+      "rms": 0.017712995409965515,
+      "onset": 0.012517006802721088,
+      "source_trim": 0.0,
+      "loop": false
+    },
+    {
+      "name": "walk-1",
+      "file": "audio/walk-1.wav",
+      "duration": 0.2,
+      "peak": 0.33012932538986206,
+      "rms": 0.02500000037252903,
+      "onset": 0.0068480725623582765,
+      "source_trim": 0.022086167800453516,
+      "loop": false
+    },
+    {
+      "name": "walk-2",
+      "file": "audio/walk-2.wav",
+      "duration": 0.2,
+      "peak": 0.317543625831604,
+      "rms": 0.02500000037252903,
+      "onset": 0.008027210884353741,
+      "source_trim": 0.0,
+      "loop": false
+    },
+    {
+      "name": "walk-3",
+      "file": "audio/walk-3.wav",
+      "duration": 0.2,
+      "peak": 0.1446761041879654,
+      "rms": 0.02500000037252903,
+      "onset": 0.0017233560090702948,
+      "source_trim": 0.0,
+      "loop": false
+    },
+    {
+      "name": "wave",
+      "file": "audio/wave.wav",
+      "duration": 0.46861678004535146,
+      "peak": 0.34088605642318726,
+      "rms": 0.042020283639431,
+      "onset": 0.006575963718820862,
+      "source_trim": 0.0033106575963718823,
+      "loop": false
+    }
+  ]
+}

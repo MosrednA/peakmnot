@@ -1,0 +1,9 @@
+{
+  "name": "land-soft",
+  "prompt": "Cosy game SFX for a tiny plush-like mascot. Warm, rounded, cushioned and very soft. Dry and isolated. No metal, rattle, creak, crackle, hiss, music or voices. One gentle two-shoe landing on a thick soft mat. A little warm pillowy thup with a very short rounded rubber settling tail. Immediate onset, smooth decay, one soft landing.",
+  "duration": 0.7,
+  "loop": false,
+  "model": "eleven_text_to_sound_v2",
+  "character_cost": 7,
+  "source": "audio/source/land-soft.mp3"
+}

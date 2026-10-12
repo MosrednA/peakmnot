@@ -1,0 +1,9 @@
+{
+  "name": "wave",
+  "prompt": "Cosy game SFX for a tiny plush-like mascot. Warm, rounded, cushioned and very soft. Dry and isolated. No metal, rattle, creak, crackle, hiss, music or voices. A single friendly greeting gesture as two tiny warm round liquid bubbles, bloop blup, quietly rising in pitch. Mellow soft attack, smooth little tail. Non-vocal and non-musical. Immediate onset, one short gesture.",
+  "duration": 0.7,
+  "loop": false,
+  "model": "eleven_text_to_sound_v2",
+  "character_cost": 7,
+  "source": "audio/source/wave.mp3"
+}

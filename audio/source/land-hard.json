@@ -1,0 +1,9 @@
+{
+  "name": "land-hard",
+  "prompt": "Cosy game SFX for a tiny plush-like mascot. Warm, rounded, cushioned and very soft. Dry and isolated. No metal, rattle, creak, crackle, hiss, music or voices. One slightly deeper cushioned landing on a thick pillow. A warm soft low pumf and a tiny rounded rubber bounce, comforting and playful. Immediate onset, smooth short decay, one impact.",
+  "duration": 0.85,
+  "loop": false,
+  "model": "eleven_text_to_sound_v2",
+  "character_cost": 8,
+  "source": "audio/source/land-hard.mp3"
+}

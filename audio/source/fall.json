@@ -1,0 +1,9 @@
+{
+  "name": "fall",
+  "prompt": "Cosy game SFX for a tiny plush-like mascot. Warm, rounded, cushioned and very soft. Dry and isolated. No metal, rattle, creak, crackle, hiss, music or voices. Seamless cartoon balancing loop: a tiny character awkwardly windmills its arms in mid-air. Soft elastic whup-whup flaps with a gently wobbling pitch and a few tiny rounded rubber plips. Mild playful slapstick, warm and understated. No big boing, whistle, crash or voices.",
+  "duration": 2.4,
+  "loop": true,
+  "model": "eleven_text_to_sound_v2",
+  "character_cost": 24,
+  "source": "audio/source/fall.mp3"
+}

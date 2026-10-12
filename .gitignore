@@ -1,0 +1,6 @@
+# Blender keeps the previous save next to the .blend
+*.blend1
+__pycache__/
+# test and QA output
+.playwright-mcp/
+.mnot-qa/
