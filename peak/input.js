@@ -1,0 +1,74 @@
+// Keyboard state, turned into movement once per frame: relative to the camera's shot, with "onwards" along the route.
+import * as THREE from 'three';
+
+const KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+  'ShiftLeft', 'ShiftRight', 'Space', 'KeyM']);
+// each movement key's direction on screen: x to the right, y up
+const MOVES = { KeyW: [0, 1], ArrowUp: [0, 1], KeyS: [0, -1], ArrowDown: [0, -1], KeyD: [1, 0], ArrowRight: [1, 0],
+  KeyA: [-1, 0], ArrowLeft: [-1, 0] };
+const LANE = 1.4;        // how hard "onwards" alone steers back to the walking line, per metre off it
+const STICK = 0.4;       // a held key stays "onwards" until the camera has swung this far off (the cosine)
+
+export class Input {
+  constructor() {
+    this.keys = new Set();
+    this.pressed = new Set();     // pressed since the last read()
+    this.move = new THREE.Vector3();
+    this.axis = null;             // which screen axis means "onwards", kept while a key on it stays held
+    addEventListener('keydown', (e) => {
+      if (!KEYS.has(e.code) || e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, button')) return;
+      e.preventDefault();
+      if (!e.repeat) this.pressed.add(e.code);
+      this.keys.add(e.code);
+    });
+    addEventListener('keyup', (e) => this.keys.delete(e.code));
+    addEventListener('blur', () => this.keys.clear());
+  }
+
+  // For tests: hold or release a key as if it were typed.
+  key(code, down) {
+    if (down && !this.keys.has(code)) this.pressed.add(code);
+    if (down) this.keys.add(code); else this.keys.delete(code);
+  }
+
+  held(...codes) { return codes.some(c => this.keys.has(c)); }
+
+  // The frame's intent, relative to the camera's flat forward direction. The screen axis that lies closest to the
+  // route (route.dir, the way it goes here) is swapped for the route itself, like a 2.5D game: when the route runs
+  // across the screen, right means exactly "onwards" though the camera looks at it at an angle, and round corners.
+  // Holding only that axis also steers gently back to the walking line (route.side metres off it); up and down
+  // step off it on purpose. While a key on that axis stays held it keeps meaning onwards as the camera swings round
+  // a corner, so holding right never turns into walking off the edge halfway. direction(keys) gives the move of just
+  // some of the held keys (planks and ropes ignore the keys held when Mnot stepped on).
+  read(forward, route = null) {
+    const right = new THREE.Vector3(-forward.z, 0, forward.x);
+    forward = forward.clone();
+    const held = new Set([...this.keys].filter(k => k in MOVES));
+    const keyed = axis => [...held].some(k => MOVES[k][axis] !== 0);
+    let lane = null;
+    if (!route || this.axis !== null && !keyed(this.axis)) this.axis = null;
+    if (route) {
+      const along = route.dir, r = along.dot(right), f = along.dot(forward);
+      const across = new THREE.Vector3(-along.z, 0, along.x)
+        .multiplyScalar(-THREE.MathUtils.clamp(route.side * LANE, -0.6, 0.6));
+      let axis = this.axis ?? (Math.abs(r) >= Math.abs(f) ? 0 : 1);
+      if (Math.abs(axis === 0 ? r : f) < STICK) axis = 1 - axis;
+      this.axis = keyed(axis) ? axis : null;
+      if (axis === 0) right.copy(along).multiplyScalar(Math.sign(r));
+      else forward.copy(along).multiplyScalar(Math.sign(f));
+      lane = { axis, across };
+    }
+    const direction = (keys = held, target = new THREE.Vector3()) => {
+      let x = 0, y = 0;
+      for (const k of keys) { x += MOVES[k][0]; y += MOVES[k][1]; }
+      target.set(0, 0, 0).addScaledVector(right, Math.sign(x)).addScaledVector(forward, Math.sign(y));
+      if (lane && (lane.axis === 0 ? x !== 0 && y === 0 : y !== 0 && x === 0)) target.add(lane.across);
+      return target.lengthSq() > 0 ? target.normalize() : target;
+    };
+    direction(held, this.move);
+    const frame = { move: this.move, held, direction, careful: this.held('ShiftLeft', 'ShiftRight'),
+      jump: this.pressed.has('Space'), mute: this.pressed.has('KeyM') };
+    this.pressed.clear();
+    return frame;
+  }
+}

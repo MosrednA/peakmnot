@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Peak Mnot</title>
+<style>
+  :root { --panel: rgba(18, 32, 48, 0.62); --text: #f4f8fc; --muted: #c4d3e2; --accent: #e23b2e; }
+  html, body { margin: 0; height: 100%; background: #cfe3f5; color: var(--text);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; user-select: none; }
+  canvas { display: block; touch-action: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #title { position: absolute; top: 12px; left: 16px; padding: 6px 12px; border-radius: 9px; background: var(--panel); }
+  #title b { font-size: 17px; letter-spacing: 0.02em; }
+  #title span { color: var(--muted); font-size: 12px; }
+  #help { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
+    padding: 5px 12px; border-radius: 9px; background: var(--panel); color: var(--muted); font-size: 12px;
+    text-align: center; }
+  #toast { position: absolute; top: 22%; left: 0; right: 0; text-align: center; font-size: 28px; font-weight: 700;
+    letter-spacing: 0.04em; opacity: 0; transition: opacity 0.4s;
+    text-shadow: 0 2px 8px rgba(0, 30, 60, 0.6), 0 0 2px rgba(0, 30, 60, 0.8); }
+  #toast small { display: block; font-size: 15px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  #balance { position: absolute; left: 50%; bottom: 64px; width: 220px; height: 14px; margin-left: -110px;
+    border-radius: 7px; background: var(--panel); opacity: 0; transition: opacity 0.25s; }
+  #balance::before { content: ""; position: absolute; left: 30%; right: 30%; top: 3px; bottom: 3px; border-radius: 4px;
+    background: rgba(140, 220, 160, 0.35); }
+  #balance i { position: absolute; top: -3px; width: 6px; height: 20px; margin-left: -3px; left: 50%; border-radius: 3px;
+    background: #fff; box-shadow: 0 0 6px rgba(0, 0, 0, 0.35); }
+  #fade { position: absolute; inset: 0; background: #f2f7fc; opacity: 0; transition: opacity 0.35s; }
+  #sound { position: absolute; top: 12px; right: 16px; pointer-events: auto; font: inherit; color: var(--text);
+    background: var(--panel); border: 0; padding: 7px 12px; border-radius: 9px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div id="title"><b>Peak Mnot</b><br><span id="stats">loading…</span></div>
+  <div id="toast"></div>
+  <div id="balance"><i></i></div>
+  <div id="fade"></div>
+  <div id="help">WASD to move · Shift for careful steps · Space to jump · drag to look around · M to mute</div>
+  <button id="sound" aria-pressed="true">Sound on</button>
+</div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+<script type="module" src="peak/main.js"></script>
+<script>
+// The local development server disables caching and watches code, models and sound assets.
+if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && !location.search.includes('manual')) {
+  let version;
+  async function checkUpdates() {
+    try {
+      const response = await fetch('/__dev_version', { cache: 'no-store' });
+      if (!response.ok) return;
+      const update = await response.json();
+      if (version !== undefined && update.version !== version) location.reload();
+      version = update.version;
+    } catch { /* The game stays playable while the development server restarts. */ }
+  }
+  checkUpdates();
+  setInterval(checkUpdates, 750);
+}
+</script>
+</body>
+</html>
