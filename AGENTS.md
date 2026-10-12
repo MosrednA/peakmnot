@@ -7,7 +7,8 @@ and animated for a three.js browser game. These rules are for every agent workin
 ## The project
 
 - **What's here:** [README.md](README.md) covers the files, the viewer, the clips and the checks.
-  [IDEAS.md](IDEAS.md) holds the game ideas the user liked; the game itself is not chosen yet.
+  [IDEAS.md](IDEAS.md) holds the game ideas the user liked. The chosen game is Peak Mnot, a mountain climb
+  (`peak.html` and `peak/`).
 - **Language:** all files in English. Chat with the user in Dutch.
 - **The model, rig and clips** come from `tools/build_mnot.py` (Blender 5.2, run in the background). Never edit
   `models/mnot.glb` or `models/mnot.blend` by hand: change the script and rebuild.

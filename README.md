@@ -13,6 +13,7 @@ A soda can with big glasses and rubber-hose arms and legs, rigged and animated f
 | [`audio/README.md`](audio/README.md) | ElevenLabs sound palette, source metadata, processing and regeneration. |
 | `tools/check_sounds.js` | Real-time Playwright checks for audio loading, event timing, muting and focus cleanup. |
 | `tools/dev_server.py` | Local server with cache disabled and automatic browser reload when code, GLB or WAV sounds change. |
+| [`peak/README.md`](peak/README.md) | Peak Mnot, the game: a mountain climb in `peak.html` and `peak/`. Open <http://127.0.0.1:5280/peak.html>. |
 
 View it: `python tools/dev_server.py`, then open <http://127.0.0.1:5280/>.
 The browser checks for source changes every 750 ms and reloads automatically. The version hash watches

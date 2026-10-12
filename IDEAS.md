@@ -1,6 +1,17 @@
 # Ideas
 
-Game ideas for Mnot, the mascot of the Met Nerds om Tafel podcast. The game itself is not chosen yet.
+Game ideas for Mnot, the mascot of the Met Nerds om Tafel podcast.
+
+## Chosen: Peak Mnot
+
+"Peak Mnot" is a meme in the podcast's community: the moment the nerds, being nerds, dig far too deep into a detail.
+The game takes it literally. Mnot is very high up in the mountains and climbs to the summit: jumping over cliffs and
+ledges, balancing over planks and ropes, in wind gusts, now and then snow, and falling rocks.
+
+- 3D, the camera in front of or beside Mnot so the can and glasses stay in view, changing per stretch.
+- Dents are the health (see below): a fall or a rock dents the can. Once it's flattened, Mnot goes back to the last
+  checkpoint and the dents pop out.
+- Prototype: `peak.html` and `peak/` (see [peak/README.md](peak/README.md)). One route from base camp to the summit.
 
 ## Direction under consideration
 
