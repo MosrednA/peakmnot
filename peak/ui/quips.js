@@ -11,6 +11,7 @@ const LINES = {
     'Loose rock. Looser plan.'],
   ice: ['Coefficient of friction: no.', 'Shift happens.', 'Ice to meet you.', 'A slippery slope argument.'],
   gust: ['Gone with the wind.', 'Venturi says hi.', 'Aerodynamics of a can: poor.', 'Should have read the windsock.'],
+  teeter: ['Edge case.', 'Off by one step.', 'Teeter, totter, gone.', 'Should have stepped back.'],
   gondola: ['Mind the gap.', 'The gondola waits for no can.', 'Timing: not a strength.', 'Missed the 4:15.'],
   // a pratfall on the ice (skate.js): no dent, just pride
   pratfall: ['Newton\'s first law, live.', 'Friction has left the chat.', 'Whoopsie-daisy.',

@@ -6,7 +6,7 @@ repository root. For the game, see the [front page](../README.md) and [peak/READ
 
 | File | What |
 |---|---|
-| `models/mnot.glb` | The game asset: one skinned mesh (9 materials), 15 bones, clips `Idle`, `Walk`, `Run`, `Wave`, the jump (`JumpStart`, `LeapStart`, `Fall`, `Land`, `LeapLand`, `LandHard`), the summit `Dance` and the idle fidgets `PushGlasses`, `LookUp` and `TapFoot`. |
+| `models/mnot.glb` | The game asset: one skinned mesh (9 materials), 15 bones, clips `Idle`, `Walk`, `Run`, `Wave`, the jump (`JumpStart`, `LeapStart`, `Fall`, `Land`, `LeapLand`, `LandHard`), the summit `Dance`, `Teeter` on the edge of a drop and the idle fidgets `PushGlasses`, `LookUp` and `TapFoot`. |
 | `models/mnot.blend` | The Blender file, with IK controls for the legs. Animate here. |
 | `tools/build_mnot.py` | Builds both files from scratch (model, rig, weights, clips). |
 | `index.html` | Viewer: toon look with an outline, a button for every clip in the GLB, laps, WASD to walk, Shift to run, Space to jump (or the Jump and High jump buttons), E to wave. |
@@ -95,7 +95,7 @@ and unlit lenses).
 
 The jump clips jump in place too: the root stays on the ground, and the game lifts it. The take-offs and landings
 play once (`LoopOnce`, with `clampWhenFinished` so you can crossfade out of the last pose); `Fall` loops.
-The fidgets play once the same way, from the Idle pose back to it; `Dance` loops.
+The fidgets play once the same way, from the Idle pose back to it; `Dance` and `Teeter` loop.
 
 | Clip | Use | Length (s) |
 |---|---|---|
@@ -109,6 +109,7 @@ The fidgets play once the same way, from the Idle pose back to it; `Dance` loops
 | `PushGlasses` | Fidget: the right glove pushes the slipped glasses back up the nose, then a satisfied nod. | 1.8 |
 | `LookUp` | Fidget: leaning back, glasses tipped up, pointing at the top, a little wobble of awe. | 2.2 |
 | `TapFoot` | Fidget, for waiting: the right toes tap four times, the can bobbing along and looking about. | 1.6 |
+| `Teeter` | Loop on the edge of a drop: up on the toes, rocking out over the edge and back, the back foot up as a counterweight, both arms wheeling forward, glasses slipping. The game turns the can to face the drop and tips it about the feet in time. | 0.8 |
 
 `MnotRig` stores what the clips were made for, in seconds, metres and m/s: `userData.jump_takeoff` and
 `leap_takeoff`, both 0.12 (when the feet leave the ground), `jump_gravity` 15, `jump_height` 0.6,

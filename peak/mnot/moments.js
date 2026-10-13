@@ -1,11 +1,11 @@
 // Little moments on top of the clips, for the eye only: they pick the clip Mnot stands about in (player.idleClip) and
 // never touch the physics. Left standing on solid ground, Mnot fidgets: it pushes its glasses back up after a
-// checkpoint or a close call on a beam, taps a foot while waiting for the gondola or for a loose ledge to grow back,
-// looks up at the climb when the next checkpoint is well above, and otherwise does a random one after 4-6 s, never
-// the same twice in a row. Not on a beam, ice, a loose ledge or anything moving, and not in the wind. Any input
-// cancels a fidget at once. At the summit Mnot dances, in a burst of confetti, until the player moves on; while it
-// dances it keeps player.celebrate up, which holds the camera's summit close-up. The title screen runs its own show,
-// so nothing happens here while it's busy.
+// checkpoint or a close call on a beam or at the edge of a drop, taps a foot while waiting for the gondola or for a
+// loose ledge to grow back, looks up at the climb when the next checkpoint is well above, and otherwise does a random
+// one after 4-6 s, never the same twice in a row. Not on a beam, ice, a loose ledge or anything moving, and not in the
+// wind. Any input cancels a fidget at once. At the summit Mnot dances, in a burst of confetti, until the player moves
+// on; while it dances it keeps player.celebrate up, which holds the camera's summit close-up. The title screen runs its
+// own show, so nothing happens here while it's busy.
 import * as THREE from 'three';
 import { random } from '../world/world.js';
 import { bursts } from '../look/bursts.js';
@@ -33,6 +33,7 @@ export class Moments {
     this.edge = 0;                // the worst lean on the beam Mnot is on, of FALL_ANGLE
     this.dance = null;
     game.on('checkpoint', () => this.ask('PushGlasses', 0.6));
+    player.on('steady', () => this.ask('PushGlasses', 0.3));       // back from the edge of a drop
     game.on('summit', () => this.startDance());
     world.on('crumble', ({ solid }) => this.gone.add(solid));
     world.on('regrow', ({ solid }) => this.gone.delete(solid));
@@ -68,6 +69,7 @@ export class Moments {
   calm() {
     const p = this.player, s = p.support;
     if (p.mode !== 'ground' || p.jumpPhase || p.speed > 0.05 || p.icy || p.skate.busy || p.squash < 1) return false;
+    if (p.teeter.active) return false;
     if (!s || s.loose || s.moving || this.game.out) return false;
     const wind = this.weather.windAt(p.pos);
     return !wind.jet && wind.strength < 0.4;

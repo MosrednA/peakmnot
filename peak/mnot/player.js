@@ -6,6 +6,7 @@ import { Balance } from './balance.js';
 import { Pose } from './pose.js';
 import { Fall, canLand } from './fall.js';
 import { Skate } from './skate.js';
+import { Teeter } from './teeter.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const RADIUS = 0.24, HEIGHT = 1.6;
@@ -47,6 +48,7 @@ export class Player {
     this.listeners = new Map();
     this.balance = new Balance(this);
     this.skate = new Skate(this);         // sliding and wobbling on ice
+    this.teeter = new Teeter(this);       // wobbling on the rim of a drop
     this.pose = new Pose(mnot);           // feet on the rope, arms out, flapping
     this.tilt = { axis: new THREE.Vector3(1, 0, 0), angle: 0, toppling: 0 };
     this.squash = 1;                      // 1 is a whole can; the rules squash it when it's flattened
@@ -56,7 +58,8 @@ export class Player {
     this.safeTime = 0;
     this.icy = false;                     // standing on ice
     this.carried = new THREE.Vector3();   // the speed of the platform under the feet
-    this.last = { support: null, icy: false, jet: 0 };   // what Mnot last stood on, and the gust since, for jokes
+    // what Mnot last stood on, the gust since and whether it teetered off, for the jokes
+    this.last = { support: null, icy: false, jet: 0, teeter: false };
   }
 
   on(name, fn) { (this.listeners.get(name) ?? this.listeners.set(name, []).get(name)).push(fn); }
@@ -79,6 +82,7 @@ export class Player {
     this.squash = 1;
     this.fall.stop();
     this.skate.stop();
+    this.teeter.stop();
     this.safe.pos.copy(pos);
     this.safe.yaw = yaw;
     this.anim.play('Idle', 0);
@@ -136,6 +140,7 @@ export class Player {
     // a strong gust shoves Mnot on the ground, harder in the air and in a wind gap; careful steps hold on
     const jet = wind.jet ?? 0, ground = 0.6 * Math.max(0, wind.strength - 0.55) + JET[icy ? 'ice' : 'ground'] * jet;
     const push = onGround ? (input.careful ? 0 : ground) : 0.5 * wind.strength + JET.air * jet;
+    if (this.teeter.active && this.teeter.hold(dt, input, wind, push)) return;
     const before = this.pos.clone();
     this.pos.x += (this.vel.x + wind.dir.x * push) * dt;
     this.pos.z += (this.vel.z + wind.dir.z * push) * dt;
@@ -150,7 +155,7 @@ export class Player {
     if (free && icy && this.moving) this.turnTowards(Math.atan2(input.move.x, input.move.z), 10, dt);
     else if (free && this.speed > 0.05) this.turnTowards(Math.atan2(this.vel.x, this.vel.z), onGround ? 18 : 8, dt);
 
-    if (this.mode === 'ground') this.followGround(dt);
+    if (this.mode === 'ground') this.followGround(dt, input, before);
     else this.fly(dt);
   }
 
@@ -169,17 +174,20 @@ export class Player {
     else { this.pos.copy(before); this.vel.set(0, 0, 0); }
   }
 
-  followGround(dt) {
+  followGround(dt, input, before) {
     const solid = this.world.ground(this.pos.x, this.pos.z, this.pos.y + STEP_UP, EDGE);
     if (solid && solid.top >= this.pos.y - STEP_DOWN) {
       this.pos.y = solid.top;
       this.stand(solid);
       this.trackSafe(dt);
+      this.teeter.rim(dt, input);
       return;
     }
     // stepping off near a plank or rope's end gets Mnot onto it, even a little to the side (Balance eases it in)
     const beam = this.world.beam(this.pos.x, this.pos.z, this.pos.y - STEP_DOWN, this.pos.y + STEP_UP, BEAM_CATCH);
     if (beam) { this.balance.enter(beam, this.speed, 0); return; }
+    // only shoved or drifting over the edge of a drop: back on the rim, teetering (teeter.js)
+    if (this.teeter.overEdge(input, before)) return;
     // walked off the edge
     this.mode = 'air';
     this.vy = 0;
@@ -199,6 +207,7 @@ export class Player {
     this.last.support = solid;
     this.last.icy = this.world.icy(this.pos.x, this.pos.z, solid.top);
     this.last.jet = 0;
+    this.last.teeter = false;
   }
 
   fly(dt) {
@@ -244,6 +253,7 @@ export class Player {
     this.launchSpeed = Math.sqrt(2 * this.gravity * (running ? this.rig.run_jump_height : this.rig.jump_height));
     this.jumpPhase = 'takeoff';
     this.jumpBuffer = 0;
+    this.teeter.stop();
   }
 
   // Jump a moment after running off an edge: straight into the flight of a running jump.
@@ -286,14 +296,17 @@ export class Player {
     this.balance.leave();
     this.mode = 'out';
     this.jumpPhase = null;
+    this.teeter.stop();
     this.emit('lost', { reason, cause: reason === 'fall' ? this.cause() : reason });
     if (reason === 'fall') this.fall.start();
   }
 
-  // What a fall was down to, for the joke: a ledge that crumbled, a gust in a wind gap, ice, a missed gondola.
+  // What a fall was down to, for the joke: a ledge that crumbled, teetering too long, a gust in a wind gap, ice, a
+  // missed gondola.
   cause() {
     const { support, icy, jet } = this.last;
     if (support?.loose && support.off) return 'crumble';
+    if (this.last.teeter) return 'teeter';
     if (jet > 0.3) return 'gust';
     if (icy) return 'ice';
     if (support?.moving || this.world.hazards.some(h => h.covers?.(this.pos))) return 'gondola';
@@ -306,6 +319,7 @@ export class Player {
     this.mode = 'air';
     this.support = null;
     this.jumpPhase = null;
+    this.teeter.stop();
     this.vy = 3.2;
     this.vel.copy(away).setY(0).normalize().multiplyScalar(1.4);     // not so far it knocks Mnot off the edge
     this.anim.play('Fall', 0.1);
@@ -334,6 +348,7 @@ export class Player {
 
   animate(input) {
     if (this.jumpPhase || this.mode !== 'ground' || this.skate.busy) return;
+    if (this.teeter.active) { this.anim.play('Teeter', 0.12); return; }
     const gait = input.careful ? 'Walk' : 'Run';
     // on ice the feet stay planted while it slides, and scrabble faster than it goes when pushing
     if (this.moving || this.speed > 0.1 && !this.icy) this.anim.play(gait, 0.15);
@@ -355,10 +370,10 @@ export class Player {
   }
 
   // On a beam the lean tilts the whole can about its feet; after a slip it topples further while it falls. On ice
-  // the wobble leans it (skate.js).
+  // the wobble leans it (skate.js), and on the rim of a drop the teeter rocks it (teeter.js).
   updateTilt(dt) {
     const t = this.tilt;
-    if (this.mode === 'beam' || this.skate.tilting) return;
+    if (this.mode === 'beam' || this.skate.tilting || this.teeter.active) return;
     if (t.toppling) t.angle = THREE.MathUtils.clamp(t.angle + t.toppling * dt * 2.2, -1.5, 1.5);
     else t.angle = THREE.MathUtils.damp(t.angle, 0, 7, dt);
   }

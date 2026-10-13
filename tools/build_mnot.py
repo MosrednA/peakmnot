@@ -1370,6 +1370,28 @@ def tap_foot(t):
     return blend(P, idle(0), smooth(40, 48, f))
 
 
+# On the very edge of a drop, the game shows Mnot teetering (peak/mnot/teeter.js): it turns the can to face the drop
+# and tips the whole of it out over the edge and back, about the feet, while this clip plays on top.
+def teeter(t):
+    """Teetering on the edge: up on the toes, rocking out over the drop and back, the back foot lifting as a
+    counterweight, the arms wheeling forward (the turn that tips the body back) and the glasses slipping. Fall's
+    panic, but the feet stay on the rock."""
+    w = 2 * math.pi * t
+    rock = math.sin(w)                           # > 0 out over the edge
+    out = max(0.0, rock)
+    P = {}
+    foot_at(P, 'L', 0.0, 0.0, 16 + 10 * out)
+    foot_at(P, 'R', 0.07 * out, 0.05 * out, 16 + 14 * out)
+    for side, lag in (('L', 0.0), ('R', 0.6)):
+        phi = 4 * math.pi * t - lag              # two turns a loop, the top of the circle going out over the drop
+        travel = math.sin(math.radians(55)) * (-math.sin(phi) * Vector(Z) + math.cos(phi) * WM_FWD)
+        arm_to(P, side, windmill(phi), windmill(phi - 0.45), travel)
+    P['body'] = ((0, -0.03 * rock, -0.03 + 0.02 * out),
+                 rot(Z, 4 * math.sin(2 * w)) @ rot(Y, 5 * math.sin(w + 1.2)) @ rot(X, 8 + 14 * rock))
+    P['glasses'] = ((0, 0, -0.012 - 0.008 * out), rot(X, 3 + 4 * rock))
+    return P
+
+
 def channelbag_fcurves(act):
     try:
         from bpy_extras.anim_utils import action_get_channelbag_for_slot
@@ -1384,7 +1406,7 @@ CLIPS = [('Idle', idle, 60, True), ('Walk', walk, 24, True), ('Run', run, 16, Tr
          ('JumpStart', jump_start, 10, False), ('LeapStart', leap_start, 24, False), ('Fall', fall, 24, True),
          ('Land', land, 10, False), ('LeapLand', leap_land, 7, False), ('LandHard', land_hard, 24, False),
          ('Wave', wave, 48, True), ('Dance', dance, 120, True), ('PushGlasses', push_glasses, 54, False),
-         ('LookUp', look_up, 66, False), ('TapFoot', tap_foot, 48, False)]
+         ('LookUp', look_up, 66, False), ('TapFoot', tap_foot, 48, False), ('Teeter', teeter, 24, True)]
 actions = {}
 for name, fn, frames, loops in CLIPS:
     # Sampled at 60 fps. The original loops keep a key per 30 fps frame with straight lines between, as they always

@@ -36,6 +36,7 @@ export class Game {
     };
     player.on('beam', () => teach('beam', 'Balance!', 'A / D to lean back · Shift to stand still'));
     player.on('ice', () => teach('ice', 'Ice!', 'It keeps sliding: steer against it · Shift grips', 3));
+    player.on('teeter', () => teach('teeter', 'Whoa!', 'Step back from the edge · Shift holds on', 2.4));
     // a pratfall on the ice costs nothing but pride: a joke, and the first time a hint
     player.on('pratfall', () => {
       const hint = taught.has('pratfall') ? '' : 'Steer in small taps · Shift grips';

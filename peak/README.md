@@ -38,9 +38,13 @@ frame (`post.js`); portrait gets a wider lens and a step back (`camera.js`).
 - **Flattened.** The fourth dent flattens the can, and Mnot goes back to the last checkpoint.
 - **Checkpoints.** The four flags pop all the dents out.
 - **Jokes.** Every mishap shows a short joke (`quips.js`) and the dent count. A fall gets a joke about what caused
-  it: a crumbled ledge, ice, a gust or a missed gondola.
+  it: a crumbled ledge, teetering too long, ice, a gust or a missed gondola.
 - **Falling.** Off an edge with nothing left to land on, Mnot hangs in mid-air for a beat, legs still running, looks
   at the camera, and drops, tumbling and flailing, through the clouds far below (`fall.js`). Then the fade.
+- **On the edge.** Left standing still right at the rim of a drop (the feet just past the edge), or shoved there by
+  the wind, Mnot teeters: it turns to the drop and rocks out over it and back, arms wheeling, and goes over after
+  1.1 s (sooner in a gust) unless you step back from the edge or hold Shift. Walking or running off, a run-up and a
+  jump (also from a teeter), careful steps, step-downs, ice and anything moving never teeter (`teeter.js`).
 - **Loose ledges.** A cracked chunk of rock on a point starts to shake when Mnot lands on it and drops away 0.85 s
   later (the first one, still in the tutorial, takes 1.3 s). It is back 3.2 s after that. Don't stop on one.
 - **Ice.** Glossy blue patches with cracks and skid marks. Mnot keeps its speed and the keys only push a little, so
@@ -131,13 +135,14 @@ each with its CSS next to it.
 | File | What |
 |---|---|
 | `mnot.js` | Loads `models/mnot.glb` and blends its clips (the jump parts and the fidgets play once); the rig carries its own speeds and jump timing |
-| `player.js` | Running, careful steps, jumps, walls and ledges, riding what moves; hands over to `skate.js` on ice, to `balance.js` on beams and to `fall.js` off the edge |
+| `player.js` | Running, careful steps, jumps, walls and ledges, riding what moves; hands over to `skate.js` on ice, to `balance.js` on beams, to `teeter.js` on the rim of a drop and to `fall.js` off the edge |
+| `teeter.js` | Teetering on the rim of a drop when standing still or shoved by the wind: the `Teeter` clip, the can rocking out over the edge, the save (a step back or Shift) and going over |
 | `balance.js` | The beam balance: an upside-down pendulum, tuned in `FEEL` |
 | `skate.js` | Mnot on ice: the slide and its drift, the wobble meter, the lean, the pratfall, the shavings and the `skid` event |
 | `fall.js` | The cartoon fall: the beat in mid-air, the look at the camera, the tumble down through the clouds, eased away from rock faces so the can never tumbles inside one |
 | `pose.js` | Procedural pose on top of the clips: feet together on a beam, arms out and flapping and legs kicking when slipping or falling, arms windmilling and panicky steps on ice |
 | `dents.js` | Dents as morph targets built at load time from the can's own meshes; they spring in and pop out |
-| `moments.js` | For the eye only: idle fidgets (`PushGlasses` after a checkpoint or a close call on a beam, `TapFoot` while waiting for the gondola or a ledge to grow back, `LookUp` at the climb ahead, a random one after 4–6 s), never on a beam, ice, a loose ledge or in the wind, cancelled by any input; the summit `Dance` and confetti. It sets `player.idleClip`, the clip Mnot stands about in |
+| `moments.js` | For the eye only: idle fidgets (`PushGlasses` after a checkpoint, a close call on a beam or a save on the edge, `TapFoot` while waiting for the gondola or a ledge to grow back, `LookUp` at the climb ahead, a random one after 4–6 s), never on a beam, ice, a loose ledge or in the wind, cancelled by any input; the summit `Dance` and confetti. It sets `player.idleClip`, the clip Mnot stands about in |
 
 ### `controls/`: keys, touch and the camera
 
@@ -212,7 +217,8 @@ For sounds (`audio.js`), tips and jokes. Listen with `on(name, fn)`:
 | | `ice` | stepping onto ice |
 | | `skid` `{ speed }` | a skid starts on ice: sliding with the feet planted, or pushing across or against the slide |
 | | `pratfall` | the wobble meter on ice is full and the feet go: Mnot lands on its back |
-| | `lost` `{ reason, cause }` | the abyss (`reason` `'fall'`, `cause` `'crumble'`, `'gust'`, `'ice'`, `'gondola'` or `'fall'`) |
+| | `teeter`, `steady` | Mnot starts teetering on the rim of a drop; a step back or Shift saves it |
+| | `lost` `{ reason, cause }` | the abyss (`reason` `'fall'`, `cause` `'crumble'`, `'teeter'`, `'gust'`, `'ice'`, `'gondola'` or `'fall'`) |
 | | `drop` | the beat in mid-air is over and the can starts to drop (`player.hang` counts the beat down) |
 | `world` | `crack` / `crumble` / `regrow` `{ at, solid }` | a loose ledge starts to shake / drops away / is back |
 | | `gondola` `{ at, moving }` | the gondola sets off (`moving` true) or docks |
