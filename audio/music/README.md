@@ -25,6 +25,7 @@ creation and publication and includes the author's notes about its samples.
 `music.js` owns decoded Web Audio loops and a summit one-shot, borrowing `MnotSounds.context` and its master gain.
 `sounds.js` publishes unlock, mute and focus changes through `onStateChange()`. Peak alone attaches music, so the
 original animation viewer continues to load effects only. A real gesture must unlock audio before any music starts.
+The MP3s, the game's biggest download, start once the first frame is on screen, or at the unlock if that is sooner.
 The existing Sound button and M toggle control effects and music together, retaining the saved preference.
 
 `peak/audio.js` wires the game events. Music is quieter than foreground effects and crossfades over 0.8 seconds.

@@ -11,6 +11,23 @@ const LEVELS = { 'walk-1': 0.45, 'walk-2': 0.45, 'walk-3': 0.45, 'run-1': 0.4, '
 /** @type {Readonly<Record<Gait, ReadonlyArray<SoundId>>>} */
 const STEPS = { Walk: ['walk-1', 'walk-2', 'walk-3'], Run: ['run-1', 'run-2'] };
 
+// The effects load as AAC .m4a files made from the WAVs by tools/compress_audio.py (audio/README.md, "Formats").
+// Each loop is stored with LOOP_PAD seconds of its other end on both sides, so the codec's edges land outside it.
+export const LOOP_PAD = 0.2;
+
+/**
+ * A decoded loop without the padding tools/compress_audio.py wrapped around it, to play with loop = true.
+ * @param {BaseAudioContext} context @param {AudioBuffer} padded
+ */
+export function unpadLoop(context, padded) {
+  const pad = Math.round(LOOP_PAD * padded.sampleRate), length = padded.length - 2 * pad;
+  const buffer = context.createBuffer(padded.numberOfChannels, length, padded.sampleRate);
+  for (let c = 0; c < padded.numberOfChannels; c++) {
+    buffer.copyToChannel(padded.getChannelData(c).subarray(pad, pad + length), c);
+  }
+  return buffer;
+}
+
 export class MnotSounds {
   constructor() {
     this.enabled = localStorage.getItem('mnot.sound') !== 'off';
@@ -42,7 +59,7 @@ export class MnotSounds {
     /** @type {Promise<void>|null} */
     this.loading = null;
     this.files = Promise.all(IDS.map(async id => {
-      const response = await fetch(`audio/${id}.wav`);
+      const response = await fetch(new URL(`audio/${id}.m4a`, import.meta.url));
       if (!response.ok) throw new Error(`Cannot load ${id}: HTTP ${response.status}`);
       return { id, data: await response.arrayBuffer() };
     })).catch(error => {
@@ -60,7 +77,8 @@ export class MnotSounds {
       this.master.connect(context.destination);
       this.loading = this.files.then(async files => {
         await Promise.all(files.map(async ({ id, data }) => {
-          this.buffers.set(id, await context.decodeAudioData(data));
+          const buffer = await context.decodeAudioData(data);
+          this.buffers.set(id, id === 'fall' ? unpadLoop(context, buffer) : buffer);
         }));
         this.ready = this.buffers.size === IDS.length;
         const pending = this.pending.splice(0);

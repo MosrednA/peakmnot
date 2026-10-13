@@ -27,7 +27,7 @@ class DevHandler(SimpleHTTPRequestHandler):
         revision = hashlib.sha256()
         for path in sorted([
             ROOT / "index.html", ROOT / "sounds.js", *ROOT.glob("peak.html"), *ROOT.glob("peak/**/*.js"),
-            *ROOT.glob("models/*.glb"), *ROOT.glob("audio/*.wav"),
+            *ROOT.glob("models/*.glb"), *ROOT.glob("audio/*.wav"), *ROOT.glob("audio/**/*.m4a"),
         ]):
             stat = path.stat()
             revision.update(f"{path.name}:{stat.st_mtime_ns}:{stat.st_size}".encode())

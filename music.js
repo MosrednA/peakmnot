@@ -34,7 +34,17 @@ export class PeakMusic {
     this.ready = false;
     this.duckLevel = 1;
     this.counts = { climb: 0, camp: 0, summit: 0 };
-    this.files = Promise.all(IDS.map(async id => {
+    /** @type {Promise<Array<{id: MusicId, data: ArrayBuffer}>>|null} */
+    this.files = null;
+    this.unsubscribe = sounds.onStateChange(() => this.sync());
+    this.sync();
+    // The game's biggest download, and nothing on screen needs it: it starts once the first frame is up (two
+    // animation frames from now, with the game built in between), or at the audio unlock if that comes first.
+    requestAnimationFrame(() => requestAnimationFrame(() => this.download()));
+  }
+
+  download() {
+    this.files ??= Promise.all(IDS.map(async id => {
       const response = await fetch(new URL(`audio/music/peak-${id}.mp3`, import.meta.url));
       if (!response.ok) throw new Error(`Cannot load ${id} music: HTTP ${response.status}`);
       return { id, data: await response.arrayBuffer() };
@@ -42,8 +52,7 @@ export class PeakMusic {
       this.fail(error);
       return [];
     });
-    this.unsubscribe = sounds.onStateChange(() => this.sync());
-    this.sync();
+    return this.files;
   }
 
   /** @param {unknown} error */
@@ -71,7 +80,7 @@ export class PeakMusic {
         this.mix.connect(master);
       }
       if (!this.loading) {
-        this.loading = this.files.then(async files => {
+        this.loading = this.download().then(async files => {
           await Promise.all(files.map(async ({ id, data }) => {
             this.buffers.set(id, await context.decodeAudioData(data));
           }));

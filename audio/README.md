@@ -31,9 +31,31 @@ Regenerate the palette (uses ElevenLabs credits):
 ```powershell
 python tools/make_sounds.py --replace
 python tools/prepare_sounds.py
+python tools/compress_audio.py
 ```
 
 Without `--replace`, existing outputs are reused. Pass names, e.g. `python tools/make_sounds.py wave --replace`,
 to regenerate selected effects. Generation uses Python's standard library; preparation needs NumPy, SciPy,
-SoundFile and FFmpeg. The dev server watches prepared WAVs and `sounds.js` and reloads the viewer after changes.
-Run `tools/check_sounds.js` via Playwright MCP's `browser_run_code_unsafe` filename argument in a fresh tab.
+SoundFile and FFmpeg. The dev server watches the WAVs, the `.m4a` files and `sounds.js` and reloads the viewer after
+changes. Run `tools/check_sounds.js` via Playwright MCP's `browser_run_code_unsafe` filename argument in a fresh tab.
+
+## Formats
+
+The games load AAC in `.m4a` files, made from the prepared WAVs by `tools/compress_audio.py` (FFmpeg's AAC encoder,
+48 kbit/s a channel, at the WAV's own rate). Every browser decodes it with Web Audio, Safari on iOS included, and the
+ten effects shrink from 226 KB to 46 KB. The WAVs stay next to them as the masters: edit or regenerate those, then
+run the tool again. Neither the production build nor the Docker image takes the WAVs along.
+
+Browsers trim the encoder's delay at the start, so a one-shot keeps its length to the sample, but AAC can't end a
+loop cleanly on its last sample. So the tool wraps every loop in 0.2 s of its own other end on both sides before it
+encodes it, and `sounds.js` cuts that off again after decoding (`unpadLoop`, `LOOP_PAD`): the codec's edges land in
+the padding, not on the seam. The loops are the sounds with `"loop": true` in the folder's `manifest.json` (or
+`--loop NAME`). The tool checks that each file plays for exactly the WAV's length, and writes a file only when its
+bytes change.
+
+```powershell
+python tools/compress_audio.py                  # audio/
+python tools/compress_audio.py audio/downhill   # any folder of WAVs with its manifest.json
+```
+
+A game loads its sounds with `new URL('…', import.meta.url)`, so the production build finds and copies them.

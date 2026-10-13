@@ -3,7 +3,7 @@ async (page) => {
   const checks = [], errors = [];
   const onError = error => errors.push(error.message);
   const onResponse = response => {
-    if (response.url().endsWith('.wav') && !response.ok()) errors.push(`${response.status()} ${response.url()}`);
+    if (/\.(wav|m4a)$/.test(response.url()) && !response.ok()) errors.push(`${response.status()} ${response.url()}`);
   };
   page.on('pageerror', onError);
   page.on('response', onResponse);

@@ -132,6 +132,10 @@ class StaticFiles(unittest.TestCase):
         html = b"<script>a()</script><script type=module src=x.js></script><script type=importmap>{}</script>"
         self.assertEqual(len(re.findall(r"'sha256-", page_csp(html))), 2)
 
+    def test_the_sounds_are_served(self):
+        r = self.server.request("GET", "/audio/fall.m4a")
+        self.assertEqual((r.status, r.headers["Content-Type"]), (200, "audio/mp4"))
+
 
 class Migrations(unittest.TestCase):
     def test_numbered_and_run_once(self):

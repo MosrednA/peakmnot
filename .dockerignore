@@ -13,6 +13,7 @@ index.html
 models/*
 !models/mnot.glb
 audio/source
+audio/**/*.wav
 audio/**/*.mid
 audio/**/*.json
 audio/preview.*
