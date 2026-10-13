@@ -55,11 +55,11 @@ class Reply:
 class Server:
     """The score server in a temp folder, on a free port."""
 
-    def __init__(self, route, static=False):
+    def __init__(self, route, static=False, downhill_route=None):
         self.tmp = tempfile.TemporaryDirectory()
         self.clock = Clock()
         self.app = App(self.tmp.name, [b"k" * 32], [ORIGIN], networks("127.0.0.1/32"), static=static, route=route,
-                       clock=self.clock, quiet=True)
+                       clock=self.clock, quiet=True, downhill_route=downhill_route)
         self.httpd = self.app.serve("127.0.0.1", 0)
         self.port = self.httpd.server_address[1]
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
@@ -89,12 +89,13 @@ class Server:
 
 
 class Climber:
-    """A game talking to the server: a run, signed requests, the clock moved along with the climb."""
+    """A game talking to the server: a run, signed requests, the clock moved along with the climb (or another game's
+    run: test_downhill.py)."""
 
-    def __init__(self, server, climb, t0=0):
-        self.server, self.climb = server, climb
+    def __init__(self, server, climb, t0=0, game="peak"):
+        self.server, self.climb, self.game = server, climb, game
         self.start = server.clock.now
-        r = server.request("POST", "/api/peak/run", {"v": 1, "route": climb["route"]["fingerprint"], "t0": t0})
+        r = server.request("POST", f"/api/{game}/run", {"v": 1, "route": climb["route"]["fingerprint"], "t0": t0})
         assert r.status == 201, r.data
         self.run, self.nonce, self.prev = r.json["run"], r.json["nonce"], None
 
@@ -109,7 +110,7 @@ class Climber:
 
     def send(self, action, body, kind, nonce=None, sig=None):
         sig = sig or hmac.new((nonce or self.nonce).encode(), body, hashlib.sha256).hexdigest()
-        r = self.server.request("POST", f"/api/peak/run/{self.run}/{action}", body,
+        r = self.server.request("POST", f"/api/{self.game}/run/{self.run}/{action}", body,
                                 {"Content-Type": kind, "X-Mnot-Sig": sig})
         if r.status == 200 and r.json and "nonce" in r.json and r.headers.get("X-Mnot-Replay") is None:
             self.prev, self.nonce = self.nonce, r.json["nonce"]
@@ -126,7 +127,7 @@ class Climber:
 
     def finish(self, replay=None, claim=None, player=None):
         claim = claim or self.climb["claim"]
-        self.at(claim["time"])
+        self.at(claim.get("clock", claim["time"]))
         return self.post("finish", {**claim, "player": player, "replay": replay or self.climb["replay"]}, zipped=True)
 
     def claim(self, name, player=None, secret=None):
@@ -219,10 +220,17 @@ class TheClimb(ScoreTest):
         self.assertEqual([e["rank"] for e in entries], list(range(1, HOUSE + 2)))
 
     def test_the_house_records_are_seeded_once(self):
-        from db import Database
-        again = Database(self.server.app.db.path)      # a restart runs the migrations again: nothing new
-        self.assertEqual(again.one("SELECT COUNT(*) FROM players WHERE house = 1")[0], HOUSE)
-        again.close()
+        import games
+        app = self.server.app
+        again = App(self.server.tmp.name, [b"k" * 32], [ORIGIN], [], route=app.route, quiet=True)
+        try:                                            # a restart runs the migrations and the seeding again: nothing new
+            rows = again.db.all("SELECT s.game, COUNT(*) AS n FROM scores s JOIN players p ON p.id = s.player_id "
+                                "WHERE p.house = 1 GROUP BY s.game ORDER BY s.game")
+            self.assertEqual({r["game"]: r["n"] for r in rows}, {"peak": HOUSE, "downhill": len(games.DOWNHILL_HOUSE)})
+            self.assertEqual(again.db.one("SELECT COUNT(*) FROM players WHERE house = 1")[0],
+                             HOUSE + len(games.DOWNHILL_HOUSE))
+        finally:
+            again.db.close()
 
     def test_a_showcased_climb_plays_by_link_but_stays_off_the_board(self):
         import peak_scores

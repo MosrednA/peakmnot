@@ -1,9 +1,13 @@
 """The high-score logic on top of db.py: runs and their rolling nonces, splits, verdicts and replays, players, the
-board and the Hall of Shame. No HTTP here (that's api.py), and no physics (verify.py).
+board and the Hall of Shame. No HTTP here (that's api.py), and no physics (verify.py, downhill.py).
+
+A Store is one game's (games.py; for_game() gives another's): its runs, its board, its shame and showcase. The
+players are everyone's, so a name is the same in every game.
 
 The board: one entry per player, their best climb. Faster time wins; on the same time (to the millisecond) fewer
 falls; then whoever got there first. Dents are shown, not ranked: they pop out at every checkpoint anyway. The house
-records (db.py, migration 2) are players too, marked house: nobody can claim, improve or take the name of one.
+records (games.py, put in by house()) are players too, marked house: nobody can claim, improve or take the name
+of one, in any game.
 A showcased climb (migration 3) is the other way round: its replay plays by link, but it's never on the board.
 """
 import gzip
@@ -19,6 +23,7 @@ CLAIM_TTL = 3600                # and be claimed (named) within this many second
 KEEP_RUNS = 7 * 86400           # unfinished and unclaimed runs are forgotten after a week
 KEEP_REPLAYS = 30 * 86400       # replays that aren't on the board, the shame list or showcased, after a month
 
+# a game's board, ranked; the query goes on with "AND ..." or "ORDER BY ..."
 BOARD_SELECT = (
     "SELECT s.player_id, s.time_ms, s.falls, s.dents, s.achieved, p.name, p.house, p.quip, "
     "CASE WHEN p.house = 0 AND r.id IS NOT NULL AND rp.run_id IS NOT NULL THEN s.run_id END AS replay_id, "
@@ -27,6 +32,7 @@ BOARD_SELECT = (
     "LEFT JOIN runs r ON r.id = s.run_id AND r.player_id = s.player_id AND r.state = 'claimed' "
     "AND r.verdict = 'ok' AND r.time_ms = s.time_ms AND r.falls = s.falls AND r.dents = s.dents "
     "LEFT JOIN replays rp ON rp.run_id = s.run_id AND rp.verdict = 'ok' "
+    "WHERE s.game = ? "
 )
 
 
@@ -39,12 +45,17 @@ def body_hash(raw):
 
 
 class Store:
-    def __init__(self, db, keys, clock=time.time):
+    def __init__(self, db, keys, clock=time.time, game="peak"):
         """keys: the server's secret keys, newest first (an older one only checks player secrets during a
-        rotation; see README)."""
+        rotation; see README). game: whose runs and board these are (games.py)."""
         self.db = db
         self.keys = [k if isinstance(k, bytes) else k.encode() for k in keys]
         self.clock = clock
+        self.game = game
+
+    def for_game(self, game):
+        """The same database and keys, for another game's runs and board."""
+        return Store(self.db, self.keys, self.clock, game)
 
     def mac(self, purpose, value, key=None):
         return hmac.new(key or self.keys[0], f"{purpose}:{value}".encode(), hashlib.sha256).hexdigest()
@@ -57,12 +68,12 @@ class Store:
     def new_run(self, ip_hash, t0):
         run_id, nonce, now = token(12), token(18), self.clock()
         with self.db.tx() as c:
-            c.execute("INSERT INTO runs (id, nonce, ip_hash, created, t0, state) VALUES (?, ?, ?, ?, ?, 'open')",
-                      (run_id, nonce, ip_hash, now, t0))
+            c.execute("INSERT INTO runs (id, nonce, ip_hash, created, t0, state, game) "
+                      "VALUES (?, ?, ?, ?, ?, 'open', ?)", (run_id, nonce, ip_hash, now, t0, self.game))
         return run_id, nonce
 
     def run(self, run_id):
-        return self.db.one("SELECT * FROM runs WHERE id = ?", (run_id,))
+        return self.db.one("SELECT * FROM runs WHERE id = ? AND game = ?", (run_id, self.game))
 
     def expired(self, run):
         now = self.clock()
@@ -125,23 +136,40 @@ class Store:
         return False
 
     def house_names(self):
+        """Every game's: a house record's name is taken everywhere."""
         return [row["name"] for row in self.db.all("SELECT name FROM players WHERE house = 1")]
 
+    def house(self, records):
+        """Put this game's house records (games.py) on its board, or bring them up to date: (id, name, quip,
+        time_ms, falls, dents) each. At every start; nothing changes when they already are as given."""
+        with self.db.tx() as c:
+            for player_id, name, quip, time_ms, falls, dents in records:
+                c.execute("INSERT INTO players (id, secret_hash, name, created, updated, house, quip) "
+                          "VALUES (?, '!', ?, 0, 0, 1, ?) ON CONFLICT (id) DO UPDATE SET name = excluded.name, "
+                          "quip = excluded.quip WHERE house = 1", (player_id, name, quip))
+                if not c.execute("SELECT house FROM players WHERE id = ?", (player_id,)).fetchone()["house"]:
+                    raise ValueError(f"{player_id} is a player's id, not a house record's")
+                c.execute("INSERT INTO scores (game, player_id, time_ms, falls, dents, run_id, achieved) "
+                          "VALUES (?, ?, ?, ?, ?, 'house', 0) ON CONFLICT (game, player_id) DO UPDATE SET "
+                          "time_ms = excluded.time_ms, falls = excluded.falls, dents = excluded.dents",
+                          (self.game, player_id, time_ms, falls, dents))
+
     def best(self, player_id):
-        row = self.db.one("SELECT time_ms, falls, dents, achieved FROM scores WHERE player_id = ?", (player_id,))
+        row = self.db.one("SELECT time_ms, falls, dents, achieved FROM scores WHERE game = ? AND player_id = ?",
+                          (self.game, player_id))
         return row and {"time": row["time_ms"], "falls": row["falls"], "dents": row["dents"]}
 
     # ------------------------------------------------------------------ the board
 
     def rank_of(self, time_ms, falls, achieved, exclude=None):
         """1 + the entries ahead of this climb, leaving out exclude (a player's own entry)."""
-        row = self.db.one("SELECT COUNT(*) FROM scores WHERE (time_ms < ? OR time_ms = ? AND falls < ? OR "
-                          "time_ms = ? AND falls = ? AND achieved < ?) AND player_id IS NOT ?",
-                          (time_ms, time_ms, falls, time_ms, falls, achieved, exclude))
+        row = self.db.one("SELECT COUNT(*) FROM scores WHERE game = ? AND (time_ms < ? OR time_ms = ? AND falls < ? "
+                          "OR time_ms = ? AND falls = ? AND achieved < ?) AND player_id IS NOT ?",
+                          (self.game, time_ms, time_ms, falls, time_ms, falls, achieved, exclude))
         return row[0] + 1
 
     def total(self):
-        return self.db.one("SELECT COUNT(*) FROM scores")[0]
+        return self.db.one("SELECT COUNT(*) FROM scores WHERE game = ?", (self.game,))[0]
 
     def verdict(self, player_id, time_ms, falls):
         """Where a climb just checked would rank, and the player's best so far."""
@@ -159,11 +187,11 @@ class Store:
         return entry
 
     def board(self, limit=10, me=None):
-        rows = self.db.all(BOARD_SELECT + "ORDER BY s.time_ms, s.falls, s.achieved LIMIT ?", (limit,))
+        rows = self.db.all(BOARD_SELECT + "ORDER BY s.time_ms, s.falls, s.achieved LIMIT ?", (self.game, limit))
         entries = [self.entry(r, me) for r in rows]
         mine = None
         if me and not any(e["me"] for e in entries):
-            row = self.db.one(BOARD_SELECT + "WHERE s.player_id = ?", (me,))
+            row = self.db.one(BOARD_SELECT + "AND s.player_id = ?", (self.game, me))
             if row:
                 mine = dict(self.entry(dict(row, rank=self.rank_of(row["time_ms"], row["falls"], row["achieved"],
                                                                      exclude=me)), me))
@@ -182,22 +210,23 @@ class Store:
                           (player_id, self.mac("player", new_secret), name, now, now))
             else:
                 c.execute("UPDATE players SET name = ?, updated = ? WHERE id = ?", (name, now, player_id))
-            old = c.execute("SELECT time_ms, falls FROM scores WHERE player_id = ?", (player_id,)).fetchone()
+            old = c.execute("SELECT time_ms, falls FROM scores WHERE game = ? AND player_id = ?",
+                            (self.game, player_id)).fetchone()
             improved = old is None or (run["time_ms"], run["falls"]) < (old["time_ms"], old["falls"])
             if improved:
-                c.execute("INSERT INTO scores (player_id, time_ms, falls, dents, run_id, achieved) "
-                          "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (player_id) DO UPDATE SET time_ms = excluded.time_ms, "
-                          "falls = excluded.falls, dents = excluded.dents, run_id = excluded.run_id, "
-                          "achieved = excluded.achieved",
-                          (player_id, run["time_ms"], run["falls"], run["dents"], run["id"], now))
+                c.execute("INSERT INTO scores (game, player_id, time_ms, falls, dents, run_id, achieved) "
+                          "VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (game, player_id) DO UPDATE SET "
+                          "time_ms = excluded.time_ms, falls = excluded.falls, dents = excluded.dents, "
+                          "run_id = excluded.run_id, achieved = excluded.achieved",
+                          (self.game, player_id, run["time_ms"], run["falls"], run["dents"], run["id"], now))
             c.execute("UPDATE runs SET state = 'claimed', player_id = ?, claimed = ? WHERE id = ?",
                       (player_id, now, run["id"]))
-            mine = c.execute("SELECT time_ms, falls, dents, achieved FROM scores WHERE player_id = ?",
-                             (player_id,)).fetchone()
-            rank = 1 + c.execute("SELECT COUNT(*) FROM scores WHERE (time_ms < ? OR time_ms = ? AND falls < ? OR "
-                                 "time_ms = ? AND falls = ? AND achieved < ?) AND player_id IS NOT ?",
-                                 (mine["time_ms"], mine["time_ms"], mine["falls"], mine["time_ms"], mine["falls"],
-                                  mine["achieved"], player_id)).fetchone()[0]
+            mine = c.execute("SELECT time_ms, falls, dents, achieved FROM scores WHERE game = ? AND player_id = ?",
+                             (self.game, player_id)).fetchone()
+            rank = 1 + c.execute("SELECT COUNT(*) FROM scores WHERE game = ? AND (time_ms < ? OR time_ms = ? AND "
+                                 "falls < ? OR time_ms = ? AND falls = ? AND achieved < ?) AND player_id IS NOT ?",
+                                 (self.game, mine["time_ms"], mine["time_ms"], mine["falls"], mine["time_ms"],
+                                  mine["falls"], mine["achieved"], player_id)).fetchone()[0]
             response = {"player": player_id, "name": name, "rank": rank, "improved": improved,
                         "best": {"time": mine["time_ms"], "falls": mine["falls"], "dents": mine["dents"]}}
             if new_secret:
@@ -213,8 +242,9 @@ class Store:
         number one (and their own board keeps saying so)."""
         now, fake = self.clock(), secrets.token_hex(8)
         with self.db.tx() as c:
-            c.execute("INSERT INTO shame (run_id, ip_hash, player_id, name, claimed_ms, reason, created) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?)", (run["id"], run["ip_hash"], fake, name, run["time_ms"], reason, now))
+            c.execute("INSERT INTO shame (run_id, ip_hash, player_id, name, claimed_ms, reason, created, game) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                      (run["id"], run["ip_hash"], fake, name, run["time_ms"], reason, now, self.game))
             c.execute("UPDATE runs SET state = 'claimed', claimed = ? WHERE id = ?", (now, run["id"]))
             response = {"player": fake, "secret": token(24), "name": name, "rank": 1, "improved": True,
                         "best": {"time": run["time_ms"], "falls": run["falls"], "dents": run["dents"]}, **extra}
@@ -223,7 +253,7 @@ class Store:
         return status, response
 
     def shadow_board(self, limit, fake):
-        row = self.db.one("SELECT name, claimed_ms FROM shame WHERE player_id = ?", (fake,))
+        row = self.db.one("SELECT name, claimed_ms FROM shame WHERE game = ? AND player_id = ?", (self.game, fake))
         if not row:
             return None
         real = self.board(limit - 1)
@@ -233,7 +263,8 @@ class Store:
         return {"entries": entries, "me": None, "total": real["total"] + 1}
 
     def hall_of_shame(self, limit=20):
-        rows = self.db.all("SELECT name, claimed_ms, reason, created FROM shame ORDER BY id DESC LIMIT ?", (limit,))
+        rows = self.db.all("SELECT name, claimed_ms, reason, created FROM shame WHERE game = ? ORDER BY id DESC "
+                           "LIMIT ?", (self.game, limit))
         return [{"name": r["name"], "claimed": r["claimed_ms"], "reason": r["reason"],
                  "when": time.strftime("%Y-%m-%d", time.gmtime(r["created"]))} for r in rows]
 
@@ -253,8 +284,9 @@ class Store:
         with self.db.tx() as c:
             c.execute("INSERT INTO replays (run_id, data, verdict, details, created) VALUES (?, ?, 'ok', NULL, ?)",
                       (run_id, replay_gz, now))
-            c.execute("INSERT INTO showcase (run_id, name, time_ms, falls, dents, created) VALUES (?, ?, ?, ?, ?, ?)",
-                      (run_id, name, claim["time"], claim["falls"], claim["dents"], now))
+            c.execute("INSERT INTO showcase (run_id, name, time_ms, falls, dents, created, game) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?)", (run_id, name, claim["time"], claim["falls"], claim["dents"], now,
+                                                       self.game))
         return run_id
 
     def replay(self, run_id):
@@ -268,11 +300,12 @@ class Store:
             "FROM scores s JOIN players p ON p.id = s.player_id "
             "JOIN runs r ON r.id = s.run_id AND r.player_id = s.player_id "
             "JOIN replays rp ON rp.run_id = s.run_id "
-            "WHERE s.run_id = ? AND p.house = 0 AND r.state = 'claimed' AND r.verdict = 'ok' "
+            "WHERE s.game = ? AND s.run_id = ? AND p.house = 0 AND r.state = 'claimed' AND r.verdict = 'ok' "
             "AND rp.verdict = 'ok' AND r.time_ms = s.time_ms AND r.falls = s.falls AND r.dents = s.dents",
-            (run_id,)) or self.db.one(
+            (self.game, run_id)) or self.db.one(
             "SELECT sc.name, sc.time_ms, sc.falls, sc.dents, rp.data FROM showcase sc "
-            "JOIN replays rp ON rp.run_id = sc.run_id WHERE sc.run_id = ? AND rp.verdict = 'ok'", (run_id,))
+            "JOIN replays rp ON rp.run_id = sc.run_id WHERE sc.game = ? AND sc.run_id = ? AND rp.verdict = 'ok'",
+            (self.game, run_id))
         if not row:
             return None
         try:

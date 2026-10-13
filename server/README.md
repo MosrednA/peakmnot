@@ -1,8 +1,10 @@
 # Peak Mnot's score server
 
-The high-score list for [Peak Mnot](../peak/README.md): a small server, Python's standard library and SQLite only,
-that takes a climb from the game, checks it step by step against the route and Mnot's physics, and only then puts
-the time on the board. In production the same server also serves the game, so page and API share one origin.
+The high-score lists for [Peak Mnot](../peak/README.md) and its other mini games (the office-chair
+[downhill](../peak/downhill/README.md)): a small server, Python's standard library and SQLite only, that takes a run
+from a game, checks it step by step against the route and the game's physics, and only then puts the time on that
+game's board. In production the same server also serves the games, so pages and API share one origin. Below, "a
+climb" is the climb's run; the downhill's works the same way ("Several games", "The downhill").
 
 The game page's CSP permits the cookieless Plausible tracker and event requests at `https://stats.mosredna.eu`.
 Inline scripts are allowed by their hashes. The [game analytics reference](../peak/README.md#analytics) lists the
@@ -10,16 +12,19 @@ goals and the exclusions for development and manual tests.
 
 | File | What it does |
 | --- | --- |
-| `peak_scores.py` | The HTTP server: `/api/peak`, with `--static` the game's files too; security headers; the command line |
+| `peak_scores.py` | The HTTP server: `/api/<game>`, with `--static` the games' files too; security headers; the command line |
+| `games.py` | The games: each one's route, checker, house records and words (below, "Several games") |
 | `api.py` | The endpoints: rate limits, signatures and nonces, the checks on splits and the finish, the eggs |
-| `verify.py` | The replay check: every step of a recorded climb against the route and the physics |
-| `replayformat.py` | The replay's shape, checked before anything else reads it |
+| `verify.py` | The climb's replay check: every step of a recorded climb against the route and the physics |
+| `replayformat.py` | The climb's replay shape, checked before anything else reads it |
 | `route.py`, `route.json` | The route as the game exported it (`peak/scores/routedata.js`), and the geometry questions about it |
+| `checks.py` | What every game's checker shares: the replay's shape and the checks that hold for any run |
+| `downhill.py`, `downhill.json` | The downhill's checker and its route (`peak/downhill/routedata.js`): the piste, the obstacles, the chair's feel |
 | `store.py`, `db.py` | The data: runs, players, the board, the Hall of Shame; the schema and its migrations |
 | `names.py`, `eggs.py` | The name filter, and what the server says to people poking at it |
 | `perf.py` | The perf runs that `peak.html?perf` sends, kept as JSON lines ([docs/performance.md](../docs/performance.md)) |
-| `export_route.py` | Refreshes `route.json` from the game (below) |
-| `test_peak_scores.py`, `test_peak_parts.py`, `fixtures/` | The tests, and real recorded climbs they replay |
+| `export_route.py` | Refreshes `route.json` (or `downhill.json`) from the game (below) |
+| `test_peak_scores.py`, `test_peak_parts.py`, `test_downhill.py`, `fixtures/` | The tests, and real recorded climbs and rides they replay |
 | `browser_bot.js` | An end-to-end check: a bot that climbs in a real browser and submits like a player |
 
 ## Running it
@@ -30,10 +35,12 @@ Next to the viewer (`python tools/dev_server.py` on port 5280), start the score 
 python -X utf8 server/peak_scores.py
 ```
 
-It listens on `127.0.0.1:5281`. A page on port 5280 talks to it there; on any other origin the game uses
-`/api/peak` on its own origin. `peak.html?manual` (tests and bots) never talks to the server. In development the
-data lives in `data/` at the root (git-ignored), and without `PEAK_SECRET` the server makes a key in
-`data/secret.key` the first time.
+It listens on `127.0.0.1:5281`. A page on port 5280 talks to it there (one on 5293, the downhill's own preview, to
+port 5294); on any other origin a game uses `/api/<game>` on its own origin. The `games` entry in
+`.claude/launch.json` runs it with `--static` on 5294, data in `data/local/`: both games and their boards on one
+origin, as in production, at <http://127.0.0.1:5294/> and <http://127.0.0.1:5294/downhill>. `peak.html?manual`
+(tests and bots) never talks to the server. In development the data lives in `data/` at the root (git-ignored), and
+without `PEAK_SECRET` the server makes a key in `data/secret.key` the first time.
 
 Settings come from the environment:
 
@@ -42,7 +49,7 @@ Settings come from the environment:
 | `DATA_DIR` | `data/` | Where the database (and the dev key) live; `/data` in the container |
 | `PEAK_SECRET` | a generated `secret.key` | The key behind the player secrets' hashes and the hashed addresses. Required in production |
 | `PEAK_SECRET_OLD` | empty | The previous key, only while rotating (below) |
-| `ALLOWED_ORIGINS` | the viewer on 5280 | Origins that get CORS headers |
+| `ALLOWED_ORIGINS` | the viewer on 5280, the downhill's preview on 5293 | Origins that get CORS headers |
 | `TRUSTED_PROXIES` | loopback | Networks whose `X-Forwarded-For` is believed (the right-most address that isn't theirs) |
 | `HOST`, `PORT` | `127.0.0.1`, `5281` | Also `--host` and `--port` |
 | `SITE_DIR` | the repository | What `--static` serves: the source as it is, or a production build (`dist/`, below) |
@@ -53,7 +60,8 @@ The command line also does housekeeping:
 python server/peak_scores.py --backup data/backup.sqlite3   # a consistent copy, safe while the server runs
 python server/peak_scores.py --reverify RUN_ID              # check a stored replay against today's route
 python server/peak_scores.py --fixture latest --as NAME     # save a stored climb as a test fixture
-python server/peak_scores.py --showcase FILE --as NAME      # keep a recorded climb to be played by link only
+python server/peak_scores.py --fixture latest --as NAME --game downhill   # a ride, in fixtures/downhill/
+python server/peak_scores.py --showcase FILE --as NAME      # keep a recorded climb to be played by link only (the climb)
 ```
 
 `--showcase` takes a replay as the game records it (`-` reads it from stdin), reads the time, falls, dents and splits
@@ -103,11 +111,59 @@ moves to `perf.1.jsonl`. It needs no signature: a run is only numbers about a co
 
 ### The house records
 
-A fresh database comes with five slow, silly records (migration 2 in `db.py`): `while(true) climb()` 3:14.15,
-`404: Peak Not Found` 4:04.0, `Dial-up Dave` 5:12.0, `git push --force` 6:28.3 and `Ctrl+Alt+Defeat` 13:37.0. They
-are marked `house`: they rank by time like everyone else, so any climb faster than theirs goes above them, but
-nobody can claim them or take their names (a look-alike name becomes a Mystery Can, with a note why). The game
-shows them as ordinary rows, with their joke as a tooltip.
+Each board comes with slow, silly records, put in place (or brought up to date) at every start from `games.py`.
+The climb's five: `while(true) climb()` 3:14.15, `404: Peak Not Found` 4:04.0, `Dial-up Dave` 5:12.0,
+`git push --force` 6:28.3 and `Ctrl+Alt+Defeat` 13:37.0; the downhill's ten, from `Out of Office` 2:42.0 to
+`O(n!) Slalom` 14:40.0. They are marked `house`: they rank by time like everyone else, so any run faster than theirs
+goes above them, but nobody can claim them or take their names, in any game (a look-alike name becomes a Mystery
+Can, with a note why). The games show them as ordinary rows, with their joke as a tooltip.
+
+## Several games
+
+One server, one database, one API: every game in `games.py` has a board under `/api/<game>/` (`peak` for the climb,
+`downhill`), with the same endpoints, signatures, limits and eggs. What's a game's own is listed there: its route
+(what its runs are checked against), its checker, its house records, its words (a game may say the jokes its own
+way) and the numbers its finish sends. A run belongs to the game it was started in: another game's API doesn't know
+it. Players are shared: one player, with one secret and one name, in every game, and a new name in one game is the
+name in all of them (`peakmnot.player` in the browser).
+
+A new game is:
+
+1. its route as data, exported from the game like the climb's (`export_route.py`, with the game's entry in
+   `GAMES` there), and a checker for its runs, `server/<game>.py`, on `checks.py`: the replay's shape (`Format`),
+   the timeline, the flags, the splits and the motion are there for any game; the game adds its own physics;
+2. a `Game` in `games.load()`, with its house records and any words of its own, and its name in `NAMES`;
+3. its page, `<game>.html`, which the server then serves at `/<game>` (and `tools/build.mjs` builds, one line in
+   `PAGES`);
+4. in the page, `createRun()` and `createBoard()` from `peak/scores/scores.js` for `apiBase(location, '<game>')`;
+5. tests: real recorded runs in `fixtures/<game>/`, and the cheats its checker turns down (`test_downhill.py`).
+
+## The downhill
+
+`downhill.py` checks a ride against `downhill.json`: the piste's centreline and cross-section, the river and its
+floes, the obstacles, the chair's feel and the bonus, as `peak/downhill/routedata.js` exports them. It ports the
+game's own geometry (`track.js`, `obstacles.js`) and checks every step against `ride.js`'s physics:
+
+- the ride starts at the gate, slowly, and ends past the finish line; it passes each pit stop in order, on the
+  sample its flag is on, and the splits say the same;
+- on the ground the chair is on the snow (to a centimetre), in the air never below it, never inside a rock or a
+  pine, and never off the piste;
+- in the air it moves as its speed says, falls with gravity less no more air drag than a tucked rider has, and
+  steers no more than the chair can there;
+- step by step and over every two seconds, it never has more energy than the slope gave it, less the least
+  drag and rolling resistance, plus what pushing off (only at the top), steering and the gas lift can add;
+- a jump comes only after the lever (Space), within 0.4 s;
+- after a spill it's back only after the game's wait, at the last pit stop, at rest, on five fresh casters; a lost
+  caster is counted where it comes off;
+- the bonus is the replay's own: its best bowl (a pin was hit, and the pins were counted when they settle) and its
+  longest ski jump (from the lip, measured where it landed); the claim's clock is the last sample, the board time
+  the clock less the bonus, and the spills and lost wheels match.
+
+The least time of a stretch is its length at 45 m/s (`downhill.py`, `SEGMENT_FAST`): about 3.7, 2.8, 4.0, 6.0 and
+6.6 s between the gate, the pit stops and the finish; the recorded test ride took 18.7, 8.8, 17.2, 22.4 and 35.6.
+After changing the piste, the obstacles, the chair's feel or the bonus, export the route again:
+`python -X utf8 server/export_route.py downhill`, and paste the line into the console of
+`http://127.0.0.1:5280/downhill.html?manual`.
 
 ## The replay check
 
@@ -206,6 +262,9 @@ python -m unittest discover server
 build), the migrations and the checker.
 Both replay the climbs in `fixtures/`, each with the route it was climbed on, so they keep testing the checker after
 the route moves on (one test then skips, saying the fixtures are older than `route.json`).
+`test_downhill.py` does the same for the downhill with the rides in `fixtures/downhill/` (`ride`: 1:31.61 on the
+board, no spills; `spills`: two), the cheats its checker turns down, and the two games side by side: a board each,
+the house records, one player in both, a run that only its own game knows.
 
 To record a new fixture, climb for real with the browser bot against the dev servers: open
 `http://127.0.0.1:5280/peak.html?keep=manual` (any "manual" in the address stops the live reload; this one doesn't
@@ -215,7 +274,9 @@ switch the game to manual) and run in the console:
 const bot = await import('/server/browser_bot.js'); bot.keepFrames(); await bot.drive(peak, { name: 'Bot Can' })
 ```
 
-then `python -X utf8 server/peak_scores.py --fixture latest --as NAME`. `fixtures/climb` is such a climb
+then `python -X utf8 server/peak_scores.py --fixture latest --as NAME`. For a ride, the downhill's autopilot in
+`downhill.html?manual&scores` stepped in real time ([its README](../peak/downhill/README.md#testing)), then
+`--fixture latest --as NAME --game downhill`. `fixtures/climb` is such a climb
 (1:17.88, no falls); `fixtures/falls` slid into the ring's hole once on purpose (`stumble: ['ring']`, 1:24.04).
 The bot steers like `peak/dev/bots.js`'s `climb()` (round the ring too); teach it a new obstacle there first.
 `keepFrames()` keeps the game going in a tab that's out of sight.
@@ -226,8 +287,8 @@ One container serves the game and the API: `Dockerfile` (python:3.12-slim, a non
 check on `/api/peak/health`), `docker-compose.yml` (the `peakmnot-data` volume, the environment) and `.mosdeploy.yml`
 for MosDeploy at <https://peakmnot.mosredna.eu>. The Dockerfile's first stage (node:24-bookworm-slim) runs
 `npm ci` and the production build, `tools/build.mjs`; so building the image needs the npm registry, and nothing
-else changes on the host. The image holds only what the build wrote, `peak.html`, the favicons, the web manifest,
-`models/mnot.glb` and `assets/`, and the server. The server serves only those files (an allowlist), with a
+else changes on the host. The image holds only what the build wrote, the games' pages (`peak.html`, `downhill.html`),
+the favicons, the web manifest, `models/mnot.glb` and `assets/`, and the server. The downhill is at `/downhill`. The server serves only those files (an allowlist), with a
 Content-Security-Policy that hashes the page's inline scripts.
 
 In `assets/` every file is named after its content (`peak-HASH.js`, `three-HASH.js`, `fall-HASH.m4a`), so it is
