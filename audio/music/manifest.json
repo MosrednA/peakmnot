@@ -1,0 +1,38 @@
+{
+  "title": "Pocket Altitude",
+  "composer": "Original Peak Mnot theme by Codex",
+  "key": "D major",
+  "instruments": ["marimba", "pizzicato strings", "tuba", "glockenspiel", "whistle", "woodblock", "cabasa"],
+  "sample_rate": 44100,
+  "soundfont": "GeneralUser GS 2.0.3",
+  "renderer": "FluidSynth 2.6.1",
+  "assets": [
+    {
+      "id": "peak-climb",
+      "file": "audio/music/peak-climb.mp3",
+      "duration": 73.84614512471656,
+      "loop": true,
+      "bytes": 1034746,
+      "bpm": 104,
+      "bars": 32
+    },
+    {
+      "id": "peak-camp",
+      "file": "audio/music/peak-camp.mp3",
+      "duration": 73.84614512471656,
+      "loop": true,
+      "bytes": 1034745,
+      "bpm": 104,
+      "bars": 32
+    },
+    {
+      "id": "peak-summit",
+      "file": "audio/music/peak-summit.mp3",
+      "duration": 6.015374149659864,
+      "loop": false,
+      "bytes": 85352,
+      "bpm": 104,
+      "bars": 2
+    }
+  ]
+}

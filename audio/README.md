@@ -1,5 +1,8 @@
 # Mnot sounds
 
+Peak Mnot also has an original alpine music theme, with climb/camp loops and a summit sting;
+see [music/README.md](music/README.md) for the files, playback and loop verification.
+
 Ten ElevenLabs `eleven_text_to_sound_v2` effects: three walking steps, two running steps, Jump, a soft landing,
 a deeper cushioned landing, Wave bubbles and a seamless Fall balancing loop. The revised palette uses padded rubber
 footfalls, a short rubber spring for Jump, warm low impacts and rounded bubbles. Prompts exclude metallic rattles,

@@ -16,6 +16,10 @@ export class MnotSounds {
     this.enabled = localStorage.getItem('mnot.sound') !== 'off';
     this.ready = false;
     this.paused = false;
+    /** @type {import('./music.js').PeakMusic|null} */
+    this.music = null;
+    /** @type {Set<() => void>} */
+    this.stateListeners = new Set();
     /** @type {string|null} */
     this.error = null;
     /** @type {AudioContext|null} */
@@ -69,10 +73,21 @@ export class MnotSounds {
     }
     if (this.enabled && this.context.state === 'suspended') await this.context.resume();
     this.master?.gain.setTargetAtTime(this.enabled ? 0.55 : 0, this.context.currentTime, 0.01);
+    this.notifyStateChange();
   }
 
   resume() {
     if (this.context) void this.unlock();
+  }
+
+  /** @param {() => void} listener */
+  onStateChange(listener) {
+    this.stateListeners.add(listener);
+    return () => { this.stateListeners.delete(listener); };
+  }
+
+  notifyStateChange() {
+    for (const listener of this.stateListeners) listener();
   }
 
   /** @param {boolean} enabled */
@@ -85,12 +100,14 @@ export class MnotSounds {
     }
     if (!enabled) this.stopAll();
     else void this.unlock();
+    this.notifyStateChange();
   }
 
   pause() {
     this.paused = true;
     this.stopAll();
     if (this.context && this.master) this.master.gain.setTargetAtTime(0, this.context.currentTime, 0.01);
+    this.notifyStateChange();
   }
 
   stopAll() {
