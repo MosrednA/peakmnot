@@ -65,8 +65,8 @@ python -X utf8 server/peak_scores.py
 | `index.html` | The animation viewer |
 | [`sounds.js`, `music.js`, `audio/`](audio/README.md) | Sound effects, and the music, "Pocket Altitude" |
 | `tools/` | The dev server, the Blender build script, browser checks and the sound scripts |
-| [`IDEAS.md`](IDEAS.md) | Game ideas, for this one and the next |
 | [`AGENTS.md`](AGENTS.md) | The house rules for the AI agents that work on this repository |
+| [`docs/`](docs/agents.md) | [The team](docs/agents.md) (who does what, and the specialist agents in `.claude/agents/`) and [making a level](docs/making-a-level.md) |
 
 ## How it's made
 
@@ -80,7 +80,9 @@ python -X utf8 server/peak_scores.py
   survey the jumps and climb the whole route. `tools/check_controls.js` runs deterministic browser checks on the
   viewer.
 - **AI agents.** Most of it was written by AI coding agents (Claude Code and Codex) working side by side in this
-  folder, steered by a human with opinions. [AGENTS.md](AGENTS.md) is how they keep out of each other's way.
+  folder, steered by a human with opinions. [AGENTS.md](AGENTS.md) is how they keep out of each other's way, and
+  [docs/agents.md](docs/agents.md) introduces the team. The specialists (a level designer, an art director and
+  more) are in `.claude/agents/`, ready to put to work on your own idea.
 
 ## About the high scores
 
@@ -104,8 +106,8 @@ Ideas, bugs and pull requests are welcome.
   blender --background --factory-startup --python tools/build_mnot.py -- models
   ```
 
-- **Changing the route:** the score server checks climbs against an export of it, so re-export
-  `server/route.json` after a change (see `server/README.md`).
+- **Changing the route or making a level:** start with [docs/making-a-level.md](docs/making-a-level.md). The score
+  server checks climbs against an export of the route, so re-export `server/route.json` after a change.
 - **Before a pull request:** climb the route with `bots.climb` in `peak.html?manual` (see
   [peak/README.md](peak/README.md#testing-by-hand)), and run the score server's tests:
 
