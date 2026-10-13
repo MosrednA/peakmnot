@@ -15,7 +15,7 @@ WORKDIR /app
 
 # Only what the page and the server use (server/peak_scores.py serves an allowlist of these); .dockerignore keeps
 # the tests, fixtures, the bot and the masters out.
-COPY peak.html sounds.js music.js favicon.png favicon.ico manifest.webmanifest ./
+COPY peak.html sounds.js music.js favicon.png favicon.ico share.jpg manifest.webmanifest ./
 COPY peak/ ./peak/
 COPY models/mnot.glb ./models/
 COPY audio/ ./audio/

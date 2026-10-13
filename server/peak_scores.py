@@ -33,12 +33,12 @@ from store import Store             # noqa: E402
 import verify                       # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-STATIC = re.compile(r"^/(peak\.html|sounds\.js|music\.js|favicon\.(png|ico)|manifest\.webmanifest|"
+STATIC = re.compile(r"^/(peak\.html|sounds\.js|music\.js|favicon\.(png|ico)|share\.jpg|manifest\.webmanifest|"
                     r"peak/[a-z0-9_-]+\.(js|css)|models/mnot\.glb|audio/[a-z0-9_-]+\.(wav|mp3)|"
                     r"audio/music/[a-z0-9_-]+\.mp3)$")
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".glb": "model/gltf-binary", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".png": "image/png",
-         ".ico": "image/x-icon", ".webmanifest": "application/manifest+json"}
+         ".jpg": "image/jpeg", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json"}
 SECURE = {"X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
           "Cross-Origin-Opener-Policy": "same-origin", "X-Frame-Options": "DENY"}
 API_CSP = "default-src 'none'; frame-ancestors 'none'"
