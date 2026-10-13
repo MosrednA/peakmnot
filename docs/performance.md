@@ -138,13 +138,47 @@ changes the picture is a choice for the art director, not for this kind of pass.
   takes about 0.3 s longer (2.0 → 2.3 s). In exchange, the first frames after the preloader lifts are smoother: the
   worst gap went from 25–33 ms to 17 ms, and nothing is built on the way up.
 
+## Runs from other computers
+
+These came in through `?perf` ([the runs on the server](#the-runs-on-the-server)), after the pass above.
+
+### A MacBook with an Apple M4
+
+Chrome 154 on a retina screen (dpr 2), measured October 2026: a 2205×1488 canvas at pixel ratio 1.5, the adaptive
+quality's top step, with 4× MSAA.
+
+- **It plays at a steady 60 fps** at every spot. The 95th-percentile gap is 16.8 ms, the screen's own rate, so
+  nothing hitches. A frame takes the GPU 8–10 ms (checkpoint 2 is the slowest), which leaves about half the frame's
+  time. Our JS takes under 3 ms a frame: `step` 0.8–1.1 ms, `render()` about 2 ms.
+- **The pixels are the cost**, as on the integrated AMD. Held still at checkpoint 2:
+
+  | What | ms a frame |
+  |---|---|
+  | As played: pixel ratio 1.5, 4× MSAA | 8.0 |
+  | Pixel ratio 2, the screen's own | 13.8 |
+  | Pixel ratio 1 | 3.9 |
+  | 2× MSAA | 6.0 |
+  | No MSAA | 3.9 |
+  | The scene alone | 4.1 |
+  | The ink alone | 4.4 |
+  | The glow; the grade | 1.1; 0.3 |
+  | The shadow map held; at 1024 | 8.2; 7.8 |
+
+- **MSAA is half the frame here.** 4× costs about 4 ms over none, and 2× saves 2 of them.
+- **The ink costs as much as the scene**: 4.4 ms against 4.1. On the integrated AMD it was 2–4 ms of a 21–36 ms
+  frame.
+- **The things in the scene hardly matter.** The dearest, the rock pillars, costs 1.3 ms and the snow 0.7 ms; the
+  rest 0.3 ms or less. The shadows change nothing that can be measured.
+- **Full retina would fit.** At pixel ratio 2 a frame takes 13.8 ms, under the 16.7 ms of a 60 Hz screen. But the
+  adaptive quality starts at 1.5 (`RATIOS` in `look/post.js`), so the game never tries 2.
+
 ## Not done yet
 
 In rough order of what they'd give, and what they'd cost:
 
-- **2× MSAA instead of 4×.** About 2 ms on the integrated GPU (22.4 → 20.0), and no MSAA saves about 5 ms. Both make
-  the edges rougher, so they're the art director's call. A lower setting on the slowest quality steps only is a
-  middle way.
+- **2× MSAA instead of 4×.** About 2 ms on the integrated GPU (22.4 → 20.0), and no MSAA saves about 5 ms. On the
+  M4, 2× takes a quarter off the frame (8.0 → 6.0 ms), and no MSAA half. Both make the edges rougher, so they're the
+  art director's call. A lower setting on the slowest quality steps only is a middle way.
 - **The rock pattern** still costs about 3 ms. Its noise could come from a small tiling 3D texture instead of being
   worked out per pixel. It would look nearly the same, but not exactly.
 - **Draw calls.** There are 198 props, 89 other route meshes and 38 planks and ropes. Merging the static ones that
@@ -153,7 +187,11 @@ In rough order of what they'd give, and what they'd cost:
 - **The last shaders built in play:** the rockfall's (2–6 ms when the first rock falls) and the summit's confetti
   (22 ms, at the finish). Both could join the warm-up.
 - **The backdrop:** the cloud sea and the range cost about 1.2 ms each on the integrated GPU.
-- **The ink:** OutlineEffect draws the scene a second time (2–4 ms). The far backdrop could skip it.
+- **The ink:** OutlineEffect draws the scene a second time (2–4 ms; on the M4 4.4 ms, as much as the scene itself).
+  The far backdrop could skip it.
+- **Pixel ratio 2 on a fast GPU.** The adaptive quality's top step is 1.5. An M4 has room for 2 (13.8 ms a frame),
+  which would make a retina screen sharper. To keep slower computers safe, it could step up to 2 only after a stretch
+  of frames well inside the budget.
 - **Phones** haven't been measured on real hardware yet: `?perf` on a phone will tell. Phones start at ratio 1 and
   get a smaller shadow map (`post.js`).
 
