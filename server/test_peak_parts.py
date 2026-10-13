@@ -203,6 +203,22 @@ class Checker(unittest.TestCase):
                 back_at(spots[ahead])                            # one it never got to
             self.assertEqual(caught.exception.reason, "respawn")
 
+    def test_a_jump_off_the_gondola_carries_its_climb(self):
+        climb = fixture()
+        checker = verify.Checker(Route(climb["route"]), climb["replay"], climb["claim"], climb["splits"])
+        vy = round((checker.route.launch_run + 0.9 * checker.mover_climb) * 1000)
+        self.assertGreater(checker.mover_climb, 0)
+
+        def takeoff(ms):
+            checker.last_mover = 32.933                           # the last sample on the pallet
+            checker.check_takeoff(None, verify.Sample([ms, 0, 0, 0, 0, 0, vy, verify.AIR, verify.FLAG["jump"], -1], 1))
+
+        takeoff(33033)               # a sample interval later: 0.10000000000000142 s in floats
+        takeoff(33050)               # and a step more, when the frames run long
+        with self.assertRaises(verify.Rejection) as caught:
+            takeoff(33250)           # off the rock beside it a while later: nothing to carry
+        self.assertEqual(caught.exception.reason, "antigravity")
+
     def test_ice_reaches_past_its_edge(self):
         rig = {"walk": 0.6, "run": 2, "gravity": 15, "jump": 0.6, "runJump": 0.8, "hard": 6}
         square = lambda x: [[x, 0], [x + 1, 0], [x + 1, 1], [x, 1]]

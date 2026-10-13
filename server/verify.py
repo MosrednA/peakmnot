@@ -24,6 +24,7 @@ WIND = {GROUND: 0.3, AIR: 0.5}
 JET = 1.5
 CARRY = 1.5
 SPACE_BEFORE_JUMP = 1.0         # seconds: buffer (0.14) + takeoff (0.12 to 0.2) + coyote, with room
+EVERY = 0.1                     # seconds: the recorder samples once this long has passed, on the step that gets there
 MAX_GAP = 0.25                  # seconds between samples while Mnot is in play (the recorder takes ~0.1)
 CORRIDOR = 8.0                  # metres from the walking line
 WINDOW = 1.0                    # seconds: the speed check also adds up the steps over this long, so the rounding
@@ -297,7 +298,9 @@ class Checker:
     def check_takeoff(self, a, b):
         r = self.route
         if b.has("jump"):
-            carried = self.mover_climb if b.t - self.last_mover <= 0.1 else 0.0
+            # a jump off the gondola carries its climb; its last sample on the pallet can be a whole sample interval
+            # and a step before the takeoff's (frames vary), and the times are rounded to the ms
+            carried = self.mover_climb if b.t - self.last_mover <= EVERY + TICK + 0.002 else 0.0
             if not any(L - 0.02 <= b.vy <= L + carried + 0.02 for L in (r.launch_stand, r.launch_run)):
                 self.fail("antigravity", b, f"a jump at {b.vy:.2f} m/s")
         elif abs(b.vy) > 0.003 and abs(b.vy - KNOCK_VY) > 0.003:
