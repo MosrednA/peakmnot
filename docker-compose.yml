@@ -4,6 +4,8 @@ services:
   app:
     build: .
     restart: unless-stopped
+    # Docker's default bridge: the deploy host has no address pools left for a network per project
+    network_mode: bridge
     ports:
       # the loopback port MosDeploy allocated at onboarding (its portBinding)
       - "127.0.0.1:12014:8080"
