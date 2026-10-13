@@ -17,6 +17,7 @@ goals and the exclusions for development and manual tests.
 | `route.py`, `route.json` | The route as the game exported it (`peak/scores/routedata.js`), and the geometry questions about it |
 | `store.py`, `db.py` | The data: runs, players, the board, the Hall of Shame; the schema and its migrations |
 | `names.py`, `eggs.py` | The name filter, and what the server says to people poking at it |
+| `perf.py` | The perf runs that `peak.html?perf` sends, kept as JSON lines ([docs/performance.md](../docs/performance.md)) |
 | `export_route.py` | Refreshes `route.json` from the game (below) |
 | `test_peak_scores.py`, `test_peak_parts.py`, `fixtures/` | The tests, and real recorded climbs they replay |
 | `browser_bot.js` | An end-to-end check: a bot that climbs in a real browser and submits like a player |
@@ -86,6 +87,11 @@ replay contains only `v`, `route`, `phase`, `samples` and `events`; it omits the
 record. The route fingerprint lets the game check that a stored v1 replay matches its current route before playback.
 Missing, unclaimed, shadow, house, and replaced best runs all return 404. This endpoint uses the same read rate limit
 as the board.
+
+`POST /api/peak/perf` takes a run of the perf probe (`peak.html?perf`, [docs/performance.md](../docs/performance.md)):
+`{v: 1, text, …}`, at most 64 KB, 6 per address every 10 minutes. `perf.py` clips it (strings, numbers and three
+levels deep only) and adds it as one line to `DATA_DIR/perf.jsonl` with the time, but no address; past 8 MB the file
+moves to `perf.1.jsonl`. It needs no signature: a run is only numbers about a computer, and nothing reads them back.
 
 ### The house records
 

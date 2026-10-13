@@ -7,11 +7,26 @@ What the climb costs to draw, how to measure it on any computer, what the first 
 ### In a browser
 
 Open [`peak.html?perf`](https://peakmnot.mosredna.eu/peak.html?perf) (or `http://127.0.0.1:5280/peak.html?perf` on
-the dev server). It takes about a minute: keep the tab in front and leave it be. At the end there's a table with a
-**Copy** button; paste it wherever you're asking for help. Nothing is sent anywhere.
+the dev server). It takes about a minute: keep the tab in front and leave it be. Add `&by=NAME` to the link to say
+whose computer it was.
+
+At the end the run goes to the score server, `POST /api/peak/perf` ([server/README.md](../server/README.md)). The run
+holds what the browser says about the computer: graphics chip, screen size, pixel ratio and browser. The server
+keeps no IP address. Once the run is in, Mnot dances on the summit and a card says thank you, with a nerdy joke and
+another on request ([`peak/dev/thanks.js`](../peak/dev/thanks.js)). **Raw numbers** on the card shows the table,
+with a **Copy** button. If sending fails, the table stays up so the run can be pasted instead.
 
 The game doesn't start: no title, no scores, no stats, and the pixel ratio stays at its first step, as with
 `?manual`. [`peak/dev/perf.js`](../peak/dev/perf.js) is the probe; `main.js` only loads it for `?perf`.
+`?manual&perf` (what the headless run below uses) sends nothing. On the dev server, `?perf=thanks` shows the card
+straight away with made-up numbers, for working on it, and `&fps=30` shows what a slower computer is told.
+
+### The runs on the server
+
+Each run is one JSON line in `DATA_DIR/perf.jsonl`, with the time, the name from `by` and the whole table.
+[`server/perf.py`](../server/perf.py) keeps it, at most 6 runs per address every 10 minutes. A file over 8 MB moves
+to `perf.1.jsonl`, so the newest runs are always kept. The server's log gets one line per run: the frame time, the
+fps, the graphics chip, the canvas and the name.
 
 ### Headless
 

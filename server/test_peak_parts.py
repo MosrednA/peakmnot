@@ -1,10 +1,11 @@
 """The score server's parts on their own: the name filter, the caller's address behind a proxy, the static files and
-their headers, the database's migrations, and the replay checker on the recorded climbs (fixtures/). The API end to
-end is test_peak_scores.py.
+their headers, the database's migrations, the perf runs, and the replay checker on the recorded climbs (fixtures/).
+The API end to end is test_peak_scores.py.
 
     python -X utf8 -m unittest discover -s server -p "test_*.py"
 """
 import ipaddress
+import json
 import re
 import sys
 import tempfile
@@ -14,6 +15,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import names                                               # noqa: E402
+import perf                                                # noqa: E402
 import verify                                              # noqa: E402
 from db import Database, MIGRATIONS                        # noqa: E402
 from peak_scores import client_ip, networks, page_csp      # noqa: E402
@@ -228,6 +230,55 @@ class Checker(unittest.TestCase):
                                             "inputs": [], "events": []}):
             with self.assertRaises(verify.Malformed):
                 verify.parse(replay)
+
+
+class PerfRuns(unittest.TestCase):
+    RUN = {"v": 1, "text": "Peak Mnot perf · a table", "gpu": "ANGLE (AMD Radeon)", "canvas": [2268, 1417],
+           "frame": 22.123, "fps": 41.5, "by": "Mnot", "lines": [["frame", 22.1]] * 3}
+
+    def setUp(self):
+        self.server = Server(Route(fixture()["route"]))
+        self.file = Path(self.server.tmp.name) / "perf.jsonl"
+
+    def tearDown(self):
+        self.server.close()
+
+    def kept(self):
+        return [json.loads(line) for line in self.file.read_text(encoding="utf-8").splitlines()]
+
+    def test_a_run_is_kept_without_an_address(self):
+        reply = self.server.request("POST", "/api/peak/perf", self.RUN)
+        self.assertEqual(reply.status, 201)
+        [run] = self.kept()
+        self.assertEqual((run["text"], run["by"], run["frame"], run["canvas"]), (self.RUN["text"], "Mnot", 22.12,
+                                                                                [2268, 1417]))
+        self.assertNotIn("127.0.0.1", self.file.read_text(encoding="utf-8"))
+        self.assertNotIn("v", run)
+
+    def test_only_runs(self):
+        for body in ({"v": 2, "text": "x"}, {"v": 1}, {"v": 1, "text": 5}, b"[1]", b"{"):
+            reply = self.server.request("POST", "/api/peak/perf", body, {"Content-Type": "application/json"})
+            self.assertEqual(reply.status, 400, body)
+        big = dict(self.RUN, text="x" * (perf.MAX_BODY + 1))
+        self.assertEqual(self.server.request("POST", "/api/peak/perf", big).status, 413)
+        self.assertFalse(self.file.exists())
+
+    def test_clipped(self):
+        run = perf.keepable(dict(self.RUN, gpu="g" * 1000, deep={"a": {"b": {"c": {"d": 1}}}}, nan=float("nan"),
+                                 many=list(range(500))), now=0)
+        self.assertEqual((len(run["gpu"]), run["deep"], run["nan"], len(run["many"]), run["at"]),
+                         (300, {"a": {"b": None}}, None, 120, "1970-01-01T00:00:00Z"))
+
+    def test_rate(self):
+        statuses = [self.server.request("POST", "/api/peak/perf", self.RUN).status for _ in range(8)]
+        self.assertEqual(statuses, [201] * 6 + [429] * 2)
+
+    def test_rolls_over(self):
+        log = perf.PerfLog(self.file, quiet=True)
+        self.file.write_text("x" * (perf.CAP - 10), encoding="utf-8")
+        log.keep({"text": "new"})
+        self.assertEqual(self.kept(), [{"text": "new"}])
+        self.assertEqual(self.file.with_name("perf.1.jsonl").stat().st_size, perf.CAP - 10)
 
 
 if __name__ == "__main__":

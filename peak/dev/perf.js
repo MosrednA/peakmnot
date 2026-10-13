@@ -3,16 +3,22 @@
 // held at its first pixel ratio). It puts Mnot at base camp, at each checkpoint and on the summit, and watches a few
 // seconds of frames at each, run as the game runs them. Then, held still at the spot that took longest, it times the
 // frame's parts one by one with the GPU waited for (the pixel ratio, MSAA, the scene, its ink, the shadows, the glow,
-// the grade) and what each thing in the scene costs. It ends with a table to copy. tools/perf.mjs runs it headless.
+// the grade) and what each thing in the scene costs. It ends with a table to copy, and sends the run to the server
+// (server/perf.py), where Mnot says thank you on a card (thanks.js). With ?manual, as tools/perf.mjs runs it headless,
+// nothing is sent. ?perf&by=NAME says whose computer it was.
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { look } from './bots.js';
+import { share, thank } from './thanks.js';
 
 const FRAMES = 30;          // frames timed for each line
 const WATCH = 4;            // seconds of frames watched at each spot
 
 const ABOUT = 'Peak Mnot perf probe: times how this computer draws the climb. It takes about a minute: keep this tab ' +
-  'in front and leave it be. Nothing is sent anywhere; copy the table at the end.';
+  'in front and leave it be.';
+const SENT = " At the end it sends the timings, with this computer's graphics chip, screen size and browser, to the " +
+  'Peak Mnot server (no IP address is kept).';
+const KEPT = ' Nothing is sent anywhere; copy the table at the end.';
 
 const wait = ms => new Promise(done => setTimeout(done, ms));
 const now = () => performance.now();
@@ -21,14 +27,23 @@ const at = (a, p) => [...a].sort((x, y) => x - y)[Math.floor(a.length * p)] ?? 0
 const ms = v => v.toFixed(1).padStart(6);
 
 export async function probe(peak) {
+  const params = new URLSearchParams(location.search);
+  const send = !params.has('manual'), by = params.get('by')?.trim().slice(0, 40) || null;
   const box = document.createElement('div');
   box.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99999;max-width:min(620px,calc(100vw - 16px));' +
     'max-height:calc(100vh - 16px);overflow:auto;padding:10px 12px;border-radius:10px;background:rgba(20,22,40,0.88);' +
     'color:#fffaf0;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap';
   document.body.append(box);
-  const say = text => { box.textContent = `${ABOUT}\n\n${text}`; };
+  if (params.get('perf') === 'thanks' && /^(127\.0\.0\.1|localhost)$/.test(location.hostname)) {
+    // just the card, to look at on the dev server (&fps=30 as for a slower computer)
+    box.textContent = 'The numbers of a run would be here.\n';
+    thank(peak, { by, fps: Number(params.get('fps') ?? 60), drawn: 1843, tris: 642,
+      gpu: 'ANGLE (Mnot, Mnot GeForce 9000 (0x0000BEEF) Direct3D11, D3D11)' }, box);
+    return;
+  }
+  const say = text => { box.textContent = `${ABOUT}${send ? SENT : KEPT}\n\n${text}`; };
   try {
-    const text = await measure(peak, say);
+    const run = await measure(peak, say), text = run.text;
     console.log(text);
     box.textContent = text;
     const copy = document.createElement('button');
@@ -37,6 +52,14 @@ export async function probe(peak) {
       'border:0;cursor:pointer';
     copy.onclick = () => navigator.clipboard.writeText(text).then(() => { copy.textContent = 'Copied'; });
     box.append(copy);
+    if (!send) return;
+    const status = document.createElement('div');
+    status.style.cssText = 'margin-bottom:8px;font-weight:600';
+    status.textContent = 'Sending it to the Peak Mnot server…';
+    box.prepend(status);
+    const sent = await share({ v: 1, by, ...run, things: run.things.map(t => ({ ...t, more: t.more.join(', ') })) });
+    status.textContent = sent.say;
+    if (sent.ok) thank(peak, { by, ...run }, box);
   } catch (error) {
     say(`Perf probe failed: ${error?.stack ?? error}`);
     window.peakPerf = { error: String(error?.stack ?? error) };
@@ -133,7 +156,9 @@ async function measure(peak, say) {
     }
     gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
   };
+  let drawn = 0;                // pictures drawn, for the card
   const time = (draw, into = null, frames = FRAMES) => {
+    drawn += frames + 3;
     for (let i = 0; i < 3; i++) draw();
     finish(into);
     const t = now();
@@ -165,6 +190,7 @@ async function measure(peak, say) {
     Object.assign(spot, { first: now() - t, built: r.info.programs.length - programs });
     await wait(200);
     spot.watched = await watch(peak, WATCH);
+    drawn += spot.watched.gaps.length;
     look(peak, spot.at.toArray(), spot.yaw);
     spot.frame = time(() => post.render());
     Object.assign(spot, counted());
@@ -331,6 +357,8 @@ async function measure(peak, say) {
       more })),
     spots: spots.map(({ label, first, built, frame, calls, triangles, watched: w }) => ({ label, first, built, frame,
       calls, triangles, fps: 1000 / avg(w.gaps), gapP95: at(w.gaps, 0.95), step: avg(w.step), render: avg(w.render) })),
+    frame: lines.find(([label]) => label === 'frame')?.[1] ?? null,
+    fps: avg(spots.map(s => 1000 / avg(s.watched.gaps))), drawn, tris: drawn * avg(spots.map(s => s.triangles)) / 1e6,
   };
-  return text;
+  return window.peakPerf;
 }

@@ -219,7 +219,8 @@ each with its CSS next to it.
 | File | What |
 |---|---|
 | `bots.js` | Test players for tuning; nothing in the game imports it |
-| `perf.js` | The perf probe for `peak.html?perf`: times how this computer draws the climb ([docs/performance.md](../docs/performance.md)) |
+| `perf.js` | The perf probe for `peak.html?perf`: times how this computer draws the climb and sends the run to the server ([docs/performance.md](../docs/performance.md)) |
+| `thanks.js`, `thanks.css` | The end of a perf run: Mnot dances on the summit, a card says thank you with a nerdy joke, and the raw numbers sit behind a button |
 
 ## Events
 

@@ -28,6 +28,7 @@ from urllib.parse import parse_qs, urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import api as api_module            # noqa: E402
 from db import Database             # noqa: E402
+from perf import PerfLog            # noqa: E402
 from route import Route             # noqa: E402
 from store import Store             # noqa: E402
 import verify                       # noqa: E402
@@ -245,7 +246,8 @@ class App:
         kwargs = {"clock": clock} if clock else {}
         self.store = Store(self.db, keys, **kwargs)
         self.route = route or Route.load()
-        self.api = api_module.Api(self.store, self.route, origins, **kwargs)
+        self.api = api_module.Api(self.store, self.route, origins, perf=PerfLog(Path(data_dir) / "perf.jsonl", quiet),
+                                  **kwargs)
         self.trusted, self.static, self.quiet = trusted, static, quiet
         self.build = build_id() if static else ""
         self.page_cache = {}

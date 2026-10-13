@@ -1,0 +1,58 @@
+/* The thank-you card at the end of a perf run (thanks.js): the HUD's cream card and ink outlines (peak.html's
+   variables), the preloader's can on top with a few sparkles. It docks at the right edge, clear of Mnot dancing in
+   the middle, like the summit card; on narrow screens it sits at the top, over the sky, with Mnot below it. */
+body.perf-thanks #help, body.perf-thanks #balance, body.perf-thanks #scores-hud, body.perf-thanks #toast,
+body.perf-thanks #title, body.perf-thanks #touch-help, body.perf-thanks #touch, body.perf-thanks #sound {
+  display: none; }
+
+.pt-veil { position: fixed; inset: 0; z-index: 45; pointer-events: none;
+  background: radial-gradient(ellipse at 40% 50%, rgba(43, 51, 82, 0) 45%, rgba(43, 51, 82, 0.28) 100%); }
+.pt-card { position: absolute; right: calc(20px + env(safe-area-inset-right)); top: 50%; width: 340px;
+  max-width: calc(100vw - 32px); max-height: calc(100vh - 110px); overflow: auto; box-sizing: border-box;
+  padding: 50px 20px 16px; text-align: center; pointer-events: auto; color: var(--ink);
+  font: 500 15px/1.4 Fredoka, system-ui, sans-serif; transform: translateY(-50%);
+  animation: pt-in 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+.pt-can { position: absolute; left: 50%; top: 12px; transform: translateX(-50%) scale(0.5); transform-origin: 50% 0; }
+.pt-can .pl-can { animation-duration: 1.1s; }
+.pt-spark { position: absolute; color: var(--gold); -webkit-text-stroke: 1px var(--ink); font-size: 18px;
+  animation: pt-twinkle 2.6s ease-in-out infinite; }
+.pt-spark.small { font-size: 13px; }
+.pt-card h1 { margin: 6px 0 8px; font: 700 32px/1.05 Fredoka, sans-serif; color: var(--red);
+  -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; text-shadow: 0 3px 0 var(--ink); }
+.pt-card p { margin: 0 0 10px; }
+.pt-how { font-weight: 600; }
+.pt-how:empty { display: none; }
+.pt-joke { position: relative; margin: 4px 4px 12px; padding: 10px 12px 8px; border: 2px solid var(--ink);
+  border-radius: 10px; background: #fff3b8; box-shadow: 0 2.5px 0 var(--ink); transform: rotate(-1.5deg);
+  font-size: 14px; text-align: left; }
+.pt-joke b { color: var(--red); }
+.pt-more { display: block; margin: 6px 0 0 auto; padding: 2px 10px; border: 1.5px solid var(--ink);
+  border-radius: 999px; background: #fff; color: var(--ink); font: 600 12px Fredoka, sans-serif; cursor: pointer; }
+.pt-more:hover { background: var(--gold); }
+.pt-soft { font-size: 13px; color: var(--muted); }
+.pt-buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
+.pt-play { border: 2px solid var(--ink); border-radius: 10px; box-shadow: 0 2.5px 0 var(--ink); background: var(--gold);
+  color: var(--ink); font: 700 16px Fredoka, sans-serif; padding: 6px 18px; cursor: pointer; }
+.pt-play:hover { transform: translateY(1px); box-shadow: 0 1.5px 0 var(--ink); }
+.pt-numbers { border: 2px solid var(--ink); border-radius: 10px; box-shadow: 0 2.5px 0 var(--ink); background: #fff;
+  color: var(--ink); font: 600 14px Fredoka, sans-serif; padding: 6px 14px; cursor: pointer; }
+.pt-numbers::before { content: "{ } "; color: var(--teal); font-weight: 700; }
+.pt-numbers:hover { transform: translateY(1px); box-shadow: 0 1.5px 0 var(--ink); }
+.pt-veil[hidden] { display: none; }
+
+@keyframes pt-in { from { opacity: 0; transform: translate(60px, -50%) rotate(4deg); } }
+@keyframes pt-twinkle { 50% { transform: translateY(-3px) scale(1.2); opacity: 0.6; } }
+
+@media (max-width: 640px) {
+  .pt-card { left: 50%; right: auto; top: calc(10px + env(safe-area-inset-top)); width: 360px; max-height: 56vh;
+    padding: 40px 14px 12px; font-size: 14px; line-height: 1.35; transform: translateX(-50%);
+    animation-name: pt-down; }
+  .pt-can { top: 8px; transform: translateX(-50%) scale(0.42); }
+  .pt-card h1 { margin-top: 2px; font-size: 25px; }
+  .pt-card p { margin-bottom: 8px; }
+  .pt-joke { margin-bottom: 10px; font-size: 13px; }
+  @keyframes pt-down { from { opacity: 0; transform: translate(-50%, -40px); } }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pt-card, .pt-spark, .pt-can .pl-can { animation: none; }
+}

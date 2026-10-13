@@ -1,6 +1,6 @@
 """The /api/peak endpoints, without the HTTP plumbing (peak_scores.py feeds requests in): rate limits, the
 signature and nonce on every request after the first, the checks on splits and the finish, the replay check
-(verify.py), and the eggs (eggs.py) for anything that doesn't add up.
+(verify.py), the perf runs from `?perf` (perf.py), and the eggs (eggs.py) for anything that doesn't add up.
 
 Api.handle(method, path, query, headers, body, ip) -> (status, headers, body bytes); body is the raw request body
 (already capped in size), ip the client's address.
@@ -18,6 +18,7 @@ import zlib
 
 import eggs
 import names
+import perf as perf_runs
 import verify as verifier
 from store import Store, body_hash
 
@@ -27,6 +28,7 @@ SLACK = 2.0                     # seconds of clock difference forgiven between t
 MAX_T0 = 15000                  # ms: the game's clock when it asked for a run
 LIMITS = {                      # (requests, per seconds)
     "run": (30, 600), "write": (150, 600), "read": (120, 60), "claim": (20, 3600), "egg": (30, 60),
+    "perf": (6, 600),           # a probe takes a minute or more, so this only stops the silly
 }
 RUN_ID = re.compile(r"^[A-Za-z0-9_-]{8,40}$")
 SIG = re.compile(r"^[0-9a-f]{64}$")
@@ -72,8 +74,8 @@ def loud(code, burn=False, **numbers):
 
 
 class Api:
-    def __init__(self, store: Store, route, origins=(), clock=time.time):
-        self.store, self.route, self.clock = store, route, clock
+    def __init__(self, store: Store, route, origins=(), clock=time.time, perf=None):
+        self.store, self.route, self.clock, self.perf = store, route, clock, perf
         self.origins = set(origins)
         self.limiter = Limiter(clock)
         self.segments = route.segments()
@@ -149,6 +151,9 @@ class Api:
             raise loud("not_found")
         if method != "POST":
             raise loud("method")
+        if parts == ["perf"] and self.perf:
+            self.limit("perf", who)
+            return self.perf_run(headers, body)
         if parts == ["run"]:
             self.limit("run", who)
             return self.new_run(headers, body, who)
@@ -196,6 +201,17 @@ class Api:
         if not isinstance(data, dict):
             raise loud("malformed")
         return data
+
+    # ------------------------------------------------------------------ a perf run
+
+    def perf_run(self, headers, body):
+        if len(body) > perf_runs.MAX_BODY:
+            raise loud("oversized")
+        run = perf_runs.keepable(self.decode(headers, body), self.clock())
+        if run is None:
+            raise loud("malformed")
+        self.perf.keep(run)
+        return 201, {"ok": True}, "Thanks! Mnot wrote it all down.", {}
 
     # ------------------------------------------------------------------ the climb
 
