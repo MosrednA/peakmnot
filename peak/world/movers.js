@@ -98,6 +98,19 @@ export function gondola(world, a, b, feet, { size = [1.0, 0.9], travel = 3, paus
     kind: 'gondola',
     solid,
     state: () => state(t),
+    // Set the gondola to an absolute elapsed time from route construction. Replay playback uses this to make the
+    // pallet match the recorded run while watching, paused or scrubbed.
+    seek(seconds, dt = 0) {
+      const next = offset + Math.max(0, seconds);
+      if (Math.abs(next - t) < 1e-9) return false;       // preserve the last frame's movement for a rider
+      t = next;
+      const now = state(t);
+      place(now.s);
+      solid.moveBy(point.x - group.position.x, point.y - group.position.y, point.z - group.position.z, dt);
+      group.position.copy(point);
+      phase = !now.docked;
+      return true;
+    },
     update(dt) {
       t += dt;
       const now = state(t);

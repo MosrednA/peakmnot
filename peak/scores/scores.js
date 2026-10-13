@@ -35,9 +35,9 @@ async function gzip(bytes) {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-export function createScores({ player, game, world, manual = false }) {
+export function createScores({ player, game, world, manual = false, replayMode = false }) {
   // the Web Crypto API needs a secure context (https or localhost)
-  if (manual || !globalThis.crypto?.subtle) return { step() {} };
+  if (manual || replayMode || !globalThis.crypto?.subtle) return { step() {}, status: 'off', board: null };
   const base = apiBase();
   const route = routeFingerprint({ world, player });      // the snapshot is taken now, before the first step
   let run = null, nonce = null, status = 'idle', queue = Promise.resolve(), verdict = null;
@@ -99,6 +99,7 @@ export function createScores({ player, game, world, manual = false }) {
   });
 
   const board = new Leaderboard({
+    isRunActive: () => recorder.recording && !game.done,
     load: async (limit) => {
       const me = saved.get()?.id;
       const res = await fetch(`${base}/board?limit=${limit}${me ? `&me=${encodeURIComponent(me)}` : ''}`,

@@ -77,7 +77,15 @@ makes each request single-use and in order. If an answer gets lost, the same req
 the same answer again (`X-Mnot-Replay: 1`). Runs expire three hours after they start.
 
 Reading needs no signature: `GET /api/peak/board?limit=10&me=PLAYER_ID` (the top of the board, plus your own entry
-if it's further down), `GET /api/peak/shame` (the Hall of Shame) and `GET /api/peak/health`.
+if it's further down), `GET /api/peak/shame` (the Hall of Shame) and `GET /api/peak/health`. Board entries include
+`replayId` only when the row is a player's current claimed best and its verified replay is retained; house and shadow
+entries, and rows without a retained replay, have `replayId: null`.
+
+`GET /api/peak/replay/RUN_ID` returns `{id, name, time, falls, dents, replay}` for that current best. The public
+replay contains only `v`, `route`, `phase`, `samples` and `events`; it omits the raw inputs and the rest of the run
+record. The route fingerprint lets the game check that a stored v1 replay matches its current route before playback.
+Missing, unclaimed, shadow, house, and replaced best runs all return 404. This endpoint uses the same read rate limit
+as the board.
 
 ### The house records
 

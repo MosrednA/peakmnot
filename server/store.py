@@ -11,11 +11,22 @@ import hmac
 import json
 import secrets
 import time
+import zlib
 
 RUN_TTL = 3 * 3600              # a run must finish within this many seconds of starting
 CLAIM_TTL = 3600                # and be claimed (named) within this many seconds of finishing
 KEEP_RUNS = 7 * 86400           # unfinished and unclaimed runs are forgotten after a week
 KEEP_REPLAYS = 30 * 86400       # replays that aren't on the board or the shame list, after a month
+
+BOARD_SELECT = (
+    "SELECT s.player_id, s.time_ms, s.falls, s.dents, s.achieved, p.name, p.house, p.quip, "
+    "CASE WHEN p.house = 0 AND r.id IS NOT NULL AND rp.run_id IS NOT NULL THEN s.run_id END AS replay_id, "
+    "RANK() OVER (ORDER BY s.time_ms, s.falls, s.achieved) AS rank "
+    "FROM scores s JOIN players p ON p.id = s.player_id "
+    "LEFT JOIN runs r ON r.id = s.run_id AND r.player_id = s.player_id AND r.state = 'claimed' "
+    "AND r.verdict = 'ok' AND r.time_ms = s.time_ms AND r.falls = s.falls AND r.dents = s.dents "
+    "LEFT JOIN replays rp ON rp.run_id = s.run_id AND rp.verdict = 'ok' "
+)
 
 
 def token(n=18):
@@ -141,22 +152,17 @@ class Store:
 
     def entry(self, row, me):
         entry = {"rank": row["rank"], "name": row["name"], "time": row["time_ms"], "falls": row["falls"],
-                 "dents": row["dents"], "me": row["player_id"] == me}
+                 "dents": row["dents"], "me": row["player_id"] == me, "replayId": row["replay_id"]}
         if row["house"]:
             entry.update(house=True, quip=row["quip"])
         return entry
 
     def board(self, limit=10, me=None):
-        rows = self.db.all("SELECT s.player_id, s.time_ms, s.falls, s.dents, p.name, p.house, p.quip, "
-                           "RANK() OVER (ORDER BY s.time_ms, s.falls, s.achieved) AS rank "
-                           "FROM scores s JOIN players p ON p.id = s.player_id "
-                           "ORDER BY s.time_ms, s.falls, s.achieved LIMIT ?", (limit,))
+        rows = self.db.all(BOARD_SELECT + "ORDER BY s.time_ms, s.falls, s.achieved LIMIT ?", (limit,))
         entries = [self.entry(r, me) for r in rows]
         mine = None
         if me and not any(e["me"] for e in entries):
-            row = self.db.one("SELECT s.player_id, s.time_ms, s.falls, s.dents, s.achieved, p.name, p.house, p.quip "
-                              "FROM scores s "
-                              "JOIN players p ON p.id = s.player_id WHERE s.player_id = ?", (me,))
+            row = self.db.one(BOARD_SELECT + "WHERE s.player_id = ?", (me,))
             if row:
                 mine = dict(self.entry(dict(row, rank=self.rank_of(row["time_ms"], row["falls"], row["achieved"],
                                                                      exclude=me)), me))
@@ -220,7 +226,8 @@ class Store:
         if not row:
             return None
         real = self.board(limit - 1)
-        top = {"rank": 1, "name": row["name"], "time": row["claimed_ms"], "falls": 0, "dents": 0, "me": True}
+        top = {"rank": 1, "name": row["name"], "time": row["claimed_ms"], "falls": 0, "dents": 0,
+               "me": True, "replayId": None}
         entries = [top] + [dict(e, rank=e["rank"] + 1) for e in real["entries"]]
         return {"entries": entries, "me": None, "total": real["total"] + 1}
 
@@ -241,3 +248,25 @@ class Store:
     def replay(self, run_id):
         row = self.db.one("SELECT data, verdict, details FROM replays WHERE run_id = ?", (run_id,))
         return row and (json.loads(gzip.decompress(row["data"])), row["verdict"], row["details"])
+
+    def public_replay(self, run_id):
+        """Return only a claimed player's current, verified best replay and its public fields."""
+        row = self.db.one(
+            "SELECT p.name, s.time_ms, s.falls, s.dents, rp.data "
+            "FROM scores s JOIN players p ON p.id = s.player_id "
+            "JOIN runs r ON r.id = s.run_id AND r.player_id = s.player_id "
+            "JOIN replays rp ON rp.run_id = s.run_id "
+            "WHERE s.run_id = ? AND p.house = 0 AND r.state = 'claimed' AND r.verdict = 'ok' "
+            "AND rp.verdict = 'ok' AND r.time_ms = s.time_ms AND r.falls = s.falls AND r.dents = s.dents",
+            (run_id,))
+        if not row:
+            return None
+        try:
+            replay = json.loads(gzip.decompress(row["data"]))
+        except (OSError, EOFError, ValueError, UnicodeDecodeError, RecursionError, zlib.error):
+            return None
+        if not isinstance(replay, dict) or any(key not in replay for key in ("v", "route", "phase", "samples", "events")):
+            return None
+        return {"id": run_id, "name": row["name"], "time": row["time_ms"], "falls": row["falls"],
+                "dents": row["dents"],
+                "replay": {key: replay[key] for key in ("v", "route", "phase", "samples", "events")}}

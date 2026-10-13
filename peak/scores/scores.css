@@ -67,6 +67,13 @@ body.title-up #scores-hud { display: none; }
 .sc-t { font-weight: 600; }
 .sc-f { color: var(--sky); font-size: 12px; text-align: right; }
 .sc-f::before { content: "↓"; margin-right: 1px; }
+.sc-replay-actions, .sc-replay-note { grid-column: 2 / -1; min-width: 0; }
+.sc-replay-actions { display: flex; gap: 6px; padding: 1px 0 3px; }
+.sc-replay-action { flex: 1; min-height: 28px; border: 1.5px solid var(--ink); border-radius: 8px; background: #fff;
+  color: var(--ink); font: 600 12px Fredoka, sans-serif; cursor: pointer; }
+.sc-replay-action:hover { background: #e9f4ff; }
+.sc-replay-action:focus-visible { outline: 3px solid #9fdcff; outline-offset: 2px; }
+.sc-replay-note { padding: 0 0 3px; color: var(--muted); font-size: 11px; }
 .sc-note { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 .sc-note:empty { display: none; }
 

@@ -249,6 +249,7 @@ export class Title {
   key(e) {
     if (!this.visible || e.ctrlKey || e.metaKey || e.altKey || QUIET.has(e.code)) return;
     if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+    if (document.querySelector('.sc-panel.open')) return;            // keyboard stays in the Hall of Fame
     if (MOVES.has(e.code)) {
       if (e.target.closest?.('button')) {
         e.preventDefault();
@@ -257,7 +258,6 @@ export class Title {
       }
       return;
     }
-    if (document.querySelector('.sc-panel.open')) return;            // the Hall of Fame is open
     if ((e.code === 'Enter' || e.code === 'NumpadEnter') && e.target.closest?.('button')) return;   // clicks it
     e.preventDefault();
     this.start('key');
