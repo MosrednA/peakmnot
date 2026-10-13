@@ -14,8 +14,8 @@
 // side like a 2.5D game along the cliff, from high up where rocks fall. Planks and ropes are always shot from the front
 // (camera.js), so you see Mnot's glasses and lean.
 import * as THREE from 'three';
-import { checkpointFlag, summitFlag, signpost, tent, cairn, pennants, podcastTable, trailMap, snackStash, warningSign,
-  bench, lostMic, dressRoute, onRock } from '../props/decor.js';
+import { checkpointFlag, summitFlag, signpost, tent, pennants, podcastTable, trailMap, snackStash, warningSign,
+  dressRoute, onRock } from '../props/decor.js';
 import { looseLedge } from './crumble.js';
 import { icePatch } from './ice.js';
 import { ringRock } from './ring.js';

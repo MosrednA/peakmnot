@@ -48,6 +48,12 @@ PAGE_CSP = ("default-src 'self'; script-src 'self' https://cdn.jsdelivr.net {has
             "worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 DRAIN = 4 * 1024 * 1024               # bytes of an oversized body read (and dropped) before saying no
 INLINE_SCRIPT = re.compile(rb"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S | re.I)
+# The page loads its code through v/BUILD/ (App.page): Cloudflare tells browsers to keep JS and CSS for hours, so a
+# path that changes with the code is what keeps a new page from running with old modules. Any id is served; only the
+# current one is cached for good.
+VERSIONED = re.compile(r"^/v/([0-9a-f]{12})(/(?!peak\.html$).*)$")      # the code, never the page itself
+PAGE_CODE = re.compile(rb'((?:src|href)=")(peak/)')
+BUILD_FILES = ("*.js", "peak/**/*", "audio/**/*")    # what loads through v/BUILD/: the modules and, by music.js, music
 
 
 def page_csp(html):
@@ -56,6 +62,16 @@ def page_csp(html):
     hashes = " ".join(f"'sha256-{base64.b64encode(hashlib.sha256(m).digest()).decode()}'"
                       for m in INLINE_SCRIPT.findall(html))
     return PAGE_CSP.format(hashes=hashes)
+
+
+def build_id(root=ROOT):
+    """A short hash of every file the page loads through v/BUILD/, so the path changes whenever one of them does."""
+    digest = hashlib.sha256()
+    for file in sorted({f for pattern in BUILD_FILES for f in root.glob(pattern) if f.is_file()}):
+        path = "/" + file.relative_to(root).as_posix()
+        if STATIC.match(path):
+            digest.update(path.encode() + b"\0" + file.read_bytes())
+    return digest.hexdigest()[:12]
 
 
 def networks(text):
@@ -128,8 +144,11 @@ class Handler(BaseHTTPRequestHandler):
         app = self.server.app
         url = urlsplit(self.path)
         path = url.path
-        if method in ("GET", "HEAD") and app.static and (path == "/" or STATIC.match(path)):
-            if self.static("/peak.html" if path == "/" else path, method == "HEAD"):
+        if method in ("GET", "HEAD") and app.static:
+            versioned = VERSIONED.match(path)
+            file = "/peak.html" if path == "/" else versioned.group(2) if versioned else path
+            current = bool(versioned) and versioned.group(1) == app.build
+            if STATIC.match(file) and self.static(file, method == "HEAD", current):
                 return
         body = b""
         if method == "POST":
@@ -175,17 +194,21 @@ class Handler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(data)
 
-    def static(self, path, head):
+    def static(self, path, head, current=False):
+        """A file of the game; current when asked for through this build's v/BUILD/, so it can be kept for good."""
         if not STATIC.match(path):
             return False
         file = (ROOT / path.lstrip("/")).resolve()
         if ROOT not in file.parents or not file.is_file():
             return False
+        app, page = self.server.app, file.suffix == ".html"
         stat = file.stat()
-        tag = f'"{stat.st_mtime_ns:x}-{stat.st_size:x}"'
-        headers = {**SECURE, "Content-Type": TYPES[file.suffix], "ETag": tag, "Cache-Control": "no-cache"}
-        if file.suffix == ".html":
-            headers["Content-Security-Policy"] = self.server.app.csp(file)
+        # the page names the build in its links, so its tag does too: new code, new page
+        tag = f'"{stat.st_mtime_ns:x}-{stat.st_size:x}' + (f'-{app.build}"' if page else '"')
+        cache = "public, max-age=31536000, immutable" if current else "no-cache"
+        headers = {**SECURE, "Content-Type": TYPES[file.suffix], "ETag": tag, "Cache-Control": cache}
+        if page:
+            data, headers["Content-Security-Policy"] = app.page(file)
         if self.headers.get("If-None-Match") == tag:
             self.send_response(304)
             for key in ("ETag", "Cache-Control"):
@@ -193,7 +216,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return True
-        data = file.read_bytes()
+        if not page:
+            data = file.read_bytes()
         self.send_response(200)
         for key, value in headers.items():
             self.send_header(key, value)
@@ -219,16 +243,19 @@ class App:
         self.route = route or Route.load()
         self.api = api_module.Api(self.store, self.route, origins, **kwargs)
         self.trusted, self.static, self.quiet = trusted, static, quiet
-        self.csp_cache = {}
+        self.build = build_id() if static else ""
+        self.page_cache = {}
         self.lock = threading.Lock()
 
-    def csp(self, file):
+    def page(self, file):
+        """peak.html as served, with its links into peak/ going through v/BUILD/, and its policy."""
         stat = file.stat()
         key = (str(file), stat.st_mtime_ns)
         with self.lock:
-            if key not in self.csp_cache:
-                self.csp_cache = {key: page_csp(file.read_bytes())}
-            return self.csp_cache[key]
+            if key not in self.page_cache:
+                html = PAGE_CODE.sub(rb"\1v/" + self.build.encode() + rb"/\2", file.read_bytes())
+                self.page_cache = {key: (html, page_csp(html))}
+            return self.page_cache[key]
 
     def serve(self, host, port):
         server = ThreadingHTTPServer((host, port), Handler)

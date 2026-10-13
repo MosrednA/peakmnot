@@ -9,8 +9,8 @@ tolerances are rounding (the replay is in mm, mm/s and ms) plus a little; see se
 """
 import math
 
-from replayformat import (AIR, BEAM, EVENTS, FLAG, GROUND, MAX_TIME_MS, MOVE_KEYS, OUT, Malformed,  # noqa: F401
-                          Sample, parse)
+from replayformat import (AIR, BEAM, FLAG, GROUND, MAX_TIME_MS, MOVE_KEYS, OUT, Malformed, Sample,  # noqa: F401
+                          parse)
 
 # The game's own numbers (player.js, balance.js, game.js); route.json carries the rig and the route.
 EDGE, AIR_REACH, STEP_UP, STEP_DOWN, BEAM_CATCH = 0.1, 0.14, 0.26, 0.32, 0.6

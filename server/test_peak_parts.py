@@ -98,6 +98,20 @@ class StaticFiles(unittest.TestCase):
             icon = self.server.request("GET", path)
             self.assertEqual((icon.status, icon.headers["Content-Type"]), (200, kind), path)
 
+    def test_the_code_loads_through_the_build(self):
+        page = self.server.request("GET", "/").data
+        build = re.search(rb'src="v/([0-9a-f]{12})/peak/main\.js"', page).group(1).decode()
+        self.assertIn(f'href="v/{build}/peak/ui/title.css"'.encode(), page)
+        self.assertIn(b'href="models/mnot.glb"', page)                  # the model and sounds load by the page's path
+        self.assertIn(f"-{build}", self.server.request("GET", "/").headers["ETag"])
+        for path in ("/peak/main.js", "/music.js", "/peak/world/world.js"):
+            r = self.server.request("GET", f"/v/{build}{path}")
+            self.assertEqual((r.status, r.headers["Cache-Control"]), (200, "public, max-age=31536000, immutable"))
+        self.assertEqual(self.server.request("GET", "/v/000000000000/peak/main.js").headers["Cache-Control"], "no-cache")
+        for path in (f"/v/{build}/server/api.py", f"/v/{build}/../server/api.py", f"/v/{build}/peak.html",
+                     "/v/zz/peak/main.js", f"/v/{build}/api/peak/board"):
+            self.assertIn(self.server.request("GET", path).status, (404, 418), path)
+
     def test_nothing_else_is(self):
         for path in ("/server/api.py", "/peak/../server/api.py", "/data/peak.sqlite3", "/.git/config",
                      "/server/route.json", "/index.html", "/tools/dev_server.py", "/peak/%2e%2e/server/db.py",
