@@ -156,6 +156,57 @@ async (page) => {
     { seekTargets, forward, backward, forwardError: positionError(forward.position, seekTargets.forward.position),
       backwardError: positionError(backward.position, seekTargets.backward.position) });
 
+    // Existing recordings carry the supporting solid: loose blocks should follow those recorded contacts,
+    // including when the viewer jumps straight into a collapse or scrubs backwards while paused.
+    const collapse = await page.evaluate(() => {
+      const { replays: c, world } = window.peak;
+      c.playing = false;
+      const contact = c.actor.replay.samples.find(row => row[7] === 0 && world.solids[row[9]]?.loose);
+      if (!contact) throw new Error('Demo climb has no recorded loose-platform contact.');
+      const ledge = world.animated.find(thing => thing.solid === world.solids[contact[9]]);
+      const start = contact[0] / 1000;
+      const snapshot = () => {
+        const group = ledge.group, body = group.children[0], cracks = body.children[1].geometry;
+        return { time: c.time, state: ledge.state, off: !!ledge.solid.off, visible: group.visible,
+          position: group.position.toArray(), scale: group.scale.toArray(),
+          bodyPosition: body.position.toArray(), rotation: body.rotation.toArray(),
+          cracks: cracks.drawRange.count, fullCracks: cracks.index.count };
+      };
+      const at = seconds => {
+        const slider = document.querySelector('.replay-seek');
+        slider.value = String(seconds);
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+        window.peak.step(1 / 60);
+        return snapshot();
+      };
+      // The first teaching ledge has a 1.3 s delay, then 3.2 s before its 0.35 s regrowth.
+      const states = [0.4, 1.55, 2.8, 4.65, 5.0].map(offset => at(start + offset));
+      const rewind = at(start - 0.1);
+      const fallingAgain = at(start + 1.55);
+      window.peak.step(1);
+      const paused = snapshot();
+      c.restart();
+      c.playing = false;
+      window.peak.step(1 / 60);
+      const restarted = snapshot();
+      return { start, support: contact[9], states, rewind, fallingAgain, paused, restarted };
+    });
+    check('Recorded platform contact shakes, drops, hides and regrows the block',
+      collapse.states.map(item => item.state).join(',') === 'shaking,falling,gone,back,still'
+      && collapse.states.map(item => item.off).join(',') === 'false,true,true,false,false'
+      && collapse.states[1].bodyPosition[1] < -0.1
+      && collapse.states[1].cracks === collapse.states[1].fullCracks
+      && !collapse.states[2].visible && collapse.states[3].visible
+      && collapse.states[3].scale[0] < 1 && collapse.states[4].scale.every(value => value === 1), collapse);
+    check('Backward seeking and Restart restore collapsed blocks', collapse.rewind.state === 'still'
+      && !collapse.rewind.off && collapse.restarted.time === 0 && collapse.restarted.state === 'still'
+      && !collapse.restarted.off && collapse.rewind.visible && collapse.restarted.visible
+      && collapse.rewind.bodyPosition.every(value => value === 0)
+      && collapse.restarted.bodyPosition.every(value => value === 0), collapse);
+    check('Paused collapse stays frozen and seeking reproduces the same state',
+      JSON.stringify(collapse.states[1]) === JSON.stringify(collapse.fallingAgain)
+      && JSON.stringify(collapse.fallingAgain) === JSON.stringify(collapse.paused), collapse);
+
     await page.locator('.replay-speed[data-speed="2"]').click();
     await page.locator('.replay-play').click();
     const fastStart = await page.evaluate(() => window.peak.replays.time);
@@ -238,6 +289,18 @@ async (page) => {
       && Math.abs(hidden.gameTime - hidden.replayTime) < 0.05 && whileHidden.gameTime > hidden.gameTime
       && whileHidden.replayTime > hidden.replayTime, { ghostId, raceMoved, hiddenMoved, hidden, whileHidden, shown });
     check('A ghost race still starts a normal scored run', racePosts.some(post => post.path === '/api/peak/run'), racePosts);
+
+    const ghostPlatforms = await page.evaluate(() => {
+      const { replays: c, world } = window.peak;
+      const ledges = world.animated.filter(thing => thing.solid?.loose);
+      const snapshot = () => ledges.map(ledge => ({ state: ledge.state, off: !!ledge.solid.off }));
+      const before = snapshot();
+      const contact = c.actor.replay.samples.find(row => row[7] === 0 && world.solids[row[9]]?.loose);
+      c.seek(contact[0] / 1000 + 1.55);
+      return { before, after: snapshot() };
+    });
+    check('Seeking the racing ghost cannot collapse the live player platforms',
+      JSON.stringify(ghostPlatforms.before) === JSON.stringify(ghostPlatforms.after), ghostPlatforms);
 
     // Route fingerprint mismatches and missing IDs are shown as UI errors, never as playable actors.
     await page.unroute('https://stats.mosredna.eu/**');

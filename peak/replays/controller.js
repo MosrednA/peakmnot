@@ -1,5 +1,6 @@
 // Loads a verified public replay and owns the small, accessible controls for racing or watching it.
 import { ReplayActor, validateReplay } from './playback.js';
+import { replayLooseLedges } from './loose-ledges.js';
 import { routeFingerprint } from '../scores/routedata.js';
 import { apiBase } from '../scores/scores.js';
 
@@ -23,6 +24,7 @@ export class ReplayController {
     this.ready = false;
     this.error = null;
     this.actor = null;
+    this.looseLedges = new Map();
     this.name = '';
     this.recordedTime = 0;
     this.duration = 0;
@@ -125,7 +127,8 @@ export class ReplayController {
       validateReplay(payload.replay, fingerprint);
       this.actor = await ReplayActor.create({ scene: this.scene, world: this.world, replay: payload.replay,
         ghost: this.mode === 'ghost' });
-      this.actor.seek(0);
+      if (this.mode === 'replay') this.looseLedges = replayLooseLedges(payload.replay, this.world);
+      this.seekActor(0);
       this.name = typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : 'Mystery Can';
       this.recordedTime = Number.isFinite(payload.time) ? payload.time : 0;
       this.duration = Math.max(0, Number(this.actor.duration) || 0);
@@ -162,7 +165,7 @@ export class ReplayController {
       this.time = Math.min(this.duration, this.time + Math.max(0, dt) * this.speed);
       if (this.time >= this.duration) this.playing = false;
     }
-    this.actor.seek(this.time);
+    this.seekActor(this.time);
     if (this.mode === 'replay') this.syncControls();
     else {
       const status = titleVisible ? 'Start climbing when you’re ready.' : this.game.done ?
@@ -175,11 +178,21 @@ export class ReplayController {
     return this.actor ? this.actor.phase + this.time : null;
   }
 
+  seekActor(time = this.time) {
+    this.actor?.seek(time);
+    this.seekWorld(time);
+  }
+
+  seekWorld(time = this.time) {
+    if (this.mode !== 'replay' || !this.actor) return;
+    for (const [ledge, contacts] of this.looseLedges) ledge.seekReplay(time, contacts);
+  }
+
   togglePlay() {
     if (!this.ready) return;
     if (!this.playing && this.time >= this.duration) {
       this.time = 0;
-      this.actor.seek(0);
+      this.seekActor(0);
       this.follow?.snap(this.actor, this.world);
     }
     this.playing = !this.playing;
@@ -190,7 +203,7 @@ export class ReplayController {
     if (!this.ready) return;
     this.time = 0;
     this.playing = true;
-    this.actor.seek(0);
+    this.seekActor(0);
     this.follow?.snap(this.actor, this.world);
     this.syncControls();
   }
@@ -205,7 +218,7 @@ export class ReplayController {
     if (!this.ready) return;
     const previous = this.time;
     this.time = Math.min(this.duration, Math.max(0, Number(seconds) || 0));
-    this.actor.seek(this.time);
+    this.seekActor(this.time);
     if (this.time < previous - 0.01 || Math.abs(this.time - previous) > 1.5) this.follow?.snap(this.actor, this.world);
     this.syncControls();
   }

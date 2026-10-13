@@ -80,9 +80,10 @@ climb with a named ghost beside Mnot; it can be hidden with the on-screen toggle
 with play/pause, restart, 0.5×/1×/2× speed and scrubbing. These pages use `?ghost=RUN_ID` and `?replay=RUN_ID` links;
 the Hall buttons make them. The viewer does not run live physics, record a climb or submit scores. House entries and
 entries whose replay is unavailable show why no replay action is offered.
-The v1 viewer derives Mnot's animation and follow-camera motion from recorded position/state samples; it does not
-reproduce every visual effect. In Watch run, the gondola follows the replay's stored phase; in Race ghost, the live
-gondola follows the new climb's clock.
+The v1 viewer derives Mnot's animation and follow-camera motion from recorded position/state samples. Watch run also
+rebuilds loose-ledge shaking, drops and regrowth from the recorded support indices, including when you pause or scrub.
+It does not recreate the snow and grit particle bursts. The gondola follows the replay's stored phase in Watch run
+and the new climb's clock in Race ghost. Racing keeps the normal live ledge physics.
 
 ## Analytics
 
@@ -126,6 +127,7 @@ each with its CSS next to it.
 | `analytics.js` | Plausible goals for public climbs; excludes development and manual tests |
 | `replays/controller.js` | Loads a Hall replay and provides ghost-race or spectator controls; watched runs do not score |
 | `replays/playback.js` | Validates and samples a recorded run, then creates its animated replay actor |
+| `replays/loose-ledges.js` | Reconstructs replay contacts with crumbling ledges from recorded support indices |
 
 ### `world/`: the mountain and what happens on it
 

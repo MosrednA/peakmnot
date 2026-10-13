@@ -125,6 +125,7 @@ function step(dt) {
     weather.time = replayTime - visualDt;       // wind-gap beats follow the recorded route clock
     weather.update(visualDt, actor.pos, camera);
     for (const thing of world.animated) {
+      if (replays.ready && thing.seekReplay) continue;  // replay controller seeks loose ledges from recorded support
       if (replays.ready && thing.seek) thing.seek(replayTime);
       else if (visualDt > 0) thing.update(visualDt, replayTime, weather);
     }
