@@ -1103,6 +1103,273 @@ def land_hard(t):
     return blend(P, idle(0), smooth(19, 24, f))
 
 
+# The summit dance: a 4 second loop of 12 beats (10 frames each, 180 a minute), pose to pose with snappy hits. Disco
+# points with the hips popping, the running man with windmilling arms, a crouch, a hop with a full spin and the arms
+# out like a helicopter, and a "ta-da" on one heel with jazz hands while the glasses bounce on the can. The arms keep
+# out of the can and clear of the glasses: an arm going up goes up a little behind the glasses' temples.
+PALM = {'L': Nn, 'R': PALM_R}
+STANCE = 0.02                                    # the feet a little wider apart than the hips
+WRING = math.radians(90)                         # the most a glove turns on its forearm
+
+
+def smootherstep(e0, e1, x):
+    t = min(1.0, max(0.0, (x - e0) / (e1 - e0)))
+    return t * t * t * (t * (6 * t - 15) + 10)
+
+
+def arm_to(P, side, upper, fore, palm, hand=None):
+    """Aims an arm in the can's space: the upper arm along `upper`, the forearm along `fore`, the palm facing `palm`
+    and the fingers along `hand` (or straight on from the forearm). All are given for the left arm (+X is out) and
+    mirrored for the right."""
+    m = lambda d: Vector((SIGN[side] * d[0], d[1], d[2])).normalized()
+    upper, fore, palm = m(upper), m(fore), m(palm)
+    fingers = m(hand) if hand else fore
+    Ru = aim(ARMDIR[side], upper)
+    Rf = aim(ARMDIR[side], Ru.inverted() @ fore)
+    # the glove follows the forearm, bent at the wrist, then turns its palm towards `palm`, but never more than a
+    # quarter turn, which would wring the wrist
+    hand = aim(fore, fingers) @ Ru @ Rf
+    now = hand @ PALM[side]
+    now, palm = now - fingers * now.dot(fingers), palm - fingers * palm.dot(fingers)
+    turn = math.atan2(now.cross(palm).dot(fingers), now.dot(palm))
+    hand = Matrix.Rotation(max(-WRING, min(WRING, turn)), 3, fingers) @ hand
+    P[f'upper_arm_{side}'] = ((0, 0, 0), Ru)
+    P[f'forearm_{side}'] = ((0, 0, 0), Rf)
+    P[f'hand_{side}'] = ((0, 0, 0), (Ru @ Rf).inverted() @ hand)
+
+
+def arm_keys(P, keys, b):
+    """Both arms through (beat, (upper, fore, palm)) keys, eased from one pose to the next."""
+    i = max([j for j, k in enumerate(keys) if k[0] <= b], default=0)
+    if i + 1 < len(keys) and b > keys[i][0]:
+        w = smooth(keys[i][0], keys[i + 1][0], b)
+        pose = [Vector(a).lerp(Vector(c), w) for a, c in zip(keys[i][1], keys[i + 1][1])]
+    else:
+        pose = keys[i][1]
+    for side in 'LR':
+        arm_to(P, side, *pose)
+
+
+def foot_at(P, side, y=0.0, z=0.0, pitch=0.0, spin=0.0, stance=STANCE):
+    """Foot IK: y back (+) or forward (-) and z up from the rest ankle, toes down by pitch with the ankle lifted so the
+    toe (or the heel) stays on the ground, and the whole stance turned by spin degrees about the can's axis."""
+    at = Vector((SIGN[side] * (0.13 + stance), y, z + ground_foot(pitch)))
+    P[f'foot_ik_{side}'] = (rot(Z, spin) @ at - Vector((SIGN[side] * 0.13, 0, 0)), rot(Z, spin) @ rot(X, pitch))
+
+
+def dip(u):
+    """The knees giving after a hit: 0 on the beat, down and back up within half a beat."""
+    return math.sin(math.pi * min(1.0, u / 0.5))
+
+
+UP_ARM = ((0.85, 0.2, 0.48), (0.5, 0.08, 0.86), (-0.6, -0.8, 0))        # to the sky, the elbow out past the glasses
+DOWN_ARM = ((0.6, -0.35, -0.72), (0.55, -0.5, -0.67), (0, 0.6, -0.4))   # at the ground, out in front
+POINT_ARM = ((0.62, 0.28, 0.73), (0.3, 0.12, 0.95), (-0.6, -0.8, 0))    # pointing up, behind the glasses' temple
+
+
+def disco(b):
+    """Beats 0-4: disco points. The right arm to the sky and the left at the ground, then the other way round, the
+    hips popping out on the side of the arm that points down and the other heel popping up."""
+    k = min(3, math.floor(b))
+    u = b - k
+    s0 = 1 if k % 2 == 0 else -1                 # 1: the right arm up
+    c = s0 * (1 + 0.12 * (1 - smooth(0, 0.35, u)))            # hits the pose a little past it, then settles
+    if k < 3:
+        c = lerp(c, -s0 * 1.12, smooth(0.55, 1, u))
+    P = {}
+    for side in 'LR':
+        h = (1 - SIGN[side] * c) / 2             # how far up this arm is
+        arm_to(P, side, *[Vector(d).lerp(Vector(e), h) for d, e in zip(DOWN_ARM, UP_ARM)])
+        foot_at(P, side, pitch=24 * smooth(0, 1, -SIGN[side] * c))
+    P['body'] = ((0.035 * c, 0, -0.035 - 0.05 * dip(u)), rot(Z, -8 * c) @ rot(Y, -9 * c) @ rot(X, 2))
+    P['glasses'] = ((0, 0, 0.02 * dip(u)), rot(Y, 3 * c))
+    return P
+
+
+WM_AXIS = Vector((math.cos(math.radians(35)), math.sin(math.radians(35)), 0))   # the windmill turns round a cone
+WM_FWD = Vector((math.sin(math.radians(35)), -math.cos(math.radians(35)), 0))   # pointing out and back, so its top
+                                                                                # is behind the glasses' temple
+
+
+def windmill(phi, alpha=55):
+    """Direction of a windmilling left arm: up at phi = 0, forward-out at pi / 2, down at pi, back at 3 pi / 2."""
+    a = math.radians(alpha)
+    return math.cos(a) * WM_AXIS + math.sin(a) * (math.cos(phi) * Vector(Z) + math.sin(phi) * WM_FWD)
+
+
+def running_man(b):
+    """Beats 4-8: the running man, a knee up and a stomp on every beat while the other foot slides back, the arms
+    windmilling forward, one up while the other is down."""
+    P = {}
+    for side, off in (('L', 0.0), ('R', 0.5)):
+        p = ((b - 4) / 2 + off) % 1.0
+        if p < 0.5:                              # planted, sliding back, the heel coming up
+            q = p / 0.5
+            foot_at(P, side, lerp(-0.09, 0.13, smooth(0, 1, q)), 0.0, 30 * smooth(0.55, 1, q))
+        else:                                    # the knee comes up, the foot forward, and it stomps down
+            q = (p - 0.5) / 0.5
+            foot_at(P, side, 0.13 - 0.22 * smooth(0, 0.75, q), 0.22 * math.sin(math.pi * q ** 0.75),
+                    30 * (1 - smooth(0, 0.9, q)))
+        phi = math.pi * (b - 4) + (0 if side == 'L' else math.pi)
+        travel = math.sin(math.radians(55)) * (-math.sin(phi) * Vector(Z) + math.cos(phi) * WM_FWD)
+        arm_to(P, side, windmill(phi), windmill(phi - 0.45), travel)
+    u, w = b % 1, math.pi * (b - 4)
+    P['body'] = ((0, 0, -0.05 - 0.045 * dip(u)), rot(Z, 7 * math.sin(w)) @ rot(Y, 3 * math.cos(w)) @ rot(X, -4))
+    P['glasses'] = ((0, 0, 0.018 * dip(u)), rot(X, 3 * dip(u)))
+    return P
+
+
+CROUCH_ARM = ((0.45, 0.5, -0.74), (0.35, 0.6, -0.72), (-1, 0, 0))
+HELI_ARM = ((0.96, 0.05, 0.26), (0.98, 0.0, 0.18), (0, 0, -1))
+LAND_ARM = ((0.8, -0.15, -0.55), (0.75, -0.3, -0.58), (0, 0, -1))
+UP, DOWN = 8.6, 9.6                              # the hop's take-off and touch-down, in beats
+
+
+def hop_spin(b):
+    """Beats 8-10: a crouch with the arms swung back, the push off the toes, a full spin in the air with the arms out
+    like a helicopter, and a squashy landing on the toes."""
+    u = min(1.0, max(0.0, (b - UP) / (DOWN - UP)))
+    air = UP < b < DOWN
+    h = 0.8 * u * (1 - u)                        # 0.2 high, a third of a second in the air
+    spin = 360 * smootherstep(0, 1, u)
+    P = {}
+    for side, y0 in (('L', -0.05), ('R', 0.03)):
+        if b < UP:                               # crouch, then roll onto the toes
+            foot_at(P, side, y0, 0.0, 30 * smooth(8.45, UP, b))
+        elif air:                                # the feet tuck up a little
+            foot_at(P, side, lerp(y0, 0, smooth(0, 0.4, u)), h + 0.06 * math.sin(math.pi * u), lerp(30, 20, u), spin)
+        else:                                    # toes first, then flat
+            foot_at(P, side, 0.0, 0.0, 20 * (1 - smooth(DOWN, DOWN + 0.15, b)))
+    if b < 8.45:
+        dz = lerp(-0.05, -0.16, smooth(8.0, 8.45, b))
+    elif b < UP:
+        dz = lerp(-0.16, -0.02, smooth(8.45, UP, b))
+    elif air:
+        dz = h - 0.02
+    else:
+        dz = curve([(DOWN, -0.02), (DOWN + 0.15, -0.17), (DOWN + 0.5, -0.05)], b)
+    lean = curve([(8.0, -4), (8.45, 12), (UP, -2), (DOWN, 0), (DOWN + 0.15, 8), (DOWN + 0.5, 0)], b)
+    P['body'] = ((0, 0, dz), rot(Z, spin) @ rot(X, lean))
+    arm_keys(P, [(8.0, CROUCH_ARM), (8.45, CROUCH_ARM), (UP + 0.15, HELI_ARM), (DOWN - 0.05, HELI_ARM),
+                 (DOWN + 0.15, LAND_ARM)], b)
+    # the glasses float up in the crouch and in the air, lag behind the spin and slam down at the landing
+    lag = -14 * (30 * u * u * (1 - u) * (1 - u)) / 1.875 if air else 0
+    gz = curve([(8.0, 0), (8.45, 0.02), (UP, -0.015), (UP + 0.4, 0.035), (DOWN, 0.02), (DOWN + 0.15, -0.03),
+                (DOWN + 0.4, 0.0)], b)
+    P['glasses'] = ((0, 0, gz), rot(Z, lag))
+    return P
+
+
+TADA_ARM = ((0.75, 0.15, 0.64), (0.42, 0.05, 0.9), (0, -1, 0.1))
+
+
+def tada(b):
+    """Beats 10-12: ta-da! On the right foot with the left heel out in front, chest out, the arms up in a V with jazz
+    hands shaking, and the glasses bouncing on the can like a ball. Then the left foot comes back for the first
+    disco point."""
+    P = {}
+    out, back = smooth(9.85, 10.15, b), smooth(11.4, 11.85, b)
+    w = out - back
+    step = math.sin(math.pi * out) if back == 0 else math.sin(math.pi * back)
+    foot_at(P, 'L', -0.15 * w, 0.07 * step, -25 * w)
+    foot_at(P, 'R', 0.02 * w)
+    x = b - 10.0
+    P['body'] = ((0, 0, -0.06 + 0.012 * math.sin(4 * math.pi * x) * w), rot(Z, 10 * w) @ rot(Y, 4 * w)
+                 @ rot(X, -7 * w))
+    shake = math.radians(28) * math.sin(4 * math.pi * x)       # two shakes a beat
+    fore = Vector(TADA_ARM[1]).normalized()
+    arm_to(P, 'L', TADA_ARM[0], TADA_ARM[1], Matrix.Rotation(shake, 3, fore) @ Vector(TADA_ARM[2]))
+    arm_to(P, 'R', TADA_ARM[0], TADA_ARM[1], Matrix.Rotation(-shake, 3, fore) @ Vector(TADA_ARM[2]))
+    bounce = abs(math.sin(2.5 * math.pi * max(0.0, x))) * math.exp(-2.2 * max(0.0, x))
+    P['glasses'] = ((0, 0, 0.045 * bounce), rot(X, -5 * bounce))
+    return P
+
+
+def dance(t):
+    b = 12 * t
+    if b < 3.6:
+        return disco(b)
+    if b < 4.0:
+        return blend(disco(b), running_man(b), smooth(3.6, 4.0, b))
+    if b < 8.0:
+        return running_man(b)
+    if b < 8.35:
+        return blend(running_man(b), hop_spin(b), smooth(8.0, 8.35, b))
+    if b < 9.85:
+        return hop_spin(b)
+    if b < 10.15:
+        return blend(hop_spin(b), tada(b), smooth(9.85, 10.15, b))
+    if b < 11.45:
+        return tada(b)
+    return blend(tada(b), disco(0.0), smooth(11.45, 12.0, b))
+
+
+# Idle fidgets, for standing about at base camp: one-shots that start and end in the Idle pose.
+def two_bone(S, W, pole):
+    """The elbow for a shoulder at S and a wrist at W (pulled in if out of reach), bending towards pole."""
+    d = W - S
+    L = min(d.length, UPPER + FORE - 1e-4)
+    dn = d.normalized()
+    a = (UPPER * UPPER - FORE * FORE + L * L) / (2 * L)
+    side = (Vector(pole) - dn * dn.dot(Vector(pole))).normalized()
+    return S + dn * a + side * math.sqrt(max(0.0, UPPER * UPPER - a * a)), S + dn * L
+
+
+def reach(P, side, wrist, pole, palm, hand=None):
+    """An arm reaching its wrist to a point, given for the left arm and mirrored for the right."""
+    elbow, wrist = two_bone(SHOULDER, Vector(wrist), pole)
+    arm_to(P, side, elbow - SHOULDER, wrist - elbow, palm, hand)
+
+
+def push_glasses(t):
+    """The glasses have slipped down the nose: the right glove comes up and pushes them back, a satisfied nod, and
+    the arm goes back down."""
+    f = t * 54
+    P = idle(0)
+    up = smooth(0, 13, f) * (1 - smooth(32, 46, f))
+    lift = 0.03 * smooth(12, 16, f)
+    A = dict(P)
+    reach(A, 'R', (0.47, -0.45, 0.80 + lift), (0.6, 0.2, -0.8), (-0.3, 0.9, -0.2), (-0.35, 0.35, 0.87))
+    P = blend(P, A, up)
+    gz = curve([(0, 0), (10, -0.014), (13, -0.014), (16, 0.004), (22, 0), (54, 0)], f)
+    nod = curve([(0, 0), (10, 4), (17, -3), (26, 2), (34, 0), (54, 0)], f)
+    P['body'] = ((0, 0, -0.03), rot(X, nod))
+    P['glasses'] = ((0, 0, gz), rot(X, curve([(0, 0), (10, 3), (16, -2), (24, 0)], f)))
+    return blend(P, idle(0), smooth(46, 54, f))
+
+
+def look_up(t):
+    """Looking up at the peak: leaning back with the glasses tipped up, the right arm pointing at the top, a little
+    wobble of awe, and back."""
+    f = t * 66
+    P = idle(0)
+    up = smooth(0, 14, f) * (1 - smooth(46, 60, f))
+    A = dict(P)
+    arm_to(A, 'R', *POINT_ARM)
+    arm_to(A, 'L', (0.75, -0.2, -0.62), (0.6, -0.45, -0.66), (0, 0.6, -0.4))
+    P = blend(P, A, up)
+    wobble = math.sin(2 * math.pi * f / 16) * smooth(14, 22, f) * (1 - smooth(40, 48, f))
+    P['body'] = ((0, 0, -0.03 - 0.02 * up), rot(Z, 4 * wobble) @ rot(X, -12 * up))
+    P['glasses'] = ((0, 0, 0.006 * up), rot(X, -6 * up + 2 * wobble))
+    return blend(P, idle(0), smooth(60, 66, f))
+
+
+def tap_foot(t):
+    """Waiting: the right toes tap four times, the can bobbing along and looking about."""
+    f = t * 48
+    taps = [6, 14, 22, 30]
+    up = smooth(0, 4, f) * (1 - smooth(32, 38, f))
+    k = min(range(4), key=lambda i: abs(f - taps[i]))
+    tap = 1 - math.exp(-((f - taps[k]) / 2.2) ** 2)              # 0 on a tap, 1 between
+    P = idle(0)
+    foot_at(P, 'R', pitch=-26 * tap * up, stance=0)
+    bob = (1 - tap) * up
+    look = curve([(0, 0), (8, -10), (20, -10), (26, 8), (36, 8), (44, 0), (48, 0)], f)
+    P['body'] = ((0, 0, -0.03 - 0.012 * bob), rot(Z, look) @ rot(Y, 1.5 * bob))
+    P['glasses'] = ((0, 0, 0.006 * bob), rot(Y, -1 * look * 0.2))
+    return blend(P, idle(0), smooth(40, 48, f))
+
+
 def channelbag_fcurves(act):
     try:
         from bpy_extras.anim_utils import action_get_channelbag_for_slot
@@ -1116,11 +1383,13 @@ arm.animation_data_create()
 CLIPS = [('Idle', idle, 60, True), ('Walk', walk, 24, True), ('Run', run, 16, True),
          ('JumpStart', jump_start, 10, False), ('LeapStart', leap_start, 24, False), ('Fall', fall, 24, True),
          ('Land', land, 10, False), ('LeapLand', leap_land, 7, False), ('LandHard', land_hard, 24, False),
-         ('Wave', wave, 48, True)]
+         ('Wave', wave, 48, True), ('Dance', dance, 120, True), ('PushGlasses', push_glasses, 54, False),
+         ('LookUp', look_up, 66, False), ('TapFoot', tap_foot, 48, False)]
 actions = {}
 for name, fn, frames, loops in CLIPS:
     # Sampled at 60 fps. The original loops keep a key per 30 fps frame with straight lines between, as they always
-    # played; the jump clips get a key on every frame, so quick moves like the crouch before a jump turn smoothly.
+    # played; the jump clips, the dance and the fidgets get a key on every frame, so quick moves like the crouch
+    # before a jump turn smoothly.
     frames, step = frames * 2, 2 if name in ('Idle', 'Walk', 'Run', 'Wave') else 1
     act = bpy.data.actions.new(name)
     act.use_fake_user = True
@@ -1168,6 +1437,15 @@ scene.frame_set(0)
 # ---------------------------------------------------------------- save and export
 
 print('vertices', len(me.vertices), 'triangles', sum(len(p.vertices) - 2 for p in me.polygons))
+# the Shading workspace's file browser remembers this machine's folders (and so the user name); keep them out of
+# the shared .blend. The whole buffer is saved, so fill it before shortening it, or the old path stays behind.
+for screen in bpy.data.screens:
+    for area in screen.areas:
+        for space in area.spaces:
+            if space.type == 'FILE_BROWSER' and space.params:
+                size = space.params.bl_rna.properties['directory'].length_max
+                space.params.directory = b'/' * (size - 1)
+                space.params.directory = b'//'
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT, 'mnot.blend'))
 bpy.ops.export_scene.gltf(
     filepath=os.path.join(OUT, 'mnot.glb'),

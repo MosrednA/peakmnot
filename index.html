@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mnot Viewer</title>
+<link rel="icon" href="favicon.png" type="image/png">
 <style>
   :root { --bg: #20242b; --panel: rgba(20, 23, 28, 0.82); --text: #e9edf2; --muted: #9aa5b1; --accent: #e23b2e; }
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
@@ -13,6 +14,7 @@
     align-items: center; justify-content: center; pointer-events: none; }
   #ui > * { pointer-events: auto; }
   .group { display: flex; gap: 4px; background: var(--panel); padding: 4px; border-radius: 12px; }
+  #clips { display: contents; }
   button { font: inherit; color: var(--text); background: transparent; border: 0; padding: 8px 14px;
     border-radius: 9px; cursor: pointer; }
   button:hover { background: rgba(255, 255, 255, 0.08); }
@@ -25,7 +27,7 @@
 <body>
 <div id="info"><b>Mnot</b> · <span id="stats">loading…</span><br>WASD / arrow keys to walk · Shift to run · Space to jump · E to wave · M to mute · drag to orbit</div>
 <div id="ui">
-  <div class="group" id="clips"></div>
+  <div id="clips"></div>
   <div class="group"><button id="stroll">Stroll</button><button id="runlaps">Run laps</button></div>
   <div class="group"><button id="jump">Jump</button><button id="highjump">High jump</button></div>
   <div class="group"><button id="toon" class="on">Toon</button><button id="pbr">Standard</button></div>
@@ -140,7 +142,8 @@ const jumpRig = { jump_takeoff: 0.12, leap_takeoff: 0.12, jump_gravity: 15, jump
   hard_landing_speed: 6 }; // replaced by the values stored on the rig
 const HIGH_JUMP = 2.2;
 const TAKEOFFS = ['JumpStart', 'LeapStart'], LANDINGS = ['Land', 'LeapLand', 'LandHard'];
-const ONE_SHOTS = [...TAKEOFFS, ...LANDINGS];
+const FIDGETS = ['PushGlasses', 'LookUp', 'TapFoot']; // idle fidgets, from the Idle pose back to it
+const ONE_SHOTS = [...TAKEOFFS, ...LANDINGS, ...FIDGETS];
 const SETTLED = ['Land', 'LandHard']; // landings that end in the Idle pose
 // Seconds into a landing before input cuts it short: walking off a soft landing, anything after a hard one.
 const MOVE_LAG = { Land: 0.1, LandHard: 0.5 }, JUMP_LAG = { LandHard: 0.5 };
@@ -183,6 +186,7 @@ new GLTFLoader().load('models/mnot.glb', (gltf) => {
       const target = poseEntries.get(e.action);
       playAction(target, target.getClip().name === 'Idle' ? 0.08 : 0.12);
     }
+    else if (!jumpPhase && e.action === actions.get(mode)) { mode = 'Idle'; play('Idle'); } // a previewed one-shot
     else if (TAKEOFFS.includes(e.action.getClip().name) && jumpPhase === 'air') playAction(actions.get('Fall'), 0.25);
     else if (LANDINGS.includes(e.action.getClip().name)) landed();
   });
@@ -194,14 +198,28 @@ new GLTFLoader().load('models/mnot.glb', (gltf) => {
       action.clampWhenFinished = true;   // hold the last pose until the next clip has faded in
     }
   }
-  // The loops preview in place; the take-offs and landings play in a real jump (Space or the jump buttons).
+  // A button for every clip in the GLB, in three groups: the loops; the dance, the fidgets and any clip added later;
+  // and the parts of a jump. All preview in place; a one-shot plays once and settles back into Idle. Space and the
+  // jump buttons play the jump parts in a real jump.
   const box = document.getElementById('clips');
-  for (const name of ['Idle', 'Walk', 'Run', 'Fall', 'Wave'].filter(name => actions.has(name))) {
-    const b = document.createElement('button');
-    b.textContent = name;
-    b.dataset.clip = name;
-    b.onclick = () => preview(name);
-    box.appendChild(b);
+  const LOOPS = ['Idle', 'Walk', 'Run', 'Fall', 'Wave'], JUMP_PARTS = [...TAKEOFFS, ...LANDINGS];
+  const others = gltf.animations.map(clip => clip.name)
+    .filter(name => !LOOPS.includes(name) && !JUMP_PARTS.includes(name));
+  // PushGlasses reads "Push glasses"
+  const label = name => name.replace(/([a-z])([A-Z])/g, (_, a, b) => `${a} ${b.toLowerCase()}`);
+  for (const [title, names] of [['Loops', LOOPS], ['Dance and fidgets', others], ['Jump parts', JUMP_PARTS]]) {
+    const group = document.createElement('div');
+    group.className = 'group';
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', title);
+    for (const name of names.filter(name => actions.has(name))) {
+      const b = document.createElement('button');
+      b.textContent = label(name);
+      b.dataset.clip = name;
+      b.onclick = () => preview(name);
+      group.appendChild(b);
+    }
+    if (group.childElementCount) box.appendChild(group);
   }
   play('Idle', 0);
   document.getElementById('stats').textContent =
