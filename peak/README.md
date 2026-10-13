@@ -142,13 +142,14 @@ each with its CSS next to it.
 | `fall.js` | The cartoon fall: the beat in mid-air, the look at the camera, the tumble down through the clouds, eased away from rock faces so the can never tumbles inside one |
 | `pose.js` | Procedural pose on top of the clips: feet together on a beam, arms out and flapping and legs kicking when slipping or falling, arms windmilling and panicky steps on ice |
 | `dents.js` | Dents as morph targets built at load time from the can's own meshes; they spring in and pop out |
-| `moments.js` | For the eye only: idle fidgets (`PushGlasses` after a checkpoint, a close call on a beam or a save on the edge, `TapFoot` while waiting for the gondola or a ledge to grow back, `LookUp` at the climb ahead, a random one after 4–6 s), never on a beam, ice, a loose ledge or in the wind, cancelled by any input; the summit `Dance` and confetti. It sets `player.idleClip`, the clip Mnot stands about in |
+| `moments.js` | For the eye only: idle fidgets (`PushGlasses` after a checkpoint, a close call on a beam or a save on the edge, `TapFoot` while waiting for the gondola or a ledge to grow back, `LookUp` at the climb ahead, a random one after 4–6 s), never on a beam, ice, a loose ledge or in the wind, cancelled by any input; the summit `Dance` and confetti; the Konami party (a faster `Dance` with a pirouette every bar, the disco ball, confetti, for 6.5 s or until Mnot moves on). It sets `player.idleClip`, the clip Mnot stands about in |
 
 ### `controls/`: keys, touch and the camera
 
 | File | What |
 |---|---|
 | `input.js` | Keys turned into a move, relative to the camera's shot and the route (see below) |
+| `konami.js` | The Konami code on the keyboard (up up down down left right left right B A), for the party in `moments.js` |
 | `touch.js` | Touch controls (styled in `touch.css`): the floating stick, the Jump button, finger look and pinch, touch wording, the on-screen keyboard |
 | `camera.js` | The follow camera: one shot per stretch, gliding between them; close-ups for a celebration, and its own shot for a fall |
 
@@ -180,6 +181,7 @@ each with its CSS next to it.
 | `wood.js` | Wood grain and twisted rope materials |
 | `footing.js` | Props stand on rock: each lists its feet, and one that would stand over a gap, in a wall, on a board walk, a loose ledge or the gondola is nudged in toward its ledge's middle (with `?manual`, the console says so) |
 | `fade.js` | Props between the camera and Mnot dissolve (a dither), so nothing hides the can |
+| `disco.js` | The Konami party's disco ball: drops in on a string, spins, throws coloured beams and spots onto the rock, and glows round the screen's edges (not with reduced motion). No real lights, so no shaders compile |
 
 ### `ui/`: on the screen
 
@@ -220,6 +222,7 @@ For sounds (`audio.js`), tips and jokes. Listen with `on(name, fn)`:
 | | `teeter`, `steady` | Mnot starts teetering on the rim of a drop; a step back or Shift saves it |
 | | `lost` `{ reason, cause }` | the abyss (`reason` `'fall'`, `cause` `'crumble'`, `'teeter'`, `'gust'`, `'ice'`, `'gondola'` or `'fall'`) |
 | | `drop` | the beat in mid-air is over and the can starts to drop (`player.hang` counts the beat down) |
+| | `party` `{ seconds }`, `partyover` | the Konami code's disco starts (at most `seconds` long, 125 beats a minute); it's over |
 | `world` | `crack` / `crumble` / `regrow` `{ at, solid }` | a loose ledge starts to shake / drops away / is back |
 | | `gondola` `{ at, moving }` | the gondola sets off (`moving` true) or docks |
 | | `gust` `{ at, zone }` | a wind gap's gust starts to build up |

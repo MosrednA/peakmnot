@@ -22,6 +22,7 @@ import { fadeProps } from './props/fade.js';
 import { Title } from './ui/title.js';
 import { Touch } from './controls/touch.js';
 import { Moments } from './mnot/moments.js';
+import { onKonami } from './controls/konami.js';
 import { createScores } from './scores/scores.js';
 import { hookAnalytics } from './analytics.js';
 
@@ -71,7 +72,9 @@ const audio = hookSounds({ sounds, player, game, button: document.getElementById
 const title = new Title({ camera, follow, dom: renderer.domElement, player, game, input });
 audio.attachTitle(title);
 const touch = new Touch({ input, follow, player, world, title, dom: renderer.domElement });   // phones (touch.js)
-const moments = new Moments({ player, game, world, weather, title });
+const moments = new Moments({ player, game, world, weather, title, hud, camera, dom: renderer.domElement,
+  model: mnot.model });
+onKonami(() => moments.startParty());          // up up down down left right left right B A: a disco (moments.js)
 const scores = createScores({ player, game, world, manual });   // high scores and the Hall of Fame (scores.js)
 hookAnalytics({ title, game, player, manual });
 player.spawn(start.respawn, start.yaw);
