@@ -4,11 +4,13 @@ the browser by server/browser_bot.js (fixtures/*.json.gz, each with the route it
 
     python -X utf8 -m unittest discover -s server -p "test_*.py"
 """
+import contextlib
 import copy
 import gzip
 import hashlib
 import hmac
 import http.client
+import io
 import json
 import socket
 import sys
@@ -221,6 +223,38 @@ class TheClimb(ScoreTest):
         again = Database(self.server.app.db.path)      # a restart runs the migrations again: nothing new
         self.assertEqual(again.one("SELECT COUNT(*) FROM players WHERE house = 1")[0], HOUSE)
         again.close()
+
+    def test_a_showcased_climb_plays_by_link_but_stays_off_the_board(self):
+        import peak_scores
+        app = self.server.app
+        path = Path(self.server.tmp.name) / "replay.json"
+
+        def showcase(replay, name="AI Mnot"):
+            path.write_text(json.dumps(replay), encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = peak_scores.showcase(app, str(path), name)
+            return code, out.getvalue()
+
+        code, said = showcase(self.climb["replay"])
+        self.assertEqual(code, 0, said)
+        run_id = said.rsplit("replay=", 1)[1].strip()
+        public = self.server.request("GET", f"/api/peak/replay/{run_id}")
+        self.assertEqual(public.status, 200, public.data)
+        self.assertEqual([public.json[k] for k in ("name", "time", "falls", "dents")],
+                         ["AI Mnot"] + [self.climb["claim"][k] for k in ("time", "falls", "dents")])
+        self.assertEqual(public.json["replay"], {key: self.climb["replay"][key]
+                                                  for key in ("v", "route", "phase", "samples", "events")})
+        self.assertEqual(self.board()["total"], HOUSE)                 # not on the board
+        self.assertTrue(all(e["name"] != "AI Mnot" for e in self.board()["entries"]))
+        self.server.clock.now += 365 * 86400                           # and never forgotten
+        app.store.purge()
+        self.assertEqual(self.server.request("GET", f"/api/peak/replay/{run_id}").status, 200)
+        edited = copy.deepcopy(self.climb["replay"])
+        edited["samples"][len(edited["samples"]) // 2][1] += 5000      # 5 m (in mm) sideways in a tenth of a second
+        self.assertEqual(showcase(edited)[0], 1)
+        self.assertEqual(showcase(self.climb["replay"], "")[0], 1)
+        self.assertEqual(app.db.one("SELECT COUNT(*) FROM showcase")[0], 1)
 
     def test_nobody_claims_a_house_record(self):
         c = Climber(self.server, self.climb)

@@ -4,6 +4,7 @@ board and the Hall of Shame. No HTTP here (that's api.py), and no physics (verif
 The board: one entry per player, their best climb. Faster time wins; on the same time (to the millisecond) fewer
 falls; then whoever got there first. Dents are shown, not ranked: they pop out at every checkpoint anyway. The house
 records (db.py, migration 2) are players too, marked house: nobody can claim, improve or take the name of one.
+A showcased climb (migration 3) is the other way round: its replay plays by link, but it's never on the board.
 """
 import gzip
 import hashlib
@@ -16,7 +17,7 @@ import zlib
 RUN_TTL = 3 * 3600              # a run must finish within this many seconds of starting
 CLAIM_TTL = 3600                # and be claimed (named) within this many seconds of finishing
 KEEP_RUNS = 7 * 86400           # unfinished and unclaimed runs are forgotten after a week
-KEEP_REPLAYS = 30 * 86400       # replays that aren't on the board or the shame list, after a month
+KEEP_REPLAYS = 30 * 86400       # replays that aren't on the board, the shame list or showcased, after a month
 
 BOARD_SELECT = (
     "SELECT s.player_id, s.time_ms, s.falls, s.dents, s.achieved, p.name, p.house, p.quip, "
@@ -243,14 +244,25 @@ class Store:
         with self.db.tx() as c:
             c.execute("DELETE FROM runs WHERE created < ? AND id NOT IN (SELECT run_id FROM scores)", (now - KEEP_RUNS,))
             c.execute("DELETE FROM replays WHERE created < ? AND run_id NOT IN (SELECT run_id FROM scores) AND "
-                      "run_id NOT IN (SELECT run_id FROM shame WHERE run_id IS NOT NULL)", (now - KEEP_REPLAYS,))
+                      "run_id NOT IN (SELECT run_id FROM shame WHERE run_id IS NOT NULL) AND "
+                      "run_id NOT IN (SELECT run_id FROM showcase)", (now - KEEP_REPLAYS,))
+
+    def showcase(self, name, claim, replay_gz):
+        """Keep a checked climb to be shown by link only, never on the board; returns its id for the link."""
+        run_id, now = token(12), self.clock()
+        with self.db.tx() as c:
+            c.execute("INSERT INTO replays (run_id, data, verdict, details, created) VALUES (?, ?, 'ok', NULL, ?)",
+                      (run_id, replay_gz, now))
+            c.execute("INSERT INTO showcase (run_id, name, time_ms, falls, dents, created) VALUES (?, ?, ?, ?, ?, ?)",
+                      (run_id, name, claim["time"], claim["falls"], claim["dents"], now))
+        return run_id
 
     def replay(self, run_id):
         row = self.db.one("SELECT data, verdict, details FROM replays WHERE run_id = ?", (run_id,))
         return row and (json.loads(gzip.decompress(row["data"])), row["verdict"], row["details"])
 
     def public_replay(self, run_id):
-        """Return only a claimed player's current, verified best replay and its public fields."""
+        """Return only a claimed player's current, verified best replay, or a showcased one, and its public fields."""
         row = self.db.one(
             "SELECT p.name, s.time_ms, s.falls, s.dents, rp.data "
             "FROM scores s JOIN players p ON p.id = s.player_id "
@@ -258,7 +270,9 @@ class Store:
             "JOIN replays rp ON rp.run_id = s.run_id "
             "WHERE s.run_id = ? AND p.house = 0 AND r.state = 'claimed' AND r.verdict = 'ok' "
             "AND rp.verdict = 'ok' AND r.time_ms = s.time_ms AND r.falls = s.falls AND r.dents = s.dents",
-            (run_id,))
+            (run_id,)) or self.db.one(
+            "SELECT sc.name, sc.time_ms, sc.falls, sc.dents, rp.data FROM showcase sc "
+            "JOIN replays rp ON rp.run_id = sc.run_id WHERE sc.run_id = ? AND rp.verdict = 'ok'", (run_id,))
         if not row:
             return None
         try:

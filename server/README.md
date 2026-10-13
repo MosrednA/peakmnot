@@ -52,7 +52,14 @@ The command line also does housekeeping:
 python server/peak_scores.py --backup data/backup.sqlite3   # a consistent copy, safe while the server runs
 python server/peak_scores.py --reverify RUN_ID              # check a stored replay against today's route
 python server/peak_scores.py --fixture latest --as NAME     # save a stored climb as a test fixture
+python server/peak_scores.py --showcase FILE --as NAME      # keep a recorded climb to be played by link only
 ```
+
+`--showcase` takes a replay as the game records it (`-` reads it from stdin), reads the time, falls, dents and splits
+off it, checks it like a finish, and prints the id for `peak.html?replay=ID`. It's for climbs that aren't a
+player's, such as the AI climber's (`ai/`): the link plays it, but it's never on the board or in the Hall of Fame,
+and housekeeping keeps it. In the container:
+`docker compose exec -T app python server/peak_scores.py --showcase - --as NAME < replay.json`.
 
 ## How a climb gets on the board
 
@@ -85,8 +92,8 @@ entries, and rows without a retained replay, have `replayId: null`.
 `GET /api/peak/replay/RUN_ID` returns `{id, name, time, falls, dents, replay}` for that current best. The public
 replay contains only `v`, `route`, `phase`, `samples` and `events`; it omits the raw inputs and the rest of the run
 record. The route fingerprint lets the game check that a stored v1 replay matches its current route before playback.
-Missing, unclaimed, shadow, house, and replaced best runs all return 404. This endpoint uses the same read rate limit
-as the board.
+Missing, unclaimed, shadow, house, and replaced best runs all return 404; a showcased climb (above) returns 200
+without a board entry. This endpoint uses the same read rate limit as the board.
 
 `POST /api/peak/perf` takes a run of the perf probe (`peak.html?perf`, [docs/performance.md](../docs/performance.md)):
 `{v: 1, text, …}`, at most 64 KB, 6 per address every 10 minutes. `perf.py` clips it (strings, numbers and three
@@ -164,7 +171,7 @@ One SQLite file, `DATA_DIR/peak.sqlite3`, with `-wal` and `-shm` files next to i
 development, the `peakmnot-data` volume (mounted at `/data`) in production. It holds the players (public id, a hash
 of the secret, the name), the board (one best climb per player), the runs (with a hashed address, never the
 address itself) and the replays, gzipped. Unfinished and unclaimed runs go after a week; replays that aren't on the
-board or the shame list after a month.
+board, the shame list or showcased after a month.
 
 - **Backup:** `python server/peak_scores.py --backup FILE` copies it consistently while the server runs. In the
   container: `docker compose exec app python server/peak_scores.py --backup /data/backup.sqlite3`, then

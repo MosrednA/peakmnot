@@ -6,6 +6,7 @@ one origin). Python's standard library only. See server/README.md.
     python server/peak_scores.py --backup data/backup.sqlite3              # a consistent copy of the database
     python server/peak_scores.py --reverify RUN_ID                         # check a stored replay again
     python server/peak_scores.py --fixture latest [--as climb]   # the last climb as a test fixture (server/fixtures/)
+    python server/peak_scores.py --showcase FILE --as NAME      # a recorded climb shown by link only, not on the board
 
 Settings come from the environment: DATA_DIR, PEAK_SECRET (and PEAK_SECRET_OLD while rotating), ALLOWED_ORIGINS,
 TRUSTED_PROXIES; the command line overrides HOST and PORT.
@@ -28,6 +29,7 @@ from urllib.parse import parse_qs, urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import api as api_module            # noqa: E402
 from db import Database             # noqa: E402
+import names                        # noqa: E402
 from perf import PerfLog            # noqa: E402
 from route import Route             # noqa: E402
 from store import Store             # noqa: E402
@@ -278,7 +280,9 @@ def main(argv=None):
     p.add_argument("--backup", metavar="FILE", help="copy the database to FILE and stop")
     p.add_argument("--reverify", metavar="RUN", help="check a stored replay against today's route and stop")
     p.add_argument("--fixture", metavar="RUN", help="save a stored climb ('latest' for the last) as a test fixture")
-    p.add_argument("--as", dest="fixture_name", default="climb", metavar="NAME", help="the fixture's name (climb)")
+    p.add_argument("--showcase", metavar="FILE", help="check a recorded climb's replay JSON ('-' for stdin) and keep "
+                   "it to be played by link only, never on the board; prints the link's id")
+    p.add_argument("--as", dest="name", metavar="NAME", help="the fixture's name (climb), or the showcased climber's")
     args = p.parse_args(argv)
     data_dir = Path(os.environ.get("DATA_DIR") or ROOT / "data")
     origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "http://127.0.0.1:5280,http://localhost:5280")
@@ -292,7 +296,9 @@ def main(argv=None):
     if args.reverify:
         return reverify(app, args.reverify)
     if args.fixture:
-        return fixture(app, args.fixture, args.fixture_name)
+        return fixture(app, args.fixture, args.name or "climb")
+    if args.showcase:
+        return showcase(app, args.showcase, args.name)
     server = app.serve(args.host, args.port)
     print(f"Peak Mnot scores on http://{args.host}:{args.port}/api/peak (data in {data_dir}, "
           f"{'serving the game' if args.static else 'API only'}, route {app.route.fingerprint[:12]})", flush=True)
@@ -335,6 +341,29 @@ def reverify(app, run_id):
     rejection = verify.verify(app.route, replay, claim, splits)
     print(f"stored verdict: {verdict} {details or ''}")
     print("now: ok" if rejection is None else f"now: {rejection.reason} at {rejection.at} ms: {rejection.detail}")
+    return 0
+
+
+def showcase(app, path, name):
+    """Check a recorded climb like a finish would (its claim and splits read off the replay) and keep it, shown by
+    link only: peak.html?replay=ID. For climbs that aren't a player's, such as the AI climber's (ai/)."""
+    if not name or names.clean(name) != (name, None):
+        print("Give it a name with --as that the board would take as it is.")
+        return 1
+    try:
+        replay = json.loads(sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8"))
+        events = replay["events"]
+        claim = {"time": replay["samples"][-1][0], "falls": sum(1 for e in events if e[1:] == ["lost", "fall"]),
+                 "dents": sum(1 for e in events if e[1] == "dent")}
+        rejection = verify.verify(app.route, replay, claim, [(e[2], e[0]) for e in events if e[1] == "cp"])
+    except (OSError, ValueError, KeyError, IndexError, TypeError, verify.Malformed) as e:
+        print(f"Not a replay: {e!r}")
+        return 1
+    if rejection is not None:
+        print(f"Turned down: {rejection.reason} at {rejection.at} ms: {rejection.detail}")
+        return 1
+    run_id = app.store.showcase(name, claim, gzip.compress(json.dumps(replay, separators=(",", ":")).encode()))
+    print(f"Showcased {name} ({claim['time']} ms, {claim['falls']} falls): peak.html?replay={run_id}")
     return 0
 
 

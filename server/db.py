@@ -91,6 +91,19 @@ MIGRATIONS = [
         ('house-tau', 388300, 6, 2, 'house', 0),
         ('house-1337', 817000, 13, 37, 'house', 0);
     """),
+    (3, """
+    -- climbs shown by link only (GET /api/peak/replay/RUN_ID), never on the board: the AI climber's (ai/), say, added
+    -- with peak_scores.py --showcase. The replay is checked like any other and kept in replays; the name and the
+    -- numbers here are what the link shows.
+    CREATE TABLE showcase (
+        run_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        time_ms INTEGER NOT NULL,
+        falls INTEGER NOT NULL,
+        dents INTEGER NOT NULL,
+        created REAL NOT NULL
+    );
+    """),
 ]
 
 
