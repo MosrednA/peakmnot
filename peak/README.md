@@ -324,3 +324,7 @@ peak.key('KeyD', true); peak.step(2); peak.key('KeyD', false)
 
 Between `bots.climb` runs, reset with `player.celebrate = 0`, `game.done = false`, `game.time = 0`,
 `game.falls = 0`, `game.popDents()` and `game.checkpoint = world.checkpoints[0]`.
+
+`tools/check_gondola.js` (a Playwright snippet, like `tools/check_controls.js`) rides the gondola on uneven steps
+(1/60 s and 1/120 s, 1/30 s and 1/240 s): the carry must be the pallet's own speed, and a jump off it may gain no more
+than the pallet's climb, or the score server rightly rejects the climb.

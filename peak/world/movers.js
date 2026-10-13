@@ -102,7 +102,7 @@ export function gondola(world, a, b, feet, { size = [1.0, 0.9], travel = 3, paus
       t += dt;
       const now = state(t);
       place(now.s);
-      solid.moveBy(point.x - group.position.x, point.y - group.position.y, point.z - group.position.z);
+      solid.moveBy(point.x - group.position.x, point.y - group.position.y, point.z - group.position.z, dt);
       group.position.copy(point);
       const moving = !now.docked;
       if (phase !== null && moving !== phase) world.emit('gondola', { at: at.copy(point), moving });

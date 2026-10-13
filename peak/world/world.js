@@ -33,6 +33,7 @@ export class Solid {
     this.radius = Math.max(...poly.map(p => Math.hypot(p.x - cx, p.z - cz)));
     this.off = false;                              // a crumbled ledge is gone for a while
     this.moved = new THREE.Vector3();              // a moving platform's last step
+    this.velocity = new THREE.Vector3();           // and its speed over that step
   }
 
   // Signed distance from the outline (< 0 inside) and the direction that leads out.
@@ -56,8 +57,9 @@ export class Solid {
     return Math.hypot(x - this.center.x, z - this.center.y) < this.radius + margin;
   }
 
-  // Slide the whole solid (a moving platform); whoever stands on it goes along (player.js reads moved).
-  moveBy(dx, dy, dz) {
+  // Slide the whole solid (a moving platform) over dt seconds; whoever stands on it goes along (player.js reads
+  // moved, and velocity for a jump off it: moved over the next step's dt would be wrong when the steps differ).
+  moveBy(dx, dy, dz, dt = 0) {
     for (const p of this.poly) { p.x += dx; p.z += dz; }
     for (const e of this.edges) { e.ax += dx; e.az += dz; e.bx += dx; e.bz += dz; }
     this.center.x += dx;
@@ -65,6 +67,8 @@ export class Solid {
     this.top += dy;
     this.bottom += dy;
     this.moved.set(dx, dy, dz);
+    if (dt > 0) this.velocity.set(dx / dt, dy / dt, dz / dt);
+    else this.velocity.set(0, 0, 0);
   }
 }
 

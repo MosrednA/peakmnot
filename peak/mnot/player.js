@@ -99,7 +99,7 @@ export class Player {
     // a moving platform carries whoever stands on it
     if (this.mode === 'ground' && this.support) {
       this.pos.add(this.support.moved);
-      this.carried.copy(this.support.moved).divideScalar(dt);
+      this.carried.copy(this.support.velocity);
     } else this.carried.set(0, 0, 0);
     if (this.mode === 'air') this.last.jet = Math.max(this.last.jet, wind.jet ?? 0);
     if (this.mode === 'out') this.drift(dt);
