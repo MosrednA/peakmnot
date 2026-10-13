@@ -11,7 +11,9 @@ export function buildScenery(scene, center) {
   const sky = skyDome();
   const clouds = buildClouds(center);
   const birds = flock(center);
-  scene.add(sky, clouds.group, buildRange(center), birds.mesh);
+  const range = buildRange(center);
+  [sky.name, clouds.group.name, range.name, birds.mesh.name] = ['sky', 'cloud sea', 'mountain range', 'birds'];
+  scene.add(sky, clouds.group, range, birds.mesh);
   return {
     update(camera, time) {
       sky.position.copy(camera.position);

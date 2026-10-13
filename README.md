@@ -66,7 +66,7 @@ python -X utf8 server/peak_scores.py
 | [`sounds.js`, `music.js`, `audio/`](audio/README.md) | Sound effects, and the music, "Pocket Altitude" |
 | `tools/` | The dev server, the Blender build script, browser checks and the sound scripts |
 | [`AGENTS.md`](AGENTS.md) | The house rules for the AI agents that work on this repository |
-| [`docs/`](docs/agents.md) | [The team](docs/agents.md) (who does what, and the specialist agents in `.claude/agents/`) and [making a level](docs/making-a-level.md) |
+| [`docs/`](docs/agents.md) | [The team](docs/agents.md) (who does what, and the specialist agents in `.claude/agents/`), [making a level](docs/making-a-level.md) and [performance](docs/performance.md) |
 
 ## How it's made
 

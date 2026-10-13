@@ -72,7 +72,9 @@ export function skyDome() {
   });
   material.userData.outlineParameters = { visible: false };
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(1000, 48, 24), material);
-  mesh.renderOrder = -1;
+  // drawn after the other solid things (all at 0), only where none of them is: its depth is the farthest there is, and
+  // where a rock already stands the GPU skips the sky's pixels (perf: docs/performance.md)
+  mesh.renderOrder = 1;
   mesh.frustumCulled = false;
   return mesh;
 }

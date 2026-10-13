@@ -81,35 +81,55 @@ export function rock() {
           // the size of a pixel on the rock: detail finer than a few pixels fades out instead of shimmering
           float px = length(fwidth(p));
           float fine = 1.0 - smoothstep(0.012, 0.035, px), mid = 1.0 - smoothstep(0.04, 0.12, px);
-          // rock: layers of sediment in a few tones, wavy and a little tilted, each with a dark seam on top
+          // rock: layers of sediment in a few tones, wavy and a little tilted, each with a dark seam on top (the
+          // layers' line and the seam's width everywhere: a derivative needs the pixels next door to work it out too)
           float warp = fbm3(p * 0.21);
           float t = (p.y + warp * 1.1 + 0.12 * sin(p.x * 0.37 + p.z * 0.23)) * 1.35;
-          float layer = floor(t), f = fract(t);
-          float tone = hash3(vec3(layer, 1.7, 3.1));
-          vec3 c = mix(u_warm, u_cool, smoothstep(0.25, 0.75, fbm3(p * 0.09 + 3.1)));
-          c = mix(c, u_strata, step(0.66, tone) * 0.6);
-          c *= 0.92 + 0.16 * tone;
           float seam = max(0.07, fwidth(t) * 1.5);
-          c = mix(c, u_strata * 0.7, (1.0 - smoothstep(0.0, seam, f)) * 0.7 * (0.07 / seam));
-          c = mix(c, c * 1.12, smoothstep(0.75, 1.0, f));
-          // grain, and here and there a thin crack running down
-          c *= 1.0 + (0.14 * noise3(p * vec3(9.0, 14.0, 9.0)) - 0.07) * fine;
-          float crack = abs(noise3(vec3(p.x * 2.6, p.y * 0.3, p.z * 2.6) + 7.0) - 0.5);
-          float cracked = smoothstep(0.55, 0.7, noise3(p * 0.4 + 2.0));
-          c = mix(c, u_strata * 0.55, (1.0 - smoothstep(0.008, 0.02, crack)) * cracked * 0.8 * mid);
-          // lichen and moss in small patches just under the lip, where the sun gets to them
-          float near = 1.0 - smoothstep(0.4, 2.2, vDrop);
-          float growth = smoothstep(0.62, 0.67, fbm3(p * 3.2 + 11.0)) * near * step(0.0, vDrop);
-          c = mix(c, mix(u_lichen, u_moss, step(0.5, noise3(p * 0.7 + 5.0))), growth * 0.75);
-          // further down it gets darker and bluer
-          c = mix(c, u_deep, (1.0 - exp(-max(vDrop, 0.0) / 9.0)) * 0.55);
-          // snow: on top, and dripping over the lip to a depth that wanders; a cool rim where it ends
-          float line = 0.1 + 0.6 * fbm3(vec3(p.x * 1.7, 0.0, p.z * 1.7));
           float aa = fwidth(vDrop) + 1e-4;
-          snowMask = max(1.0 - smoothstep(line - aa, line + aa, vDrop), step(0.78, up.y));
-          float rim = smoothstep(line - 0.09, line - 0.02, vDrop) * (1.0 - step(0.78, up.y));
-          vec3 snow = mix(u_snow, u_snowEdge, max(rim, 0.25 * noise3(p * vec3(2.0, 6.0, 2.0)) * mid));
-          c *= 1.0 - 0.28 * (1.0 - smoothstep(line, line + 0.45, vDrop)) * step(0.0, vDrop);   // the snow's overhang
+          // snow: on top, and dripping over the lip to a depth that wanders (the line: 0.1 to 0.66 m down); a cool
+          // rim where it ends. What can't be seen isn't worked out, so the picture is the same for less: the line on
+          // the tops and well down the sides, the rock under the snow or the haze, lichen where none grows.
+          float upward = step(0.78, up.y), rim = 0.0, overhang = 0.0;
+          snowMask = 1.0;
+          if (upward < 1.0 && vDrop > min(0.01, 0.1 - aa)) {
+            if (vDrop >= max(1.12, 0.67 + aa)) snowMask = 0.0;
+            else {
+              float line = 0.1 + 0.6 * fbm3(vec3(p.x * 1.7, 0.0, p.z * 1.7));
+              snowMask = 1.0 - smoothstep(line - aa, line + aa, vDrop);
+              rim = smoothstep(line - 0.09, line - 0.02, vDrop);
+              overhang = (1.0 - smoothstep(line, line + 0.45, vDrop)) * step(0.0, vDrop);
+            }
+          }
+          vec3 c = vec3(0.0), snow = vec3(0.0);
+          if (snowMask < 1.0 && vWorld.y > -25.0) {
+            float layer = floor(t), f = fract(t);
+            float tone = hash3(vec3(layer, 1.7, 3.1));
+            c = mix(u_warm, u_cool, smoothstep(0.25, 0.75, fbm3(p * 0.09 + 3.1)));
+            c = mix(c, u_strata, step(0.66, tone) * 0.6);
+            c *= 0.92 + 0.16 * tone;
+            c = mix(c, u_strata * 0.7, (1.0 - smoothstep(0.0, seam, f)) * 0.7 * (0.07 / seam));
+            c = mix(c, c * 1.12, smoothstep(0.75, 1.0, f));
+            // grain, and here and there a thin crack running down
+            if (fine > 0.0) c *= 1.0 + (0.14 * noise3(p * vec3(9.0, 14.0, 9.0)) - 0.07) * fine;
+            if (mid > 0.0) {
+              float cracked = smoothstep(0.55, 0.7, noise3(p * 0.4 + 2.0));
+              if (cracked > 0.0) {
+                float crack = abs(noise3(vec3(p.x * 2.6, p.y * 0.3, p.z * 2.6) + 7.0) - 0.5);
+                c = mix(c, u_strata * 0.55, (1.0 - smoothstep(0.008, 0.02, crack)) * cracked * 0.8 * mid);
+              }
+            }
+            // lichen and moss in small patches just under the lip, where the sun gets to them
+            float near = (1.0 - smoothstep(0.4, 2.2, vDrop)) * step(0.0, vDrop);
+            if (near > 0.0) {
+              float growth = smoothstep(0.62, 0.67, fbm3(p * 3.2 + 11.0)) * near;
+              if (growth > 0.0) c = mix(c, mix(u_lichen, u_moss, step(0.5, noise3(p * 0.7 + 5.0))), growth * 0.75);
+            }
+            // further down it gets darker and bluer
+            c = mix(c, u_deep, (1.0 - exp(-max(vDrop, 0.0) / 9.0)) * 0.55);
+            c *= 1.0 - 0.28 * overhang;      // the snow's overhang
+          }
+          if (snowMask > 0.0) snow = mix(u_snow, u_snowEdge, max(rim, 0.25 * noise3(p * vec3(2.0, 6.0, 2.0)) * mid));
           diffuseColor.rgb *= mix(c, snow, snowMask);
           // the ink line along the lip, about two pixels wide at any distance
           lipMask = 1.0 - smoothstep(aa * 0.9, aa * 2.0, abs(vDrop));

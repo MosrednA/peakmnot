@@ -49,6 +49,7 @@ controls. Desktop play with keys, mouse and trackpad stays exactly as it is.
   with the stick, look around, and reach checkpoint 1. Then check the summit card (with the on-screen keyboard) and
   the Hall of Fame on a phone screen.
 - **Measure frame times** in an emulated phone viewport before and after a change, and say what you measured.
+  `peak.html?perf` times the climb on any device, a real phone too ([docs/performance.md](../../docs/performance.md)).
 - **Regressions.** `bots.climb` in `peak.html?manual` still reaches the summit, and keyboard play on a desktop is
   unchanged.
 

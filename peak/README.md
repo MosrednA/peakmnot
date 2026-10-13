@@ -121,7 +121,7 @@ each with its CSS next to it.
 
 | File | What |
 |---|---|
-| `main.js` | Renderer, scene, light and frame loop; wires the modules together. `?manual` stops the loop for tests |
+| `main.js` | Renderer, scene, light and frame loop; wires the modules together; builds every shader behind the preloader. `?manual` stops the loop for tests, `?perf` runs the perf probe |
 | `game.js` | The rules: dents, checkpoints, respawns, the summit, a tip the first time each trick shows up |
 | `audio.js` | Ties `sounds.js` (Codex) to game events |
 | `analytics.js` | Plausible goals for public climbs; excludes development and manual tests |
@@ -219,6 +219,7 @@ each with its CSS next to it.
 | File | What |
 |---|---|
 | `bots.js` | Test players for tuning; nothing in the game imports it |
+| `perf.js` | The perf probe for `peak.html?perf`: times how this computer draws the climb ([docs/performance.md](../docs/performance.md)) |
 
 ## Events
 
@@ -291,7 +292,10 @@ Late morning, high above a sea of clouds: a warm sun from the left-behind, a coo
 - **Backdrop.** Everything in the distance fades into the sky's own colour (`sky.js` shares its GLSL with
   `clouds.js` and `range.js`). The range keeps its tips around the horizon as seen from the route, so Mnot stands
   higher than nearly all of it; hero peaks sit where the camera looks on the way up (`HEROES` in `range.js`).
-- **Cost:** about 1 ms a frame at ratio 1 on a desktop GPU (0.6 ms before the passes and the backdrop).
+- **Cost:** on a desktop GPU about 1 ms a frame, less than `render()`'s JS (1.3–2.3 ms for 360–570 draw calls); on
+  an integrated GPU at a retina laptop's size about 21 ms, nearly all pixels. Every shader is built behind the
+  preloader (`main.js`), and the sky is drawn after the solid things so they hide its pixels. `peak.html?perf`
+  measures any computer: see [docs/performance.md](../docs/performance.md).
 
 ## Tuning with the bots
 

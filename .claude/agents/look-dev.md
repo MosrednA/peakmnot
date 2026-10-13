@@ -27,8 +27,11 @@ mid-range phone.
   lip is exactly the collision outline: keep it that way.
 - **The HUD** (`peak.html`'s CSS, `peak/ui/`): cream cards (`--card #fff7e8`) with an ink outline (`--ink
   #2b3352`), the Fredoka font, a little bounce on toasts, a can per dent.
-- **Cost.** About 1 ms a frame at pixel ratio 1 on a desktop GPU. Quality adapts (`post.js`): the pixel ratio steps
-  down when frames are slow, phones start a step lower, and `?manual` keeps the first ratio.
+- **Cost.** About 1 ms a frame on a desktop GPU, about 21 ms on an integrated one at a retina laptop's size, where
+  the rock paint and the pixel count matter most. Quality adapts (`post.js`): the pixel ratio steps down when frames
+  are slow, phones start a step lower, and `?manual` keeps the first ratio. Time a change with `peak.html?perf` or
+  `node tools/perf.mjs`, before and after, and keep the picture as it was
+  ([docs/performance.md](../../docs/performance.md)).
 
 ## Your files
 

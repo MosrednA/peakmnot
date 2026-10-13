@@ -28,7 +28,8 @@ import { hookAnalytics } from './analytics.js';
 import { ReplayController } from './replays/controller.js';
 
 const params = new URLSearchParams(location.search);
-const manual = params.has('manual');
+const perf = params.has('perf');               // the perf probe (dev/perf.js) drives the game, as tests do
+const manual = params.has('manual') || perf;
 const hasGhost = params.has('ghost'), hasReplay = params.has('replay');
 const replayRoute = hasGhost || hasReplay ? {
   mode: hasGhost && hasReplay ? 'invalid' : hasReplay ? 'replay' : 'ghost',
@@ -181,6 +182,18 @@ function reveal() {
   else { cover?.classList.add('done'); setTimeout(() => cover?.remove(), 600); }
 }
 
+// Every shader built now, behind the preloader, not on the way up where each one is a hitch: one frame with nothing
+// culled, so all of the climb is drawn once, with its shadows and ink, and the props in their copies that can
+// dissolve (fade.js). See docs/performance.md.
+function warmUp() {
+  fadeProps(world, camera, player, 0);
+  const culled = [];
+  scene.traverse(o => { if (o.frustumCulled) { culled.push(o); o.frustumCulled = false; } });
+  render();
+  for (const o of culled) o.frustumCulled = true;
+}
+warmUp();
+
 const timer = new THREE.Timer();
 timer.connect(document);
 function frame(timestamp) {
@@ -208,3 +221,4 @@ window.peak = { THREE, renderer, scene, camera, world, player, game, dents, rock
   step(seconds = 1 / 60, dt = 1 / 60) { for (let t = 0; t < seconds - 1e-9; t += dt) step(dt); render(); },
   render, key: (code, down) => input.key(code, down), title, moments, touch };
 window.peak.replays = replays;
+if (perf) import('./dev/perf.js').then(m => m.probe(window.peak));

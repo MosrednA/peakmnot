@@ -141,7 +141,10 @@ export const LIGHT = { start: 1, slowShadows: 0.85, shadowMap: 1024 };
 export function createPost(renderer, scene, camera, outline,
   { adaptive = true, light = matchMedia('(pointer: coarse)').matches } = {}) {
   const size = renderer.getSize(new THREE.Vector2());
-  const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4 });
+  // nothing reads the scene's depth after it's drawn, so the multisampled depth isn't copied out (perf: ~2 ms a frame
+  // on an integrated GPU at retina size, docs/performance.md)
+  const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 4,
+    resolveDepthBuffer: false });
   const composer = new EffectComposer(renderer, target);
   const glow = new GlowPass(new THREE.Vector2(size.x, size.y), 0.32, 0.55, 1.15);
   glow.knee = 0.5;
