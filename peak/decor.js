@@ -2,6 +2,7 @@
 // the wind. Each returns its object; the ones that move are in world.animated with an update(dt, time, weather).
 import * as THREE from 'three';
 import { toon } from './look.js';
+import { post, tube } from './beams.js';
 
 const RED = '#e23b2e';
 
@@ -179,15 +180,14 @@ export function cairn(world, foot, size = 0.4, count = 4) {
 // A string of little pennants between two posts. They flutter with the wind, so you can see a gust coming.
 export function pennants(world, a, b, colors = [RED, '#f2c14e', '#ffffff', '#3d8fd6']) {
   const pa = a.clone().setY(a.y + 1.3), pb = b.clone().setY(b.y + 1.3);
-  world.post(a, 1.4, 0.035);
-  world.post(b, 1.4, 0.035);
+  world.group.add(post(a, 1.4, 0.035), post(b, 1.4, 0.035));
   const points = [], count = Math.max(3, Math.round(pa.distanceTo(pb) / 0.32));
   for (let i = 0; i <= 12; i++) {
     const t = i / 12;
     points.push(pa.clone().lerp(pb, t).setY(pa.y + (pb.y - pa.y) * t - 0.25 * Math.sin(Math.PI * t)));
   }
   const line = new THREE.CatmullRomCurve3(points);
-  world.ropeMesh(points, 0.008);
+  world.group.add(tube(points, 0.008));
   const flags = [], across = new THREE.Vector3(-(pb.z - pa.z), 0, pb.x - pa.x).normalize();
   for (let i = 1; i < count; i++) {
     const p = line.getPointAt(i / count);

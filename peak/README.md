@@ -32,7 +32,11 @@ Each file starts with a comment on what it does. In order of the frame loop:
 |---|---|
 | `main.js` | Renderer, scene and frame loop; wires the modules together. `?manual` stops the loop for tests |
 | `route.js` | The climb as data: rocks, planks, the rope, checkpoints, signs, wind/snow/rockfall zones, the camera rail |
-| `world.js` | Builds the mountain and answers the player's questions: the ground under a point, walls, beams, `railAt` |
+| `world.js` | Keeps the mountain's solids and beams and answers the player's questions: the ground under a point, walls, beams, `railAt` |
+| `rockmesh.js` | The rock pillars' meshes: one closed surface each, with `aDrop` (metres below the lip) for the shader |
+| `materials.js` | The painted rock: sediment layers, cracks, lichen, dripping snow, the lip's ink line, haze. Also the shared GLSL noise |
+| `beams.js` | How the board walk, planks and the tightrope look (`world.js` keeps their collisions) |
+| `wood.js` | Wood grain and twisted rope materials |
 | `decor.js` | Flags, signs, tent, cairns, wind pennants |
 | `scenery.js` | Sky, the sea of clouds and the far peaks (no collisions) |
 | `look.js` | The shared toon look: stepped light and ink outlines |
@@ -97,7 +101,7 @@ reaches the summit in about 61 s with no falls; the dents along the way come fro
 
 ## Testing by hand
 
-`window.peak` holds the modules, plus `step(seconds)`, `render()` and `key(code, down)`. For example:
+`window.peak` holds the modules and the renderer, plus `step(seconds)`, `render()` and `key(code, down)`. `bots.look(peak, [x, y, z], yaw)` puts Mnot somewhere with the camera on its shot there. For example:
 
 ```js
 peak.player.spawn(new peak.THREE.Vector3(0.4, 4.3, 33.7), 0)   // checkpoint 2, before the rope

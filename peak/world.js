@@ -1,9 +1,9 @@
 // The mountain: rock pillars, planks and ropes high above a sea of clouds. The route itself is data in route.js;
-// this file builds the meshes and answers the player's questions: what's under me, which walls push me out, am I on
-// a plank or a rope.
+// this file keeps the solids and beams and answers the player's questions: what's under me, which walls push me
+// out, am I on a plank or a rope. The meshes come from rockmesh.js and beams.js.
 import * as THREE from 'three';
-import { toon } from './look.js';
-import { rock as rockMaterial } from './materials.js';
+import { rockMesh } from './rockmesh.js';
+import { boardMesh, plankMesh, ropeMesh } from './beams.js';
 
 export function random(seed) {   // mulberry32, so the mountain looks the same every time
   return () => {
@@ -13,9 +13,6 @@ export function random(seed) {   // mulberry32, so the mountain looks the same e
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
-
-const UP = new THREE.Vector3(0, 1, 0);
-const WOOD = '#b07a4a', ROPE = '#d9c08a';
 
 // A rock you can stand on: a convex outline in XZ with a flat top. Its sides are walls.
 export class Solid {
@@ -226,38 +223,7 @@ export class World {
       b.clone().addScaledVector(right, -hw), a.clone().addScaledVector(right, -hw)].map(p => ({ x: p.x, z: p.z }));
     const solid = new Solid(pts, a.y, a.y - 0.12, 'board');
     this.solids.push(solid);
-    const length = a.distanceTo(b), count = Math.round(length / 0.26);
-    const planks = new THREE.InstancedMesh(new THREE.BoxGeometry(width, 0.07, 0.22), toon(WOOD), count);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
-    const rand = this.rand;
-    for (let i = 0; i < count; i++) {
-      const p = a.clone().lerp(b, (i + 0.5) / count);
-      p.y -= 0.035 + 0.01 * rand();
-      const tilt = new THREE.Quaternion().setFromAxisAngle(dir, (rand() - 0.5) * 0.06);
-      m.compose(p, tilt.multiply(q), new THREE.Vector3(1 - 0.1 * rand(), 1, 1));
-      planks.setMatrixAt(i, m);
-    }
-    planks.castShadow = planks.receiveShadow = true;
-    this.group.add(planks);
-    // rope rails on posts
-    for (const side of [-1, 1]) {
-      const posts = [];
-      for (let i = 0; i <= Math.max(1, Math.round(length / 1.6)); i++) {
-        const t = i / Math.max(1, Math.round(length / 1.6));
-        posts.push(a.clone().lerp(b, t).addScaledVector(right, side * (hw + 0.02)));
-      }
-      for (const p of posts) this.post(p, 0.62, 0.035);
-      const rail = [];
-      for (let i = 0; i < posts.length - 1; i++) {
-        for (let k = 0; k < 8; k++) {
-          const t = k / 8, q = posts[i].clone().lerp(posts[i + 1], t);
-          q.y += 0.58 - 0.08 * Math.sin(Math.PI * t);
-          rail.push(q);
-        }
-      }
-      rail.push(posts.at(-1).clone().setY(posts.at(-1).y + 0.58));
-      this.ropeMesh(rail, 0.018);
-    }
+    this.group.add(boardMesh(a, b, width, this.rand));
     return solid;
   }
 
@@ -265,15 +231,8 @@ export class World {
   plank(a, b, { width = 0.3, wobble = 1 } = {}) {
     const beam = new Beam('plank', a, b, { width, wobble });
     this.beams.push(beam);
-    const along = new THREE.Vector3().subVectors(b, a), length = along.length();
-    along.normalize();
-    const up = new THREE.Vector3().crossVectors(beam.right, along).normalize();
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, 0.07, length + 0.3), toon(WOOD));
-    mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(beam.right, up, along));
-    mesh.position.copy(a).lerp(b, 0.5).addScaledVector(up, -0.035);
-    mesh.castShadow = mesh.receiveShadow = true;
-    this.group.add(mesh);
-    beam.mesh = mesh;
+    beam.mesh = plankMesh(beam);
+    this.group.add(beam.mesh);
     return beam;
   }
 
@@ -282,120 +241,15 @@ export class World {
     const beam = new Beam('rope', a, b, { sag, width: 0.06, wobble });
     beam.dip = 0.22;
     this.beams.push(beam);
-    for (const end of [a, b]) {
-      const outward = end === a ? -1 : 1;
-      this.post(end.clone().addScaledVector(beam.dir, 0.12 * outward), 0.35, 0.05);
-    }
-    const segments = 48, radial = 6, r = 0.03;
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array((segments + 1) * radial * 3);
-    const index = [];
-    for (let i = 0; i < segments; i++) {
-      for (let j = 0; j < radial; j++) {
-        const p = i * radial + j, q = i * radial + (j + 1) % radial;
-        index.push(p, p + radial, q, q, p + radial, q + radial);
-      }
-    }
-    geometry.setIndex(index);
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const mesh = new THREE.Mesh(geometry, toon(ROPE));
-    mesh.castShadow = true;
-    mesh.frustumCulled = false;
+    const { mesh, update } = ropeMesh(beam);
     this.group.add(mesh);
-    const point = new THREE.Vector3(), side = beam.right, up = UP;
-    beam.update = () => {
-      for (let i = 0; i <= segments; i++) {
-        const s = -0.03 + 1.06 * i / segments;
-        beam.pointAt(s, point);
-        point.y -= r;     // the walking surface is the rope's top
-        for (let j = 0; j < radial; j++) {
-          const a = 2 * Math.PI * j / radial;
-          const k = (i * radial + j) * 3;
-          positions[k] = point.x + side.x * Math.cos(a) * r;
-          positions[k + 1] = point.y + Math.sin(a) * r;
-          positions[k + 2] = point.z + side.z * Math.cos(a) * r;
-        }
-      }
-      geometry.attributes.position.needsUpdate = true;
-      geometry.computeVertexNormals();
-    };
+    beam.update = update;
     beam.update();
     this.animated.push(beam);
     return beam;
   }
 
-  post(foot, height, radius) {
-    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.8, radius, height, 7), toon('#8a5a34'));
-    mesh.position.copy(foot).setY(foot.y + height / 2 - 0.05);
-    mesh.castShadow = true;
-    this.group.add(mesh);
-    return mesh;
-  }
-
-  ropeMesh(points, radius) {
-    const curve = new THREE.CatmullRomCurve3(points);
-    const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, points.length * 2, radius, 5), toon(ROPE));
-    mesh.castShadow = true;
-    this.group.add(mesh);
-    return mesh;
-  }
-
   zone(kind, x, z, radius, strength = 1, extra = {}) {
     this.zones.push({ kind, x, z, radius, strength, ...extra });
   }
-}
-
-// ------------------------------------------------------------------ rock meshes
-
-// One closed surface: a ring at each depth, the sides bulging and widening towards the mountain's foot, and a top
-// that rises a few centimetres in a soft pillow of snow. The lip is exactly the collision outline. The material
-// (materials.js) paints the facets, the snow and the lip's ink line from aDrop; the shared vertices give smooth
-// normals, so the outline drawn round the rock has no cracks.
-function rockMesh(solid, rand) {
-  const ring = [];
-  for (const e of solid.edges) {
-    const n = Math.max(1, Math.round(e.len / 0.45));
-    for (let k = 0; k < n; k++) ring.push({ x: e.ax + (e.bx - e.ax) * k / n, z: e.az + (e.bz - e.az) * k / n });
-  }
-  const N = ring.length;
-  const { x: cx, y: cz } = solid.center;
-  const depth = solid.top - solid.bottom;
-  const levels = [0, 0.1, 0.32, 0.75, 1.4, 2.4, 3.8, 6, 9, 14, 21, 32, 48, depth].filter(v => v <= depth);
-  const wobble = levels.map(() => ring.map(() => rand()));
-  const positions = [], drops = [], index = [];
-  const add = (x, y, z, drop) => { positions.push(x, y, z); drops.push(drop); return drops.length - 1; };
-  levels.forEach((dy, level) => {
-    for (let i = 0; i < N; i++) {
-      const p = ring[i], ox = p.x - cx, oz = p.z - cz, len = Math.hypot(ox, oz);
-      // the lip curls in a little, then the face bulges out and widens further down
-      const w = wobble[level][i];
-      const out = level === 0 ? 0 : level === 1 ? -0.05 : -0.14 + 0.24 * w + Math.max(0, dy - 3) * 0.025;
-      add(p.x + ox / len * out, solid.top - dy, p.z + oz / len * out, dy);
-    }
-  });
-  for (let l = 0; l < levels.length - 1; l++) {
-    for (let i = 0; i < N; i++) {
-      const a = l * N + i, b = l * N + (i + 1) % N, c = a + N, d = b + N;
-      index.push(a, b, c, b, d, c);
-    }
-  }
-  // the top: an inner ring a little way in and up, then the middle
-  const inner = ring.map(p => {
-    const ox = cx - p.x, oz = cz - p.z, len = Math.hypot(ox, oz), k = Math.min(0.16, 0.3 * len);
-    return add(p.x + ox / len * k, solid.top + 0.025, p.z + oz / len * k, -k);
-  });
-  const reach = ring.reduce((sum, p) => sum + Math.hypot(p.x - cx, p.z - cz), 0) / N;
-  const middle = add(cx, solid.top + 0.035, cz, -reach);
-  for (let i = 0; i < N; i++) {
-    const j = (i + 1) % N;
-    index.push(inner[i], j, i, inner[i], inner[j], j, middle, inner[j], inner[i]);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('aDrop', new THREE.Float32BufferAttribute(drops, 1));
-  geometry.setIndex(index);
-  geometry.computeVertexNormals();
-  const mesh = new THREE.Mesh(geometry, rockMaterial());
-  mesh.castShadow = mesh.receiveShadow = true;
-  return mesh;
 }
