@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mnot Downhill (prototype)</title>
+<meta name="description" content="A prototype: Mnot on a very expensive office chair, down the mountain.">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="peak/scores/scores.css">
+<link rel="stylesheet" href="peak/ui/title.css">
+<link rel="stylesheet" href="peak/ui/preload.css">
+<link rel="preload" href="models/mnot.glb" as="fetch" crossorigin>
+<style>
+  /* The same cream cards with an ink outline as the climb's HUD. */
+  :root { --ink: #2b3352; --card: #fff7e8; --muted: #6b6f86; --red: #e23b2e; --teal: #22a98f; --gold: #ffc23d;
+    --sky: #4aa8f0; }
+  html, body { margin: 0; height: 100%; background: #cfe3f5; color: var(--ink);
+    font: 500 14px/1.35 Fredoka, system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; user-select: none; }
+  canvas { display: block; touch-action: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  .card { background: var(--card); border: 2.5px solid var(--ink); border-radius: 14px; box-shadow: 0 3px 0 var(--ink); }
+  #title { position: absolute; top: 12px; left: 14px; padding: 5px 12px 6px; }
+  #title b { display: block; font-size: 19px; font-weight: 700; color: var(--red); text-shadow: 0 1.5px 0 #ffd9c2; }
+  #stats { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  #speed { min-width: 58px; }
+  #wheels { display: flex; gap: 3px; }
+  #wheels i { width: 10px; height: 10px; border: 2px solid var(--ink); border-radius: 50%; background: #3c404c;
+    transition: transform 0.25s, opacity 0.25s; }
+  #wheels i.gone { opacity: 0.25; transform: scale(0.6) translateY(6px); background: transparent; }
+  #sound { position: absolute; top: 12px; right: 14px; pointer-events: auto; font: 600 13px Fredoka, sans-serif;
+    color: var(--ink); padding: 6px 12px; cursor: pointer; }
+  #sound[aria-pressed="false"] { color: var(--muted); text-decoration: line-through; }
+  #help { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
+    padding: 4px 12px; border-radius: 12px; background: rgba(255, 247, 232, 0.82); color: var(--muted);
+    font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  kbd { display: inline-block; min-width: 10px; padding: 0 5px; margin: 0 1px; border: 1.5px solid var(--ink);
+    border-radius: 5px; box-shadow: 0 1.5px 0 var(--ink); background: #fff; color: var(--ink); font: 600 11px/16px Fredoka, sans-serif; }
+  #toast { position: absolute; top: 20%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center;
+    gap: 6px; opacity: 0; transition: opacity 0.35s; }
+  #toast.show { opacity: 1; }
+  #toast b { font-size: 40px; font-weight: 700; line-height: 1.05; color: #fff; -webkit-text-stroke: 7px var(--ink);
+    paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); }
+  #toast small { padding: 3px 14px; font-size: 16px; font-weight: 600; }
+  #toast.checkpoint b { color: #7ff0c8; }
+  #toast.oops b { color: #ffb3a4; }
+  #toast.show b { animation: pop 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+  #toast.show small { animation: pop 0.55s 0.08s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+  @keyframes pop { from { transform: scale(0.4) rotate(-6deg); opacity: 0; } 60% { opacity: 1; } to { transform: none; } }
+  .panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100% - 32px));
+    box-sizing: border-box; padding: 18px 22px 20px; text-align: center; }
+  .panel h1 { margin: 0; font-size: 34px; line-height: 1.05; color: var(--red); text-shadow: 0 2px 0 #ffd9c2; }
+  #finish { top: auto; bottom: 52px; transform: translateX(-50%); }
+  /* the photo from the ski jump: a flash, then a print in the corner, and on the finish card */
+  #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+  #flash.go { animation: flash 0.6s ease-out; }
+  @keyframes flash { from { opacity: 0.95; } to { opacity: 0; } }
+  .print { display: inline-block; padding: 7px 7px 4px; background: #fff; border: 2.5px solid var(--ink);
+    border-radius: 4px; box-shadow: 0 3px 0 var(--ink); font-size: 12px; font-weight: 600; color: var(--muted); }
+  .print img { display: block; width: 200px; height: 150px; object-fit: cover; border-radius: 2px; background: #cfe3f5; }
+  #photo { position: absolute; right: 16px; bottom: 52px; transform: rotate(3deg);
+    animation: pop 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+  #finish .snap { margin: 2px 0 10px; transform: rotate(-2deg); }
+  #finish .snap img { width: 180px; height: 135px; }
+  .panel .time { font-size: 44px; font-weight: 700; }
+  .panel .verdict { margin: 4px 0 10px; font-size: 18px; font-weight: 600; color: var(--red); }
+  .panel .bonus { margin: -2px 0 4px; font-size: 13px; font-weight: 600; color: var(--teal); }
+  /* time off the clock, popping under it */
+  #bonus { position: absolute; top: 78px; left: 16px; display: flex; align-items: center; gap: 6px;
+    animation: pop 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+  #bonus b { font-size: 28px; font-weight: 700; line-height: 1; color: #7ff0c8; -webkit-text-stroke: 6px var(--ink);
+    paint-order: stroke fill; text-shadow: 0 3px 0 var(--ink); }
+  #bonus small { padding: 1px 9px; font-size: 13px; font-weight: 600; }
+  /* The title (peak/ui/title.css, title.js), the climb's with its own logo: MNOT small on top, DOWNHILL stepping
+     down letter by letter like a slope, and the chair's price tag under it. */
+  .dh-logo { flex-direction: column; align-items: flex-start; gap: 0; }
+  .dh-logo .w { display: flex; gap: 0.02em; }
+  .dh-logo .w:first-child { margin: 0 0 -0.12em 0.06em; font-size: 0.48em; }
+  .dh-logo .w:last-child { padding-bottom: 0.38em; }
+  .dh-logo .w:last-child .l { translate: 0 calc(var(--j) * 0.055em); }
+  .dh-tag { margin: 0.1em 0 0; padding: 2px 12px; border-style: dashed; border-radius: 9px; font-size: 15px;
+    font-weight: 600; transform: rotate(-2deg); }
+  .dh-tag b { color: var(--red); }
+  .ts-press .tap { display: none; }
+  @media (hover: none) and (pointer: coarse) { .ts-press .key { display: none; } .ts-press .tap { display: inline; } }
+  [hidden] { display: none !important; }
+  @media (max-width: 560px) { #help { font-size: 11px; } #toast b { font-size: 30px; } .panel h1 { font-size: 28px; }
+    .print img { width: 140px; height: 105px; } #finish .snap img { width: 150px; height: 112px; }
+    .dh-tag { font-size: 13px; } }
+</style>
+</head>
+<body class="preloading">
+<div id="preload" role="status" aria-label="Loading">
+  <div class="pl-can"><i></i><i></i></div>
+  <div class="pl-shadow"></div>
+  <div class="pl-name">Mnot Downhill</div>
+  <div class="pl-bar card"><i></i></div>
+</div>
+<div id="hud">
+  <div id="title" class="card"><b>Mnot Downhill</b>
+    <div id="stats"><span id="time">0:00.0</span><span id="speed">0 km/h</span><span id="wheels"><i></i><i></i><i></i><i></i><i></i></span></div>
+  </div>
+  <button id="sound" class="card" aria-pressed="true">Sound</button>
+  <div id="scores-hud"></div>
+  <div id="toast"><b></b><small class="card"></small></div>
+  <div id="bonus" hidden><b></b><small class="card"></small></div>
+  <div id="help"><kbd>A</kbd><kbd>D</kbd> steer · <kbd>W</kbd> push, tuck · <kbd>S</kbd> brake · <kbd>Space</kbd> the lever (jump) · <kbd>R</kbd> again</div>
+  <div id="title-screen" hidden>
+    <div class="ts-top">
+      <h1 class="ts-logo dh-logo">Mnot Downhill</h1>
+      <div class="dh-tag card">€1,649 of ergonomics. <b>One mountain.</b></div>
+    </div>
+    <div class="ts-howto card" id="title-howto" hidden>
+      <h2>How to play</h2>
+      <dl>
+        <dt><kbd>A</kbd> <kbd>D</kbd> or arrows</dt><dd>steer with the feet</dd>
+        <dt><kbd>W</kbd></dt><dd>push off, then tuck in: faster, less steering</dd>
+        <dt><kbd>S</kbd> or <kbd>Shift</kbd></dt><dd>heels in the snow: brake</dd>
+        <dt><kbd>Space</kbd></dt><dd>pull the height lever: the gas lift jumps</dd>
+        <dt><kbd>R</kbd></dt><dd>a new run from the top</dd>
+        <dt>touch</dt><dd>drag on the left half to steer (up pushes, down brakes), tap the right half to jump</dd>
+      </dl>
+      <p>Down the mountain, fast: the clock runs from the gate to the finish, and on while you're out after a fall.
+        Five casters: rocks, trees and hard landings take them, pit stops put fresh ones on. A strike, a spare and a
+        long ski jump take time off the clock.</p>
+    </div>
+    <div class="ts-bottom">
+      <div class="ts-menu">
+        <button type="button" class="card ts-start" id="title-start">Start rolling</button>
+        <button type="button" class="card" id="hall-of-fame">Hall of Fame</button>
+        <button type="button" class="card" id="title-help" aria-expanded="false" aria-controls="title-howto">How to play</button>
+        <button type="button" class="card" id="title-sound" aria-pressed="true">Sound on</button>
+      </div>
+      <p class="ts-press"><span class="key">Press any key to roll</span><span class="tap">Tap anywhere to roll</span></p>
+      <p class="ts-tip card" id="title-tip" aria-live="polite"></p>
+    </div>
+  </div>
+  <div id="finish" class="card panel" hidden>
+    <h1>Finish!</h1>
+    <div class="time">0:00.0</div>
+    <div class="bonus" hidden></div>
+    <div class="wheels"></div>
+    <div class="verdict"></div>
+    <div class="snap print" hidden><img alt="Mnot in the air off the ski jump"><div>Smile!</div></div>
+    <div><kbd>R</kbd> ride again</div>
+  </div>
+  <div id="photo" class="print" hidden><img alt="Mnot in the air off the ski jump"><div>Smile!</div></div>
+  <div id="flash"></div>
+</div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+<script type="module" src="peak/downhill/main.js"></script>
+<script>
+// The local development server disables caching and watches code, models and sound assets.
+if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && !location.search.includes('manual')) {
+  let version;
+  async function checkUpdates() {
+    try {
+      const response = await fetch('/__dev_version', { cache: 'no-store' });
+      if (!response.ok) return;
+      const update = await response.json();
+      if (version !== undefined && update.version !== version) location.reload();
+      version = update.version;
+    } catch { /* The game stays playable while the development server restarts. */ }
+  }
+  checkUpdates();
+  setInterval(checkUpdates, 750);
+}
+</script>
+</body>
+</html>

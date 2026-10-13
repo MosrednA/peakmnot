@@ -27,6 +27,7 @@ const OUT = path.join(ROOT, 'dist');
 // A page's name (without .html) names its code: peak.html loads assets/peak-HASH.js.
 const PAGES = [
   'peak.html',
+  'downhill.html',
 ];
 // Linked from the pages by name, copied as they are
 const FILES = ['favicon.png', 'favicon.ico', 'share.jpg', 'manifest.webmanifest', 'models/mnot.glb'];
