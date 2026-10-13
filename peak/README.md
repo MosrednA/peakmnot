@@ -16,6 +16,7 @@ key, a click or Start begins the climb (`?manual` skips it).
 | Space | jump. A running jump clears about 1 m of gap and 0.5 m of height |
 | A / D on a plank or rope | lean back against the wobble |
 | drag, wheel | look around and zoom. The camera eases back after a moment |
+| trackpad: two-finger swipe, pinch | look around, zoom (the camera, not the page). `camera.js` tells a swipe from a mouse wheel by its first event |
 | M | sound on/off |
 
 On touch screens (`touch.js`, `touch.css`; they show on a coarse pointer or the first touch and hide at a key press):

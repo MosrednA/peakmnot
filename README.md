@@ -27,6 +27,7 @@ dents back out. The fastest climbs go on the Hall of Fame.
 | Space | Jump. A running jump clears about 1 m of gap |
 | A / D on a plank or rope | Lean back against the wobble |
 | Drag, wheel | Look around and zoom |
+| Trackpad: swipe with two fingers, pinch | Look around, zoom |
 | M | Sound on/off |
 
 On a phone or tablet: a stick under your left thumb (wherever it lands; a light thumb or small push is careful steps, a

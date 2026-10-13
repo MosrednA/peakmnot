@@ -1,9 +1,9 @@
 // The camera shoots Mnot from the front-ish side, so the can and glasses stay in view. Each stretch of the route has
 // its own shot on the world's rail (see route.js); planks and ropes are always shot from the front, and a celebration
 // gets a close-up (at the summit a wider one, with the summit flag beside Mnot). The camera glides from shot to shot.
-// Drag to look around (a finger too, through touch.js, which also pinches to zoom); it eases back after a moment. It
-// never looks up from under the ledges, and rises over a rock rather than going into it. A portrait screen gets a
-// wider lens.
+// Drag to look around (a finger too, through touch.js, which also pinches to zoom; on a trackpad a two-finger swipe),
+// and the wheel or a trackpad's pinch zooms; it eases back after a moment. It never looks up from under the ledges,
+// and rises over a rock rather than going into it. A portrait screen gets a wider lens.
 // A fall gets its own shot: the camera stays by the ledge, rises and looks down over the edge, and watches the can
 // tumble away into the clouds (pushing in a little on the cartoon moment it hangs in the air), then eases back.
 import * as THREE from 'three';
@@ -17,6 +17,16 @@ const PITCH = { min: 0.08, max: 1.3 };     // the camera's tilt, shot and drag t
 const PORTRAIT = { fov: 72, back: 1.25 };  // a tall screen's lens and step back (frame())
 const BOXES = new WeakMap();        // the rocks' bounds, so a ray only tests the rocks it passes near
 const _hit = new THREE.Vector3();
+const WHEEL_UNIT = [1, 33, 800];    // pixels per wheel deltaMode: pixels, lines (3 a notch: Chrome's 100 px), pages
+
+// Whether a wheel event is a mouse wheel's notch rather than a trackpad's free pixel step: lines (Firefox), whole
+// 120s of the old wheelDelta (Chrome, Edge, Safari), or the 4.000244-pixel steps of Firefox on a Mac.
+function notch(e) {
+  if (e.deltaMode !== 0) return true;
+  if (e.wheelDeltaY || e.wheelDeltaX) return e.wheelDeltaY % 120 === 0 && e.wheelDeltaX % 120 === 0;
+  const d = Math.abs(e.deltaY || e.deltaX);
+  return d > 0 && d % 4.000244140625 === 0;
+}
 
 export class FollowCamera {
   constructor(camera, dom) {
@@ -53,7 +63,32 @@ export class FollowCamera {
     const end = () => { drag = null; };
     dom.addEventListener('pointerup', end);
     dom.addEventListener('pointercancel', end);
-    dom.addEventListener('wheel', (e) => this.zoomBy(Math.exp(e.deltaY * 0.001)), { passive: true });
+    this.swipe = false;        // whether the wheel events coming in are a trackpad's two-finger swipe (wheel())
+    this.wheelAt = -Infinity;
+    dom.addEventListener('wheel', (e) => this.wheel(e), { passive: false });
+    // Safari pinches a trackpad with gesture events of its own (on a touch screen touch.js handles them)
+    if (navigator.maxTouchPoints === 0) {
+      let scale = 1;
+      dom.addEventListener('gesturestart', (e) => { e.preventDefault(); scale = 1; });
+      dom.addEventListener('gesturechange', (e) => {
+        e.preventDefault();
+        this.zoomBy(scale / e.scale);
+        scale = e.scale;
+      });
+    }
+  }
+
+  // A wheel event: a mouse wheel zooms, a trackpad's two-finger swipe looks around like a drag, and its pinch (a
+  // wheel with Ctrl in Chrome, Edge and Firefox, about -100 × ln(scale) a step) zooms the camera rather than the whole
+  // page. A stream of wheel events is told apart by its first one, so a fast swipe doesn't turn into zooming halfway.
+  wheel(e) {
+    e.preventDefault();
+    const unit = WHEEL_UNIT[e.deltaMode] ?? 1, dx = e.deltaX * unit, dy = e.deltaY * unit;
+    if (e.ctrlKey) return this.zoomBy(Math.exp(dy * (notch(e) ? 0.001 : 0.01)));   // fingers twice as far: half
+    if (e.timeStamp - this.wheelAt > 250) this.swipe = !notch(e);
+    this.wheelAt = e.timeStamp;
+    if (this.swipe) this.look(-dx, -dy);                  // the fingers drag the scene along
+    else this.zoomBy(Math.exp((dy || dx) * 0.001));       // dx: Shift and the wheel scroll sideways in some browsers
   }
 
   // Look around by a drag of dx, dy pixels (the mouse, or a finger from touch.js). With guard ({ player, world }) a
