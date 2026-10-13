@@ -23,6 +23,7 @@ import { Title } from './ui/title.js';
 import { Touch } from './controls/touch.js';
 import { Moments } from './mnot/moments.js';
 import { createScores } from './scores/scores.js';
+import { hookAnalytics } from './analytics.js';
 
 const manual = new URLSearchParams(location.search).has('manual');
 
@@ -72,6 +73,7 @@ audio.attachTitle(title);
 const touch = new Touch({ input, follow, player, world, title, dom: renderer.domElement });   // phones (touch.js)
 const moments = new Moments({ player, game, world, weather, title });
 const scores = createScores({ player, game, world, manual });   // high scores and the Hall of Fame (scores.js)
+hookAnalytics({ title, game, player, manual });
 player.spawn(start.respawn, start.yaw);
 follow.snap(player, world);
 if (!manual) title.show();

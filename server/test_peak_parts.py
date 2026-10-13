@@ -86,6 +86,10 @@ class StaticFiles(unittest.TestCase):
         self.assertEqual(r.status, 200)
         csp = r.headers["Content-Security-Policy"]
         self.assertIn("'sha256-", csp)
+        directives = dict(part.strip().split(" ", 1) for part in csp.split(";") if part.strip())
+        for kind in ("script-src", "connect-src"):
+            self.assertIn("https://stats.mosredna.eu", directives[kind].split())
+        self.assertNotIn("'unsafe-inline'", directives["script-src"])
         self.assertNotIn("unsafe-inline' https://cdn", csp)
         self.assertEqual(r.headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(r.headers["Referrer-Policy"], "no-referrer")

@@ -42,9 +42,9 @@ TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=u
 SECURE = {"X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
           "Cross-Origin-Opener-Policy": "same-origin", "X-Frame-Options": "DENY"}
 API_CSP = "default-src 'none'; frame-ancestors 'none'"
-PAGE_CSP = ("default-src 'self'; script-src 'self' https://cdn.jsdelivr.net {hashes}; "
+PAGE_CSP = ("default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://stats.mosredna.eu {hashes}; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; "
-            "img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; "
+            "img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://stats.mosredna.eu; "
             "worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 DRAIN = 4 * 1024 * 1024               # bytes of an oversized body read (and dropped) before saying no
 INLINE_SCRIPT = re.compile(rb"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S | re.I)

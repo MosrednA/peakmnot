@@ -4,6 +4,10 @@ The high-score list for [Peak Mnot](../peak/README.md): a small server, Python's
 that takes a climb from the game, checks it step by step against the route and Mnot's physics, and only then puts
 the time on the board. In production the same server also serves the game, so page and API share one origin.
 
+The game page's CSP permits the cookieless Plausible tracker and event requests at `https://stats.mosredna.eu`.
+Inline scripts are allowed by their hashes. The [game analytics reference](../peak/README.md#analytics) lists the
+goals and the exclusions for development and manual tests.
+
 | File | What it does |
 | --- | --- |
 | `peak_scores.py` | The HTTP server: `/api/peak`, with `--static` the game's files too; security headers; the command line |

@@ -69,6 +69,8 @@ python -X utf8 server/peak_scores.py
 
 ## How it's made
 
+- **Analytics.** Cookieless Plausible counts public visits and climb milestones. The goals and development exclusions
+  are documented in [peak/README.md](peak/README.md#analytics).
 - **three.js**, with toon shading and outlines. There's no framework and no bundler.
 - **Mnot is built from code.** `tools/build_mnot.py` builds the mesh, the rig, the skin weights and every clip in
   Blender (5.2, in the background). Nobody edits the `.glb` by hand: change the script and rebuild.

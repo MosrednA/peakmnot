@@ -70,6 +70,34 @@ server in [`server/`](../server/README.md), which checks every step of the recor
 start it next to the viewer with `python -X utf8 server/peak_scores.py`. Without it, or with `?manual`, the game
 simply shows no scores. After changing the route or the rig's speeds, re-export `server/route.json` (see there).
 
+## Analytics
+
+The public game uses cookieless Plausible at `stats.mosredna.eu`. The tracker in `peak.html` counts pageviews;
+`analytics.js` listens to the title, game and player events for these custom goals:
+
+| Goal name (exact, including capitals) | When |
+|---|---|
+| `Start Climb` | The title hands over to the player, once per page |
+| `Checkpoint 1 Reached` | The first checkpoint is reached, once |
+| `Checkpoint 2 Reached` | The second checkpoint is reached, once |
+| `Checkpoint 3 Reached` | The third checkpoint is reached, once |
+| `Summit Reached` | The climb reaches the summit, once |
+| `Fall` | Mnot is lost into the abyss; each fall, without counting its respawn again |
+| `Flattened` | The fourth dent flattens the can; each time |
+
+The goals are configured under [Settings → Goals](https://stats.mosredna.eu/peakmnot.mosredna.eu/settings/goals),
+with **Show in dashboard** enabled. Conversion counts appear after a matching event is received. When adding a
+goal, create the matching **Custom event** in Plausible too: sending an event alone does not add a dashboard goal
+([Plausible's guide](https://plausible.io/docs/custom-event-goals)).
+
+Events before the climb or after the summit are ignored. Analytics sends no custom properties, names, player ids,
+replays or scores. Only `peakmnot.mosredna.eu` is tracked; localhost, other hosts, the animation viewer and `?manual`
+are excluded. Missing or blocked analytics does not stop the game. The production page's CSP allows only the
+Plausible host in addition to its existing script and connection sources; inline scripts still require hashes.
+
+Run `node --test tools/check_analytics.mjs` for the event checks and `python -m unittest discover server` for the
+production CSP check.
+
 ## Modules
 
 Each file starts with a comment on what it does. `main.js` builds the scene, wires the modules together
@@ -81,6 +109,7 @@ each with its CSS next to it.
 | `main.js` | Renderer, scene, light and frame loop; wires the modules together. `?manual` stops the loop for tests |
 | `game.js` | The rules: dents, checkpoints, respawns, the summit, a tip the first time each trick shows up |
 | `audio.js` | Ties `sounds.js` (Codex) to game events |
+| `analytics.js` | Plausible goals for public climbs; excludes development and manual tests |
 
 ### `world/`: the mountain and what happens on it
 
