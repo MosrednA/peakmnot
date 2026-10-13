@@ -1,0 +1,31 @@
+/* The preloader: a can with big glasses hopping on the spot while the code, the model and the shaders load.
+   main.js adds .done after the first frame; transform and opacity only, so it keeps hopping while shaders compile. */
+#preload { position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px; background: linear-gradient(#7fc0f2, #cfe3f5 62%, #f2f7fc);
+  transition: opacity 0.45s ease, visibility 0s 0.45s; }
+#preload.done { opacity: 0; visibility: hidden; pointer-events: none; }
+body.preloading #title-screen { display: none; }   /* so its entrance plays once the preloader has gone */
+
+.pl-can { position: relative; width: 44px; height: 70px; box-sizing: border-box; border: 3px solid var(--ink);
+  border-radius: 7px 7px 10px 10px; transform-origin: 50% 100%; animation: pl-hop 0.9s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent 18%, rgba(255, 255, 255, 0.35) 18% 28%, transparent 28%),
+    linear-gradient(#d9dee8 0 8px, var(--ink) 8px 11px, var(--red) 11px); }
+.pl-can i { position: absolute; top: 17px; width: 28px; height: 22px; box-sizing: border-box;
+  border: 4px solid #111; border-radius: 8px 8px 10px 10px; background: rgba(205, 235, 245, 0.8); }
+.pl-can i:first-child { left: -16px; }
+.pl-can i:last-child { right: -16px; }
+.pl-can::after { content: ""; position: absolute; top: 23px; left: 10px; right: 10px; height: 4px; background: #111; }
+.pl-shadow { width: 54px; height: 10px; margin-top: -10px; border-radius: 50%; background: rgba(43, 51, 82, 0.25);
+  animation: pl-shadow 0.9s ease-in-out infinite; }
+@keyframes pl-hop { 0%, 100% { transform: scale(1.1, 0.88); } 15% { transform: none; }
+  50% { transform: translateY(-38px) rotate(-5deg); } 85% { transform: scale(0.95, 1.05); } }
+@keyframes pl-shadow { 0%, 100% { transform: none; } 50% { transform: scale(0.55); opacity: 0.5; } }
+
+.pl-name { font: 700 34px/1 Fredoka, sans-serif; color: var(--red); -webkit-text-stroke: 5px var(--ink);
+  paint-order: stroke fill; text-shadow: 0 3px 0 var(--ink); }
+.pl-bar { width: 180px; height: 12px; overflow: hidden; border-radius: 8px; }
+.pl-bar i { display: block; height: 100%; background: var(--gold); transform-origin: 0 50%;
+  animation: pl-fill 10s cubic-bezier(0.1, 0.7, 0.2, 1) forwards; }
+#preload.done .pl-bar i { animation: none; }
+@keyframes pl-fill { from { transform: scaleX(0.04); } to { transform: scaleX(0.92); } }
+@media (prefers-reduced-motion: reduce) { .pl-can, .pl-shadow { animation: none; } }

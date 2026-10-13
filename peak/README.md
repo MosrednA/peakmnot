@@ -113,6 +113,7 @@ Each file starts with a comment on what it does. In order of the frame loop:
 | `pose.js` | Procedural pose on top of the clips: feet together on a beam, arms out and flapping and legs kicking when slipping or falling, arms windmilling and panicky steps on ice |
 | `camera.js` | The follow camera: one shot per stretch, gliding between them; close-ups for a celebration, and its own shot for a fall |
 | `moments.js` | For the eye only: idle fidgets (`PushGlasses` after a checkpoint or a close call on a beam, `TapFoot` while waiting for the gondola or a ledge to grow back, `LookUp` at the climb ahead, a random one after 4–6 s), never on a beam, ice, a loose ledge or in the wind, cancelled by any input; the summit `Dance` and confetti. It sets `player.idleClip`, the clip Mnot stands about in |
+| `preload.css` | The preloader in `peak.html`: a can with big glasses hopping while the code, the model and the shaders load; `main.js` lifts it once the first frame is on screen |
 | `title.js` | The title screen (styled in `title.css`): orbit shots round Mnot waving and fidgeting, rotating tips, How to play; the glide into the follow camera at the start. Resets `game.time` to 0 then |
 | `weather.js` | Wind gusts with a wandering direction, snow showers, and the wind gaps' steady beat |
 | `rocks.js` | Rockfall: a growing warning shadow with pebbles trickling down onto it, then the rock, in a burst of snow and chips |

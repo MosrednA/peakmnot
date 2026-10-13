@@ -108,6 +108,17 @@ function render() {
   post.render();
 }
 
+// the preloader (preload.css) stays up until the first frame, whose shaders take a while, is on screen
+let revealed = false;
+function reveal() {
+  if (revealed) return;
+  revealed = true;
+  document.body.classList.remove('preloading');
+  const cover = document.getElementById('preload');
+  if (manual) cover?.remove();
+  else { cover?.classList.add('done'); setTimeout(() => cover?.remove(), 600); }
+}
+
 const timer = new THREE.Timer();
 timer.connect(document);
 function frame(timestamp) {
@@ -118,9 +129,10 @@ function frame(timestamp) {
   for (let i = 0; i < steps; i++) step(dt / steps);
   render();
   requestAnimationFrame(frame);
+  if (!revealed) requestAnimationFrame(reveal);
 }
 if (!manual) requestAnimationFrame(frame);
-else render();
+else { render(); reveal(); }
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;

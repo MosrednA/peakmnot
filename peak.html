@@ -76,8 +76,16 @@
 <link rel="stylesheet" href="peak/title.css">
 <link rel="stylesheet" href="peak/scores.css">
 <link rel="stylesheet" href="peak/touch.css">
+<link rel="stylesheet" href="peak/preload.css">
+<link rel="preload" href="models/mnot.glb" as="fetch" crossorigin>
 </head>
-<body>
+<body class="preloading">
+<div id="preload" role="status" aria-label="Loading">
+  <div class="pl-can"><i></i><i></i></div>
+  <div class="pl-shadow"></div>
+  <div class="pl-name">Peak Mnot</div>
+  <div class="pl-bar card"><i></i></div>
+</div>
 <div id="hud">
   <div id="title" class="card"><b>Peak Mnot</b><div id="stats">loading…</div></div>
   <div id="toast"></div>
