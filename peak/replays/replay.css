@@ -1,0 +1,71 @@
+/* Replay controls sit over the mountain; watching hides the live climb HUD and its controls. */
+body.replay-watch #title-screen, body.replay-watch #title, body.replay-watch #toast, body.replay-watch #balance,
+body.replay-watch #help, body.replay-watch #sound, body.replay-watch #scores-hud, body.replay-watch #touch,
+body.replay-watch #touch-help { display: none !important; }
+body.replay-race #title-screen #hall-of-fame { display: none; }
+body.replay-race #scores-hud { display: none !important; }
+
+.replay-ui { position: fixed; z-index: 80; inset: 0; pointer-events: none; color: var(--ink);
+  font: 600 13px/1.25 Fredoka, system-ui, sans-serif; }
+.replay-top { position: absolute; top: calc(12px + env(safe-area-inset-top)); left: 50%; display: flex; align-items: center;
+  gap: 8px; max-width: calc(100vw - 24px); transform: translateX(-50%); pointer-events: auto; }
+.replay-ui--race .replay-top { top: calc(72px + env(safe-area-inset-top)); }
+body.title-up .replay-ui--race .replay-top { top: calc(5.5vh + clamp(80px, 11vw, 124px) + 12px + env(safe-area-inset-top)); }
+.replay-chip { display: block; max-width: min(62vw, 360px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 7px 12px; background: var(--card); border: 2px solid var(--ink); border-radius: 12px;
+  box-shadow: 0 2.5px 0 var(--ink); font-size: 14px; }
+.replay-button { min-height: 34px; border: 2px solid var(--ink); border-radius: 10px; padding: 5px 11px;
+  background: var(--gold); color: var(--ink); box-shadow: 0 2px 0 var(--ink); font: 700 13px Fredoka, sans-serif;
+  cursor: pointer; touch-action: manipulation; }
+.replay-button:hover { transform: translateY(1px); box-shadow: 0 1px 0 var(--ink); }
+.replay-button:focus-visible, .replay-seek:focus-visible { outline: 3px solid #9fdcff; outline-offset: 2px; }
+.replay-status { position: absolute; top: calc(58px + env(safe-area-inset-top)); left: 50%; max-width: min(86vw, 440px);
+  margin: 0; padding: 5px 10px; transform: translateX(-50%); border-radius: 9px;
+  background: rgba(255, 247, 232, 0.94); color: var(--ink); text-align: center; box-shadow: 0 1.5px 0 rgba(43, 51, 82, 0.4);
+  pointer-events: auto; }
+.replay-status:empty { display: none; }
+.replay-ui--race .replay-status { top: calc(118px + env(safe-area-inset-top)); }
+body.title-up .replay-ui--race .replay-status { top: calc(5.5vh + clamp(80px, 11vw, 124px) + 56px + env(safe-area-inset-top)); }
+.replay-back-game[hidden] { display: none; }
+.replay-ui--race .replay-back-game { position: absolute; top: calc(164px + env(safe-area-inset-top)); left: 50%;
+  transform: translateX(-50%); pointer-events: auto; }
+
+.replay-ui--watch .replay-controls { position: absolute; bottom: calc(12px + env(safe-area-inset-bottom)); left: 50%;
+  width: min(560px, calc(100vw - 24px)); box-sizing: border-box; padding: 10px 12px 9px; transform: translateX(-50%);
+  border: 2px solid var(--ink); border-radius: 14px; background: rgba(255, 247, 232, 0.97);
+  box-shadow: 0 3px 0 var(--ink); pointer-events: auto; }
+.replay-transport { display: flex; align-items: center; gap: 6px; }
+.replay-play { min-width: 72px; background: #7ff0c8; }
+.replay-speed { min-width: 48px; padding-inline: 8px; background: #fff; }
+.replay-speed[aria-pressed="true"] { background: #9fdcff; box-shadow: inset 0 0 0 1px var(--ink), 0 2px 0 var(--ink); }
+.replay-timeline { display: grid; grid-template-columns: 64px minmax(0, 1fr) 64px; align-items: center; gap: 8px; margin-top: 7px; }
+.replay-clock { font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.replay-seek { width: 100%; min-width: 0; accent-color: var(--red); cursor: pointer; touch-action: pan-y; }
+.replay-ui--watch .replay-back-game { display: none; }
+.replay-ui--watch.replay-error .replay-back-game { display: inline-block; }
+.replay-error .replay-back-game { display: inline-block; }
+.replay-error .replay-status { color: #a32118; }
+
+@media (max-width: 560px) {
+  .replay-top { top: calc(8px + env(safe-area-inset-top)); }
+  .replay-ui--race .replay-top { top: calc(68px + env(safe-area-inset-top)); }
+  body.title-up .replay-ui--race .replay-top { top: calc(5.5vh + clamp(72px, 11vw, 92px) + 8px + env(safe-area-inset-top)); }
+  .replay-chip { max-width: calc(100vw - 150px); padding: 6px 9px; font-size: 12px; }
+  .replay-ui--race .replay-chip { max-width: calc(100vw - 220px); }
+  .replay-button { min-height: 36px; padding: 5px 8px; font-size: 12px; }
+  .replay-status { top: calc(52px + env(safe-area-inset-top)); max-width: calc(100vw - 28px); font-size: 12px; }
+  .replay-ui--race .replay-status { top: calc(114px + env(safe-area-inset-top)); }
+  body.title-up .replay-ui--race .replay-status { top: calc(5.5vh + clamp(72px, 11vw, 92px) + 50px + env(safe-area-inset-top)); }
+  .replay-ui--race .replay-back-game { top: calc(158px + env(safe-area-inset-top)); }
+  .replay-ui--watch .replay-controls { bottom: calc(8px + env(safe-area-inset-bottom)); width: calc(100vw - 16px); padding: 8px; }
+  .replay-transport { gap: 4px; }
+  .replay-speed { min-width: 42px; padding-inline: 5px; }
+  .replay-timeline { grid-template-columns: 54px minmax(0, 1fr) 54px; gap: 5px; }
+}
+
+@media (max-width: 370px) {
+  .replay-top { left: 8px; right: 8px; transform: none; justify-content: center; }
+  .replay-chip { max-width: calc(100vw - 128px); }
+  .replay-ui--race .replay-chip { max-width: calc(100vw - 220px); }
+  .replay-transport .replay-button { min-width: 0; flex: 1; padding-inline: 4px; }
+}

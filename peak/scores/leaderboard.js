@@ -18,14 +18,17 @@ const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export class Leaderboard {
   // load(limit) → { entries, me, total } or null; submit(name) → { ok, json } (scores.js)
-  constructor({ load, submit }) {
+  constructor({ load, submit, isRunActive = () => false }) {
     this.load = load;
     this.submit = submit;
+    this.isRunActive = isRunActive;
     this.view = null;              // 'result' | 'hall'
     this.result = null;            // { time, falls, dents } of the climb just finished
     this.build();
     document.addEventListener('click', (e) => {
       if (e.target.closest?.('#hall-of-fame, .sc-trophy')) { e.preventDefault(); this.openHall(); }
+      const action = e.target.closest?.('[data-replay-action]');
+      if (action) { e.preventDefault(); this.openReplay(action.dataset.replayAction, action.dataset.replayId); }
     });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.panel.classList.contains('open')) this.close();
@@ -161,6 +164,17 @@ export class Leaderboard {
     this.list(board);
   }
 
+  openReplay(mode, id) {
+    if (!id || !['ghost', 'replay'].includes(mode)) return;
+    if (this.isRunActive() && !confirm('Leave this climb? Your current run will be lost.')) return;
+    const url = new URL(location.href);
+    url.searchParams.delete('ghost');
+    url.searchParams.delete('replay');
+    url.searchParams.delete('hall');
+    url.searchParams.set(mode, id);
+    location.assign(url.href);
+  }
+
   // The top list, the player's own entry highlighted (and added below if it's further down).
   list(board) {
     this.listEl.replaceChildren();
@@ -171,6 +185,20 @@ export class Leaderboard {
         el('span', 'sc-t', clockMs(entry.time)), el('span', 'sc-f', String(entry.falls)));
       li.title = `${plural(entry.falls, 'fall')}, ${plural(entry.dents, 'dent')}`;
       if (entry.house) li.title = `House record: ${entry.quip ?? 'it came with the mountain'} (${li.title})`;
+      const replayId = typeof entry.replayId === 'string' ? entry.replayId.trim() : '';
+      if (entry.house || !replayId) {
+        li.append(el('span', 'sc-replay-note', entry.house ? 'House record · no replay' : 'Replay unavailable'));
+      } else {
+        const actions = el('div', 'sc-replay-actions');
+        for (const [mode, label] of [['ghost', 'Race ghost'], ['replay', 'Watch run']]) {
+          const button = el('button', 'sc-replay-action', label);
+          button.type = 'button';
+          button.dataset.replayAction = mode;
+          button.dataset.replayId = replayId;
+          actions.append(button);
+        }
+        li.append(actions);
+      }
       return li;
     };
     for (const entry of board.entries ?? []) this.listEl.append(row(entry));

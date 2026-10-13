@@ -135,6 +135,14 @@ class Api:
                 return 200, {"ok": True, "route": self.route.fingerprint[:12], "db": self.store.db.version}, None, {}
             if parts == ["board"]:
                 return 200, self.board(query), None, {}
+            if len(parts) == 2 and parts[0] == "replay":
+                replay_id = parts[1]
+                if not RUN_ID.fullmatch(replay_id):
+                    raise loud("not_found")
+                replay = self.store.public_replay(replay_id)
+                if replay is None:
+                    raise loud("not_found")
+                return 200, replay, None, {}
             if parts == ["shame"]:
                 return 200, {"hallOfShame": self.store.hall_of_shame(),
                              "note": "Climbs that didn't add up. Their climbers were told they came first."}, None, {}

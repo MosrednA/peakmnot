@@ -16,13 +16,14 @@ export const PAD = { dead: 0.2, run: 0.6, key: 0.44 };
 
 export class Input {
   constructor() {
+    this.enabled = true;
     this.keys = new Set();
     this.pressed = new Set();     // pressed since the last read()
     this.move = new THREE.Vector3();
     this.axis = null;             // which screen axis means "onwards", kept while a key on it stays held
     this.stick = null;            // the touch stick, { x, y } on screen (x right, y up, length ≤ 1), or null
     addEventListener('keydown', (e) => {
-      if (!KEYS.has(e.code) || e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, button')) return;
+      if (!this.enabled || !KEYS.has(e.code) || e.ctrlKey || e.metaKey || e.altKey || e.target.closest?.('input, textarea, button')) return;
       e.preventDefault();
       if (!e.repeat) this.pressed.add(e.code);
       this.keys.add(e.code);
@@ -31,8 +32,17 @@ export class Input {
     addEventListener('blur', () => this.keys.clear());
   }
 
+  setEnabled(enabled) {
+    this.enabled = !!enabled;
+    this.keys.clear();
+    this.pressed.clear();
+    this.stick = null;
+    this.axis = null;
+  }
+
   // For tests: hold or release a key as if it were typed.
   key(code, down) {
+    if (!this.enabled) return;
     if (down && !this.keys.has(code)) this.pressed.add(code);
     if (down) this.keys.add(code); else this.keys.delete(code);
   }
@@ -61,6 +71,13 @@ export class Input {
   // some of the held keys (planks and ropes ignore the keys held when Mnot stepped on); direction(keys, target,
   // false) leaves out the lane assist (ice: holding the line is up to the player).
   read(forward, route = null) {
+    if (!this.enabled) {
+      this.move.set(0, 0, 0);
+      const frame = { move: this.move, held: new Set(), direction: () => new THREE.Vector3(),
+        careful: false, jump: false, mute: false };
+      this.frame = frame;
+      return frame;
+    }
     const right = new THREE.Vector3(-forward.z, 0, forward.x);
     forward = forward.clone();
     const held = new Set([...this.keys].filter(k => k in MOVES));

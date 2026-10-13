@@ -158,6 +158,7 @@ class TheClimb(ScoreTest):
         self.assertEqual(r.status, 200, r.data)
         self.assertEqual(r.json["rank"], 1)
         self.assertNotIn("psst", r.json)
+        self.assertEqual(self.server.request("GET", f"/api/peak/replay/{c.run}").status, 404)
         r = c.claim("Test Can")
         self.assertEqual(r.status, 200)
         self.assertEqual((r.json["name"], r.json["rank"], r.json["improved"]), ("Test Can", 1, True))
@@ -166,7 +167,44 @@ class TheClimb(ScoreTest):
         board = self.board(r.json["player"])
         self.assertEqual(board["entries"][0]["name"], "Test Can")
         self.assertTrue(board["entries"][0]["me"])
+        self.assertEqual(board["entries"][0]["replayId"], c.run)
         self.assertEqual(board["total"], HOUSE + 1)
+        public = self.server.request("GET", f"/api/peak/replay/{c.run}")
+        self.assertEqual(public.status, 200, public.data)
+        self.assertEqual(set(public.json), {"id", "name", "time", "falls", "dents", "replay"})
+        self.assertEqual(public.json["id"], c.run)
+        self.assertEqual(public.json["replay"], {key: self.climb["replay"][key]
+                                                  for key in ("v", "route", "phase", "samples", "events")})
+        self.assertNotIn("inputs", public.json["replay"])
+        self.assertNotIn("secret", public.json)
+        self.assertNotIn("nonce", public.json)
+        self.assertNotIn("ip_hash", public.json)
+
+    def test_my_replay_is_included_when_my_best_is_below_the_top_page(self):
+        first = Climber(self.server, self.climb).all_the_way("First Can").json
+        second_climber = Climber(self.server, self.climb)
+        second = second_climber.all_the_way("Second Can").json
+        board = self.server.request("GET", f"/api/peak/board?limit=1&me={second['player']}").json
+        self.assertEqual(board["entries"][0]["name"], "First Can")
+        self.assertEqual(board["me"]["name"], "Second Can")
+        self.assertEqual(board["me"]["rank"], 2)
+        self.assertEqual(board["me"]["replayId"], second_climber.run)
+        self.assertEqual(self.server.request("GET", f"/api/peak/replay/{second_climber.run}").status, 200)
+
+    def test_house_and_missing_replays_are_not_public(self):
+        board = self.board()
+        self.assertTrue(all(entry["replayId"] is None for entry in board["entries"]))
+        for run_id in ("house-pi", "missing_123"):
+            self.assertEqual(self.server.request("GET", f"/api/peak/replay/{run_id}").status, 404)
+
+    def test_a_best_without_a_retained_replay_has_no_replay_id(self):
+        climber = Climber(self.server, self.climb)
+        claim = climber.all_the_way("Can Without Replay").json
+        with self.server.app.db.tx() as c:
+            c.execute("DELETE FROM replays WHERE run_id = ?", (climber.run,))
+        board = self.board(claim["player"])
+        self.assertIsNone(board["entries"][0]["replayId"])
+        self.assertEqual(self.server.request("GET", f"/api/peak/replay/{climber.run}").status, 404)
 
     def test_the_house_records_sit_below_a_real_climb(self):
         board = self.board()
@@ -197,21 +235,32 @@ class TheClimb(ScoreTest):
         self.assertEqual(len([e for e in self.board()["entries"] if e["name"] == "Dial-up Dave"]), 1)
 
     def test_a_best_only_gets_better(self):
-        first = Climber(self.server, self.climb).all_the_way("First Name").json
+        first_climber = Climber(self.server, self.climb)
+        first = first_climber.all_the_way("First Name").json
         me, secret = first["player"], first["secret"]
         again = Climber(self.server, self.climb).all_the_way("New Name", me, secret).json
         self.assertEqual((again["improved"], again["name"], again["player"]), (False, "New Name", me))
         self.assertNotIn("secret", again)
         store = self.server.app.store
+        best_run_id = None
         for time_ms, better in ((90000, False), (60000, True)):
             run_id, _ = store.new_run("x", 0)
-            with store.db.tx() as c:
-                c.execute("UPDATE runs SET state = 'verified', time_ms = ?, falls = 0, dents = 0 WHERE id = ?",
-                          (time_ms, run_id))
+            if better:
+                claim = {"time": time_ms, "falls": 0, "dents": 0}
+                replay = gzip.compress(json.dumps(self.climb["replay"], separators=(",", ":")).encode())
+                store.finish(store.run(run_id), b"{}", claim, "ok", None, replay, {})
+                best_run_id = run_id
+            else:
+                with store.db.tx() as c:
+                    c.execute("UPDATE runs SET state = 'verified', time_ms = ?, falls = 0, dents = 0 WHERE id = ?",
+                              (time_ms, run_id))
             _, response = store.claim(store.run(run_id), b"{}", me, secret, "New Name")
             self.assertEqual(response["improved"], better)
         self.assertEqual(store.best(me)["time"], 60000)
         self.assertEqual(sum(1 for e in self.board()["entries"] if not e.get("house")), 1)
+        self.assertEqual(self.board()["entries"][0]["replayId"], best_run_id)
+        self.assertEqual(self.server.request("GET", f"/api/peak/replay/{best_run_id}").json["time"], 60000)
+        self.assertEqual(self.server.request("GET", f"/api/peak/replay/{first_climber.run}").status, 404)
 
     def test_a_lost_answer_can_be_asked_again(self):
         c = Climber(self.server, self.climb)
@@ -254,6 +303,8 @@ class Cheats(ScoreTest):
         self.assertEqual((r.status, r.json["rank"]), (200, 1))
         fake = r.json["player"]
         self.assertTrue(self.board(fake)["entries"][0]["me"])           # their own board still says #1
+        self.assertEqual(self.server.request("GET", f"/api/peak/replay/{c.run}").status, 404)
+        self.assertTrue(all(entry["replayId"] is None for entry in self.board()["entries"]))
         self.assertNotIn("Speedy", [e["name"] for e in self.board()["entries"]])   # nobody else's does
         shame = self.server.request("GET", "/api/peak/shame").json["hallOfShame"]
         self.assertEqual((shame[0]["name"], shame[0]["reason"]), ("Speedy", verdict))

@@ -75,6 +75,15 @@ server in [`server/`](../server/README.md), which checks every step of the recor
 start it next to the viewer with `python -X utf8 server/peak_scores.py`. Without it, or with `?manual`, the game
 simply shows no scores. After changing the route or the rig's speeds, re-export `server/route.json` (see there).
 
+Hall entries with a retained verified run offer **Race ghost** and **Watch run**. Racing starts a normal score-eligible
+climb with a named ghost beside Mnot; it can be hidden with the on-screen toggle. Watching opens a spectator replay
+with play/pause, restart, 0.5×/1×/2× speed and scrubbing. These pages use `?ghost=RUN_ID` and `?replay=RUN_ID` links;
+the Hall buttons make them. The viewer does not run live physics, record a climb or submit scores. House entries and
+entries whose replay is unavailable show why no replay action is offered.
+The v1 viewer derives Mnot's animation and follow-camera motion from recorded position/state samples; it does not
+reproduce every visual effect. In Watch run, the gondola follows the replay's stored phase; in Race ghost, the live
+gondola follows the new climb's clock.
+
 ## Analytics
 
 The public game uses cookieless Plausible at `stats.mosredna.eu`. The tracker in `peak.html` counts pageviews;
@@ -115,6 +124,8 @@ each with its CSS next to it.
 | `game.js` | The rules: dents, checkpoints, respawns, the summit, a tip the first time each trick shows up |
 | `audio.js` | Ties `sounds.js` (Codex) to game events |
 | `analytics.js` | Plausible goals for public climbs; excludes development and manual tests |
+| `replays/controller.js` | Loads a Hall replay and provides ghost-race or spectator controls; watched runs do not score |
+| `replays/playback.js` | Validates and samples a recorded run, then creates its animated replay actor |
 
 ### `world/`: the mountain and what happens on it
 
@@ -198,7 +209,7 @@ each with its CSS next to it.
 |---|---|
 | `scores.js` | The high scores: asks the score server for a run at the start, sends the splits and the recorded climb, the summit card with the name field (styled in `scores.css`) |
 | `replay.js` | Records the climb for the server's check: Mnot's position, speed and state about ten times a second, the keys and the game's events |
-| `leaderboard.js` | The Hall of Fame panel (the HUD trophy and the title's button) and the board on the summit card; names go in as text only |
+| `leaderboard.js` | The Hall of Fame panel (the HUD trophy and the title's button), replay actions for eligible rows, and the board on the summit card; names go in as text only |
 | `routedata.js` | The route as plain data for the server (`server/route.json`) and its fingerprint |
 
 ### `dev/`: for tuning and tests

@@ -25,8 +25,15 @@ import { Moments } from './mnot/moments.js';
 import { onKonami } from './controls/konami.js';
 import { createScores } from './scores/scores.js';
 import { hookAnalytics } from './analytics.js';
+import { ReplayController } from './replays/controller.js';
 
-const manual = new URLSearchParams(location.search).has('manual');
+const params = new URLSearchParams(location.search);
+const manual = params.has('manual');
+const hasGhost = params.has('ghost'), hasReplay = params.has('replay');
+const replayRoute = hasGhost || hasReplay ? {
+  mode: hasGhost && hasReplay ? 'invalid' : hasReplay ? 'replay' : 'ghost',
+  id: hasGhost && hasReplay ? '' : params.get(hasReplay ? 'replay' : 'ghost'),
+} : null;
 
 // post.js draws into its own multisampled buffer and sets the pixel ratio, so the canvas needs no antialiasing
 const renderer = new THREE.WebGLRenderer({ antialias: false });
@@ -74,22 +81,70 @@ audio.attachTitle(title);
 const touch = new Touch({ input, follow, player, world, title, dom: renderer.domElement });   // phones (touch.js)
 const moments = new Moments({ player, game, world, weather, title, hud, camera, dom: renderer.domElement,
   model: mnot.model });
-onKonami(() => moments.startParty());          // up up down down left right left right B A: a disco (moments.js)
-const scores = createScores({ player, game, world, manual });   // high scores and the Hall of Fame (scores.js)
-hookAnalytics({ title, game, player, manual });
+if (replayRoute?.mode !== 'replay') onKonami(() => moments.startParty());   // no live keyboard hooks in the spectator
+const replayIsReadOnly = replayRoute && replayRoute.mode !== 'ghost';
+const scores = createScores({ player, game, world, manual, replayMode: replayIsReadOnly });   // watched/invalid routes never record or post scores
+if (!replayIsReadOnly) hookAnalytics({ title, game, player, manual });
 player.spawn(start.respawn, start.yaw);
 follow.snap(player, world);
-if (!manual) title.show();
+
+let replays = null;
+if (replayRoute) {
+  replays = new ReplayController({ mode: replayRoute.mode, id: replayRoute.id, scene, world, player, game, follow, title,
+    isRunActive: () => replays?.mode === 'ghost' && replays.ready && !title.visible && !game.done });
+  if (replayRoute.mode === 'replay') {
+    input.setEnabled(false);
+    mnot.root.visible = false;
+  } else {
+    // Keep the clean title start, but do not let a key or tap start the race before its ghost has validated.
+    const startTitle = title.start.bind(title);
+    title.start = (how = 'key') => {
+      if (!replays.ready) { replays.status.textContent = 'Wait for the ghost to load before starting.'; return; }
+      startTitle(how);
+    };
+    title.show();
+  }
+  replays.load().then(ready => { if (ready && replays.mode === 'ghost') input.setEnabled(true); });
+} else if (!manual) {
+  title.show();
+  if (params.has('hall')) scores.board?.openHall();
+}
 
 let time = 0;
 function step(dt) {
   time += dt;
   shaderTime.value = time;
+
+  if (replays?.mode === 'replay') {
+    const previousReplayTime = replays.time;
+    replays.update(dt);
+    const actor = replays.actor ?? player;
+    const replayTime = replays.ready ? replays.worldTime() : time;
+    const visualDt = replays.ready ? Math.max(0, replays.time - previousReplayTime) : dt;
+    shaderTime.value = replayTime;
+    weather.time = replayTime - visualDt;       // wind-gap beats follow the recorded route clock
+    weather.update(visualDt, actor.pos, camera);
+    for (const thing of world.animated) {
+      if (replays.ready && thing.seek) thing.seek(replayTime);
+      else if (visualDt > 0) thing.update(visualDt, replayTime, weather);
+    }
+    follow.update(dt, actor, world);
+    fadeProps(world, camera, actor, dt);
+    sun.position.copy(actor.pos).addScaledVector(SUN_DIR, 30);
+    sun.target.position.copy(actor.pos);
+    scenery.update(camera, replayTime);
+    scene.fog.near = 60 - 48 * weather.snow;
+    scene.fog.far = 420 - 340 * weather.snow;
+    return;                                 // spectator mode has no live input, physics, hazards, audio or score calls
+  }
+
   const forward = follow.forward();
-  const intent = input.read(follow.heading(player, world), world.railAt(player.pos));
+  const ghostLoading = replays?.mode === 'ghost' && !replays.ready;
+  const intent = ghostLoading ? { move: new THREE.Vector3(), held: new Set(), jump: false, mute: false, careful: false } :
+    input.read(follow.heading(player, world), world.railAt(player.pos));
   if (intent.mute) sounds.setEnabled(!sounds.enabled);
   weather.update(dt, player.pos, camera);
-  player.update(dt, intent, weather.windAt(player.pos));
+  if (!ghostLoading) player.update(dt, intent, weather.windAt(player.pos));
   audio.update();
   game.update(dt);
   dents.update(dt);
@@ -98,6 +153,7 @@ function step(dt) {
   follow.update(dt, player, world);
   moments.update(dt, intent);                 // fidgets and the summit dance (moments.js)
   title.update(dt, intent);                   // the title screen's camera, and its glide into the climb (title.js)
+  replays?.update(dt, { gameTime: game.time, titleVisible: title.visible });
   fadeProps(world, camera, player, dt);       // props between the camera and Mnot dissolve (fade.js)
   sun.position.copy(player.pos).addScaledVector(SUN_DIR, 30);
   sun.target.position.copy(player.pos);
@@ -150,3 +206,4 @@ addEventListener('resize', () => {
 window.peak = { THREE, renderer, scene, camera, world, player, game, dents, rocks, weather, follow, input, mnot, sounds, post,
   step(seconds = 1 / 60, dt = 1 / 60) { for (let t = 0; t < seconds - 1e-9; t += dt) step(dt); render(); },
   render, key: (code, down) => input.key(code, down), title, moments, touch };
+window.peak.replays = replays;
