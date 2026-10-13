@@ -219,6 +219,25 @@ class Checker(unittest.TestCase):
             takeoff(33250)           # off the rock beside it a while later: nothing to carry
         self.assertEqual(caught.exception.reason, "antigravity")
 
+    def test_a_late_coyote_jump_rises_above_the_plain_arc(self):
+        climb = fixture()
+        checker = verify.Checker(Route(climb["route"]), climb["replay"], climb["claim"], climb["splits"])
+        g, launch, h = checker.route.gravity, checker.route.launch_run, verify.TICK
+        edge = verify.Sample([25183, 1121, 4300, 35123, -1070, 1785, 0, verify.AIR, 0, -1], 0)    # just walked off
+
+        def jump(ms, lift=0.0):
+            dt = (ms - edge.ms) / 1000          # falling until the jump's step, then rising on the launch for it
+            y = edge.y - g * (dt - h) ** 2 / 2 + launch * h - g * h * h / 2 + lift
+            row = [ms, 1035, round(y * 1000), 35347, -1070, 1785, round((launch - g * h) * 1000), verify.AIR,
+                   verify.FLAG["jump"], -1]
+            checker.check_flight(edge, verify.Sample(row, 1), dt)
+
+        jump(25233)                  # halfway through the coyote time
+        jump(25283)                  # 0.1 s after the edge: 10 cm above the plain arc
+        with self.assertRaises(verify.Rejection) as caught:
+            jump(25283, 0.05)        # and 5 cm more
+        self.assertEqual(caught.exception.reason, "antigravity")
+
     def test_ice_reaches_past_its_edge(self):
         rig = {"walk": 0.6, "run": 2, "gravity": 15, "jump": 0.6, "runJump": 0.8, "hard": 6}
         square = lambda x: [[x, 0], [x + 1, 0], [x + 1, 1], [x, 1]]

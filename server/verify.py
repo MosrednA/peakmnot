@@ -321,8 +321,13 @@ class Checker:
             return
         if b.has("jump"):           # a jump just after running off an edge: straight into a running jump's flight
             g = r.gravity
-            if r.launch_run - g * TICK - 0.03 <= b.vy <= r.launch_run + 0.02 and -0.05 <= b.y - y <= 0.1:
-                return
+            if r.launch_run - g * TICK - 0.03 <= b.vy <= r.launch_run + 0.02:
+                # it falls on its arc until the jump's step, then rises on the launch for that step (h, read off
+                # the speed it has left): up to 13 cm above the plain arc late in the coyote time
+                h = min(max((r.launch_run - b.vy) / g, 0.0), TICK, dt)
+                y0, _ = self.arc(a, dt - h)
+                if abs(b.y - (y0 + r.launch_run * h - g * h * h / 2)) <= tol_y + 0.005:
+                    return
         if abs(b.vy - KNOCK_VY) <= 0.003 and abs(b.y - y) <= tol_y:
             return                  # a falling rock's bonk
         self.fail("antigravity", b, f"off the arc by {b.y - y:+.3f} m, {b.vy - vy:+.2f} m/s")
