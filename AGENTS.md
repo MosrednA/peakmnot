@@ -6,7 +6,8 @@ and animated for a three.js browser game. These rules are for every agent workin
 
 ## The project
 
-- **What's here:** [README.md](README.md) covers the files, the viewer, the clips and the checks.
+- **What's here:** [README.md](README.md) is the front page: the game, running it, contributing.
+  [models/README.md](models/README.md) covers the model, the rig, the clips, the viewer and its checks.
   [IDEAS.md](IDEAS.md) holds the game ideas the user liked. The chosen game is Peak Mnot, a mountain climb
   (`peak.html` and `peak/`).
 - **Language:** all files in English. Chat with the user in Dutch.
@@ -35,7 +36,9 @@ Code on the rig and animation, Codex on sound). Uncommitted work has no undo, so
 - **Commit only your own changes, when a chunk is done.** Stage files by name (`git add path/to/file`), never
   `git add -A`, `git add .` or `git commit -a`. If a file also holds someone else's uncommitted changes, stage only
   your own hunks, for example with `git apply --cached` on a patch of just those. Check `git diff --cached` first, and
-  say in the message what changed and why. The repository has no remote; the user decides about that.
+  say in the message what changed and why. The repository is public at <https://github.com/MosrednA/peakmnot>, and
+  a push to `main` deploys <https://peakmnot.mosredna.eu>; only the coordinator or the user pushes. Keep personal
+  details (real names, user names, local paths) out of every file and commit.
 - **Line endings stay as they are:** the repository has `core.autocrlf false`, so git stores each file's own.
 - **No formatters over whole files.** Match the surrounding style by hand.
 - **Build into a temporary folder** and copy only `models/mnot.glb` and `models/mnot.blend` into the project, so an
