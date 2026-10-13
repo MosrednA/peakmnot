@@ -39,8 +39,8 @@ best. Wind gaps blow on a steady beat, and the windsock tells you when. The full
 
 ## Run it yourself
 
-You need Python 3 and a browser with WebGL 2. There is no build step and nothing to install: the game is plain
-JavaScript modules, and three.js comes from a CDN through an import map.
+You need Python 3 and a browser with WebGL 2. Playing and changing the game needs no build and nothing to install:
+the game is plain JavaScript modules, and three.js comes from a CDN through an import map.
 
 ```bash
 python tools/dev_server.py
@@ -55,6 +55,19 @@ python -X utf8 server/peak_scores.py
 
 `http://127.0.0.1:5280/` is the animation viewer: Mnot on a turntable, with a button for every clip.
 
+The live site runs a production build of the same files: [esbuild](https://esbuild.github.io/) bundles and minifies
+each page's code, three.js goes in a file of its own that browsers keep between releases, and every file is named
+after its content. The Docker image makes the build itself. To try it locally you need Node.js too:
+
+```bash
+npm ci
+npm run build
+SITE_DIR=dist python -X utf8 server/peak_scores.py --static --port 8080
+```
+
+Then open <http://127.0.0.1:8080/>. [`tools/build.mjs`](tools/build.mjs) explains what it does, including the one
+line that adds a new page.
+
 ## What's in here
 
 | Path | What |
@@ -64,7 +77,7 @@ python -X utf8 server/peak_scores.py
 | [`models/`](models/README.md) | Mnot: the model, the rig and fourteen animation clips, built from code in Blender |
 | `index.html` | The animation viewer |
 | [`sounds.js`, `music.js`, `audio/`](audio/README.md) | Sound effects, and the music, "Pocket Altitude" |
-| `tools/` | The dev server, the Blender build script, browser checks and the sound scripts |
+| `tools/` | The dev server, the production build, the Blender build script, browser checks and the sound scripts |
 | [`AGENTS.md`](AGENTS.md) | The house rules for the AI agents that work on this repository |
 | [`docs/`](docs/agents.md) | [The team](docs/agents.md) (who does what, and the specialist agents in `.claude/agents/`), [making a level](docs/making-a-level.md) and [performance](docs/performance.md) |
 
@@ -72,7 +85,8 @@ python -X utf8 server/peak_scores.py
 
 - **Analytics.** Cookieless Plausible counts public visits and climb milestones. The goals and development exclusions
   are documented in [peak/README.md](peak/README.md#analytics).
-- **three.js**, with toon shading and outlines. There's no framework and no bundler.
+- **three.js**, with toon shading and outlines. There's no framework, and the bundler (esbuild) only runs for the
+  live site: in development the browser loads the modules as they are.
 - **Mnot is built from code.** `tools/build_mnot.py` builds the mesh, the rig, the skin weights and every clip in
   Blender (5.2, in the background). Nobody edits the `.glb` by hand: change the script and rebuild.
 - **Small files.** Every module stays under about 400 lines and does one thing, and each folder documents its own.

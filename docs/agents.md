@@ -98,6 +98,7 @@ Every specialist runs the checks for its area. Before a commit, all of these pas
 | The gondola | `tools/check_gondola.js`: carried at the pallet's own speed, whatever the frame times |
 | The console | No errors in the browser console, on the title screen and while climbing |
 | The docs | The folder's README is updated for what changed |
+| The production build | `npm run build` (after `npm ci` once) finishes, and the built page runs without console errors ([README.md](../README.md#run-it-yourself)) |
 
 After a route change, `server/route.json` has to be exported again too
 ([making a level](making-a-level.md#the-high-scores)).

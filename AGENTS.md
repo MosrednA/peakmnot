@@ -16,7 +16,11 @@ and animated for a three.js browser game. These rules are for every agent workin
 - **The model, rig and clips** come from `tools/build_mnot.py` (Blender 5.2, run in the background). Never edit
   `models/mnot.glb` or `models/mnot.blend` by hand: change the script and rebuild.
 - **Viewer:** `python tools/dev_server.py`, then <http://127.0.0.1:5280/>. It reloads open tabs when `index.html`,
-  `sounds.js`, a GLB or a WAV changes.
+  `sounds.js`, a GLB or a sound changes.
+- **The build:** development needs none; the pages load the modules as they are. The live site is a production build
+  (`npm ci` once, then `npm run build`: [tools/build.mjs](tools/build.mjs)), which the Docker image makes itself. A
+  new page is one line in its `PAGES`. Load files from code with `new URL('…', import.meta.url)`, so the build finds
+  them.
 - **Checks:** `tools/check_controls.js` and `tools/check_gondola.js` (deterministic Playwright checks), and the rest in
   [docs/agents.md](docs/agents.md#checks-before-handing-over). They all pass before you hand work over.
 - **Line endings:** keep each file's own. `index.html` and `tools/build_mnot.py` use CRLF; the rest LF.
