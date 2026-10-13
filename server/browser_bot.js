@@ -5,8 +5,8 @@
 //   const bot = await import('/server/browser_bot.js'); bot.keepFrames(); await bot.drive(peak, { name: 'Bot Can' })
 // For a climb with falls: { stumble: ['ring'] } slides into the ring's hole once; numbers are game times at which
 // it wanders off the path.
-// It climbs like peak/bots.js's climb(), but in real time: between frames it presses and releases keys with real
-// keyboard events, so the title screen, the game, the recorder (peak/replay.js) and scores.js get exactly what a
+// It climbs like peak/dev/bots.js's climb(), but in real time: between frames it presses and releases keys with real
+// keyboard events, so the title screen, the game, the recorder (peak/scores/replay.js) and scores.js get exactly what a
 // player's keyboard gives them. At the summit it waits for the card, types the name (if given) and sends it.
 // Not shipped (the Dockerfile leaves it out); nothing in the game imports it.
 import * as THREE from 'three';
@@ -20,7 +20,7 @@ function send(code, down) {
     bubbles: true, cancelable: true }));
 }
 
-// The steering below follows peak/bots.js's climb() (keysFor, onwards, counterSteer, ringSteer, exitPad); keep the
+// The steering below follows peak/dev/bots.js's climb() (keysFor, onwards, counterSteer, ringSteer, exitPad); keep the
 // two in step when a new obstacle needs a new trick.
 
 // The keys that push most nearly along v (at least `most` of the way), or null when v is too small to bother.
@@ -58,8 +58,8 @@ function counterSteer(peak, want, onward, { pace = 2, line = 1.5 } = {}) {
   for (const k of keysFor(peak, goal.sub(player.vel).setY(0), 0.5) ?? []) want.add(k);
 }
 
-// The ring of ice (peak/ring.js): round the hole the shorter way to the pad that leads on, slowly, carefully while
-// the wobble meter is high.
+// The ring of ice (peak/world/ring.js): round the hole the shorter way to the pad that leads on, slowly, carefully
+// while the wobble meter is high.
 const RING = { pace: 1.2, hold: 1.5, calm: 0.5 };
 function ringSteer(peak, ring, exit, want, state) {
   const { player } = peak;
@@ -187,7 +187,7 @@ export async function drive(peak, { delay = 0.25, seconds = 300, name = null, st
   const result = { done: game.done, time: +game.time.toFixed(2), falls: game.falls, dents: game.dents,
     wall: +((performance.now() - begun) / 1000).toFixed(1), log };
   if (!game.done) return result;
-  // the card (peak/leaderboard.js): wait for the server's verdict, then (optionally) put a name on it
+  // the card (peak/scores/leaderboard.js): wait for the server's verdict, then (optionally) put a name on it
   const panel = () => document.querySelector('.sc-panel');
   const status = () => panel()?.querySelector('.sc-status')?.textContent ?? '';
   for (let i = 0; i < 80 && !/Rank #|out of reach/.test(status()); i++) await sleep(250);

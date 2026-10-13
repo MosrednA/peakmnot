@@ -72,60 +72,102 @@ simply shows no scores. After changing the route or the rig's speeds, re-export 
 
 ## Modules
 
-Each file starts with a comment on what it does. In order of the frame loop:
+Each file starts with a comment on what it does. `main.js` builds the scene, wires the modules together
+and runs the frame loop; `game.js` holds the rules and `audio.js` hooks up the sound. The rest sit in folders by topic,
+each with its CSS next to it.
 
 | File | What |
 |---|---|
 | `main.js` | Renderer, scene, light and frame loop; wires the modules together. `?manual` stops the loop for tests |
-| `post.js` | The picture after the scene: ink outlines and MSAA, bloom, the colour grade; adapts the pixel ratio |
-| `route.js` | The climb as data: rocks, loose ledges, ice, the ring, the gondola, planks, the rope, checkpoints, signs, wind/snow/rockfall/wind-gap zones, the camera rail |
+| `game.js` | The rules: dents, checkpoints, respawns, the summit, a tip the first time each trick shows up |
+| `audio.js` | Ties `sounds.js` (Codex) to game events |
+
+### `world/`: the mountain and what happens on it
+
+| File | What |
+|---|---|
 | `world.js` | Keeps the mountain's solids (some moving or crumbling) and beams and answers the player's questions: the ground under a point, walls, beams, `railAt`. Also the things that move each frame (`animated`), what a bot should wait for (`hazards`) and the world's events |
+| `route.js` | The climb as data: rocks, loose ledges, ice, the ring, the gondola, planks, the rope, checkpoints, signs, wind/snow/rockfall/wind-gap zones, the camera rail |
 | `crumble.js` | Loose ledges: shake when landed on, drop away, come back |
 | `ice.js` | Icy patches over a rock top, a rounded box (`icePatch`) or an arc of a ring (`iceArc`): a slab that tilts towards its drift, and a glossy glaze (a highlight that moves with the camera, cracks, skid marks, frost). An arc stays slippery a little past its lips, so a slide goes over the edge |
 | `ring.js` | The ring: a rock with a sinkhole down the middle, two rock pads on its rim and ice between them, icicles and slowly turning mist in the hole. Its collision is convex pieces meeting on radial seams; `world.rings` tells the bots where it is |
-| `skate.js` | Mnot on ice: the slide and its drift, the wobble meter, the lean, the pratfall, the shavings and the `skid` event |
-| `movers.js` | The gondola: a pallet on a cable that shuttles between two ledges and carries Mnot along |
-| `windsock.js` | The windsock beside a wind gap, showing its beat |
-| `bursts.js` | Pooled toon bits: snow puffs, flakes, grit, stone chips, ice shavings off skidding feet, the poof in the clouds |
-| `rockmesh.js` | The rock pillars' meshes: one closed surface each, with `aDrop` (metres below the lip) for the shader |
-| `materials.js` | The painted rock: sediment layers, cracks, lichen, dripping snow, the lip's ink line, haze; fine detail fades with distance so it never shimmers. Also the shared GLSL noise |
 | `beams.js` | How the board walk, planks and the tightrope look, fitted to the ledges they span (`world.js` keeps their collisions) |
-| `wood.js` | Wood grain and twisted rope materials |
+| `movers.js` | The gondola: a pallet on a cable that shuttles between two ledges and carries Mnot along |
+| `weather.js` | Wind gusts with a wandering direction, snow showers, and the wind gaps' steady beat |
+| `rocks.js` | Rockfall: a growing warning shadow with pebbles trickling down onto it, then the rock, in a burst of snow and chips |
+
+### `mnot/`: the can: moving, balancing, sliding, falling, dents and fidgets
+
+| File | What |
+|---|---|
+| `mnot.js` | Loads `models/mnot.glb` and blends its clips (the jump parts and the fidgets play once); the rig carries its own speeds and jump timing |
+| `player.js` | Running, careful steps, jumps, walls and ledges, riding what moves; hands over to `skate.js` on ice, to `balance.js` on beams and to `fall.js` off the edge |
+| `balance.js` | The beam balance: an upside-down pendulum, tuned in `FEEL` |
+| `skate.js` | Mnot on ice: the slide and its drift, the wobble meter, the lean, the pratfall, the shavings and the `skid` event |
+| `fall.js` | The cartoon fall: the beat in mid-air, the look at the camera, the tumble down through the clouds, eased away from rock faces so the can never tumbles inside one |
+| `pose.js` | Procedural pose on top of the clips: feet together on a beam, arms out and flapping and legs kicking when slipping or falling, arms windmilling and panicky steps on ice |
+| `dents.js` | Dents as morph targets built at load time from the can's own meshes; they spring in and pop out |
+| `moments.js` | For the eye only: idle fidgets (`PushGlasses` after a checkpoint or a close call on a beam, `TapFoot` while waiting for the gondola or a ledge to grow back, `LookUp` at the climb ahead, a random one after 4–6 s), never on a beam, ice, a loose ledge or in the wind, cancelled by any input; the summit `Dance` and confetti. It sets `player.idleClip`, the clip Mnot stands about in |
+
+### `controls/`: keys, touch and the camera
+
+| File | What |
+|---|---|
+| `input.js` | Keys turned into a move, relative to the camera's shot and the route (see below) |
+| `touch.js` | Touch controls (styled in `touch.css`): the floating stick, the Jump button, finger look and pinch, touch wording, the on-screen keyboard |
+| `camera.js` | The follow camera: one shot per stretch, gliding between them; close-ups for a celebration, and its own shot for a fall |
+
+### `look/`: the picture and the backdrop
+
+| File | What |
+|---|---|
+| `post.js` | The picture after the scene: ink outlines and MSAA, bloom, the colour grade; adapts the pixel ratio |
+| `look.js` | The shared toon look: stepped light and ink outlines |
+| `materials.js` | The painted rock: sediment layers, cracks, lichen, dripping snow, the lip's ink line, haze; fine detail fades with distance so it never shimmers. Also the shared GLSL noise |
+| `rockmesh.js` | The rock pillars' meshes: one closed surface each, with `aDrop` (metres below the lip) for the shader |
+| `bursts.js` | Pooled toon bits: snow puffs, flakes, grit, stone chips, ice shavings off skidding feet, the poof in the clouds |
+| `scenery.js` | Puts the backdrop together (no collisions): sky, clouds, the range and a few birds |
+| `sky.js` | The sky dome (gradient, sun, glow, wisps), the sun's direction, and the sky GLSL the backdrop fades into |
+| `clouds.js` | The cloud sea: toon puffs (one instanced mesh), the floor of cloud tops, gaps down to the valleys |
+| `range.js` | The snowy peaks all round: ridges and gullies, snow caps, warm strata, blue with distance |
+
+### `props/`: the things along the route
+
+| File | What |
+|---|---|
 | `decor.js` | The props' front door: cairns, the snack stash, a bench, the lost mic; `dressRoute` fits the beams, turns signs to their stretch's camera and checks every prop's footing |
 | `signs.js` | Trail signs on two posts behind the board (painted face, doodled back, snow on top), standing tall so they read over Mnot; the rockfall warning triangle |
 | `flags.js` | Checkpoint flags (raised once reached), the summit flag in its cairn with a plaque and a golden can, wind pennants; the cloth prints read the right way round from both sides |
 | `camp.js` | Base camp: the podcast's tent and table |
 | `trailmap.js` | The trail map board at base camp, drawn from the route itself |
+| `windsock.js` | The windsock beside a wind gap, showing its beat |
 | `paint.js` | Canvas textures for the props: planks, chipped paint, hand lettering, doodles, nails |
+| `wood.js` | Wood grain and twisted rope materials |
 | `footing.js` | Props stand on rock: each lists its feet, and one that would stand over a gap, in a wall, on a board walk, a loose ledge or the gondola is nudged in toward its ledge's middle (with `?manual`, the console says so) |
 | `fade.js` | Props between the camera and Mnot dissolve (a dither), so nothing hides the can |
-| `scenery.js` | Puts the backdrop together (no collisions): sky, clouds, the range and a few birds |
-| `sky.js` | The sky dome (gradient, sun, glow, wisps), the sun's direction, and the sky GLSL the backdrop fades into |
-| `clouds.js` | The cloud sea: toon puffs (one instanced mesh), the floor of cloud tops, gaps down to the valleys |
-| `range.js` | The snowy peaks all round: ridges and gullies, snow caps, warm strata, blue with distance |
-| `look.js` | The shared toon look: stepped light and ink outlines |
-| `mnot.js` | Loads `models/mnot.glb` and blends its clips (the jump parts and the fidgets play once); the rig carries its own speeds and jump timing |
-| `input.js` | Keys turned into a move, relative to the camera's shot and the route (see below) |
-| `touch.js` | Touch controls (styled in `touch.css`): the floating stick, the Jump button, finger look and pinch, touch wording, the on-screen keyboard |
-| `player.js` | Running, careful steps, jumps, walls and ledges, riding what moves; hands over to `skate.js` on ice, to `balance.js` on beams and to `fall.js` off the edge |
-| `fall.js` | The cartoon fall: the beat in mid-air, the look at the camera, the tumble down through the clouds, eased away from rock faces so the can never tumbles inside one |
-| `balance.js` | The beam balance: an upside-down pendulum, tuned in `FEEL` |
-| `pose.js` | Procedural pose on top of the clips: feet together on a beam, arms out and flapping and legs kicking when slipping or falling, arms windmilling and panicky steps on ice |
-| `camera.js` | The follow camera: one shot per stretch, gliding between them; close-ups for a celebration, and its own shot for a fall |
-| `moments.js` | For the eye only: idle fidgets (`PushGlasses` after a checkpoint or a close call on a beam, `TapFoot` while waiting for the gondola or a ledge to grow back, `LookUp` at the climb ahead, a random one after 4–6 s), never on a beam, ice, a loose ledge or in the wind, cancelled by any input; the summit `Dance` and confetti. It sets `player.idleClip`, the clip Mnot stands about in |
-| `preload.css` | The preloader in `peak.html`: a can with big glasses hopping while the code, the model and the shaders load; `main.js` lifts it once the first frame is on screen |
-| `title.js` | The title screen (styled in `title.css`): orbit shots round Mnot waving and fidgeting, rotating tips, How to play; the glide into the follow camera at the start. Resets `game.time` to 0 then |
-| `weather.js` | Wind gusts with a wandering direction, snow showers, and the wind gaps' steady beat |
-| `rocks.js` | Rockfall: a growing warning shadow with pebbles trickling down onto it, then the rock, in a burst of snow and chips |
-| `dents.js` | Dents as morph targets built at load time from the can's own meshes; they spring in and pop out |
-| `game.js` | The rules: dents, checkpoints, respawns, the summit, a tip the first time each trick shows up |
-| `quips.js` | The jokes for falls (by what caused them), rocks, hard landings, pratfalls and getting flattened |
+
+### `ui/`: on the screen
+
+| File | What |
+|---|---|
 | `hud.js` | Toasts (checkpoint, summit, tip, oops), the balance meter (on beams, and the wobble meter on ice), the respawn fade, the stats card with a can per dent |
-| `audio.js` | Ties `sounds.js` (Codex) to game events |
+| `title.js` | The title screen (styled in `title.css`): orbit shots round Mnot waving and fidgeting, rotating tips, How to play; the glide into the follow camera at the start. Resets `game.time` to 0 then |
+| `quips.js` | The jokes for falls (by what caused them), rocks, hard landings, pratfalls and getting flattened |
+| `preload.css` | The preloader in `peak.html`: a can with big glasses hopping while the code, the model and the shaders load; `main.js` lifts it once the first frame is on screen |
+
+### `scores/`: the high scores (see `server/`)
+
+| File | What |
+|---|---|
 | `scores.js` | The high scores: asks the score server for a run at the start, sends the splits and the recorded climb, the summit card with the name field (styled in `scores.css`) |
 | `replay.js` | Records the climb for the server's check: Mnot's position, speed and state about ten times a second, the keys and the game's events |
 | `leaderboard.js` | The Hall of Fame panel (the HUD trophy and the title's button) and the board on the summit card; names go in as text only |
 | `routedata.js` | The route as plain data for the server (`server/route.json`) and its fingerprint |
+
+### `dev/`: for tuning and tests
+
+| File | What |
+|---|---|
 | `bots.js` | Test players for tuning; nothing in the game imports it |
 
 ## Events
@@ -204,11 +246,11 @@ Late morning, high above a sea of clouds: a warm sun from the left-behind, a coo
 Open `peak.html?manual`, then in the console:
 
 ```js
-bots = await import('./peak/bots.js')
+bots = await import('./peak/dev/bots.js')
 bots.survey(peak, { delays: [0.3, 0.4, 0.5], tries: 5, anticipate: 0 })   // ~25 s
 bots.cross(peak, 'rope', { delay: 0.4 })
 bots.climb(peak, { seconds: 180 })                                        // the whole route, with a log
-FEEL = (await import('./peak/balance.js')).FEEL                           // change values live, then survey again
+FEEL = (await import('./peak/mnot/balance.js')).FEEL                      // change values live, then survey again
 ```
 
 A bot sees the lean `delay` seconds late, like a person. Each crossing takes about half a second; keep one console

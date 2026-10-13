@@ -73,7 +73,7 @@ python -X utf8 server/peak_scores.py
 - **Mnot is built from code.** `tools/build_mnot.py` builds the mesh, the rig, the skin weights and every clip in
   Blender (5.2, in the background). Nobody edits the `.glb` by hand: change the script and rebuild.
 - **Small files.** Every module stays under about 400 lines and does one thing, and each folder documents its own.
-- **Test bots.** `peak.html?manual` stops the clock, and `peak/bots.js` has test players that balance on beams,
+- **Test bots.** `peak.html?manual` stops the clock, and `peak/dev/bots.js` has test players that balance on beams,
   survey the jumps and climb the whole route. `tools/check_controls.js` runs deterministic browser checks on the
   viewer.
 - **AI agents.** Most of it was written by AI coding agents (Claude Code and Codex) working side by side in this

@@ -92,7 +92,7 @@ class StaticFiles(unittest.TestCase):
         tag = r.headers["ETag"]
         self.assertEqual(self.server.request("GET", "/peak.html", headers={"If-None-Match": tag}).status, 304)
         self.assertEqual(self.server.request("GET", "/peak/main.js").status, 200)
-        self.assertEqual(self.server.request("HEAD", "/peak/scores.css").status, 200)
+        self.assertEqual(self.server.request("HEAD", "/peak/scores/scores.css").status, 200)
         for path, kind in (("/favicon.png", "image/png"), ("/favicon.ico", "image/x-icon"),
                            ("/manifest.webmanifest", "application/manifest+json"), ("/share.jpg", "image/jpeg")):
             icon = self.server.request("GET", path)

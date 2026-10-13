@@ -1,5 +1,5 @@
-"""Checks a recorded climb (peak/replay.js) against the route (route.py) and the game's physics (peak/player.js,
-balance.js, game.js). It doesn't re-run the game; it checks that every step of the replay is something the game can
+"""Checks a recorded climb (peak/scores/replay.js) against the route (route.py) and the game's physics
+(peak/mnot/player.js, balance.js, peak/game.js). It doesn't re-run the game; it checks that every step of the replay is something the game can
 do: Mnot stands on rock that is there (the gondola where it was at that moment), never goes faster than its legs,
 the ice, the wind and the gondola allow, flies on exact parabolas, crosses planks and the rope at walking pace,
 jumps only after Space, comes back from a fall only where it was safe, and reaches every checkpoint and the summit.

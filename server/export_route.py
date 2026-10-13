@@ -1,5 +1,5 @@
 """Refresh server/route.json from the game: run this, open http://127.0.0.1:5280/peak.html?manual, and paste the
-line it prints into the browser console. The page exports the route (peak/routedata.js) and posts it here once;
+line it prints into the browser console. The page exports the route (peak/scores/routedata.js) and posts it here once;
 this writes route.json (one key per line, so a diff shows what changed) and stops.
 
     python -X utf8 server/export_route.py
@@ -54,7 +54,8 @@ def main(port=5289):
     server = HTTPServer(("127.0.0.1", port), Handler)
     print("Paste this into the console of http://127.0.0.1:5280/peak.html?manual :\n")
     print(f"fetch('http://127.0.0.1:{port}/route?ticket={ticket}', {{ method: 'POST', body: JSON.stringify("
-          f"await (await import('./peak/routedata.js')).exportRoute(peak)) }}).then(r => console.log(r.status))\n")
+          f"await (await import('./peak/scores/routedata.js')).exportRoute(peak)) }})"
+          f".then(r => console.log(r.status))\n")
     while "fingerprint" not in done:
         server.handle_request()
     print(f"Wrote {OUT} (fingerprint {done['fingerprint'][:12]}).")

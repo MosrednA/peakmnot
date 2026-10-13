@@ -10,7 +10,7 @@ the time on the board. In production the same server also serves the game, so pa
 | `api.py` | The endpoints: rate limits, signatures and nonces, the checks on splits and the finish, the eggs |
 | `verify.py` | The replay check: every step of a recorded climb against the route and the physics |
 | `replayformat.py` | The replay's shape, checked before anything else reads it |
-| `route.py`, `route.json` | The route as the game exported it (`peak/routedata.js`), and the geometry questions about it |
+| `route.py`, `route.json` | The route as the game exported it (`peak/scores/routedata.js`), and the geometry questions about it |
 | `store.py`, `db.py` | The data: runs, players, the board, the Hall of Shame; the schema and its migrations |
 | `names.py`, `eggs.py` | The name filter, and what the server says to people poking at it |
 | `export_route.py` | Refreshes `route.json` from the game (below) |
@@ -58,7 +58,7 @@ python server/peak_scores.py --fixture latest --as NAME     # save a stored clim
    checks that it's the next checkpoint, later than the last one, not ahead of the server's own clock for this run,
    and not quicker than that stretch can be done.
 3. **Summit.** `POST /api/peak/run/ID/finish` sends the time, the falls and dents, and the recorded climb, gzipped
-   (`peak/replay.js`: Mnot's position, speed and state about ten times a second, every key change and every game
+   (`peak/scores/replay.js`: Mnot's position, speed and state about ten times a second, every key change and every game
    event). The server checks the splits and the clock again, then the replay (`verify.py`, below), and answers with
    the rank the climb would get.
 4. **Name.** The summit card asks for a name (optional; empty becomes "Mystery Can #1234").
@@ -159,8 +159,8 @@ board or the shame list after a month.
 
 ## The route
 
-The server checks climbs against `route.json`, an export of the game's route (`peak/routedata.js`). After changing
-`peak/route.js` (solids, beams, ice, checkpoints, gondola, wind gaps) or the rig's speeds and jumps, refresh it:
+The server checks climbs against `route.json`, an export of the game's route (`peak/scores/routedata.js`). After
+changing `peak/world/route.js` (solids, beams, ice, checkpoints, gondola, wind gaps) or the rig's speeds and jumps, refresh it:
 
 ```sh
 python -X utf8 server/export_route.py
@@ -190,7 +190,7 @@ const bot = await import('/server/browser_bot.js'); bot.keepFrames(); await bot.
 
 then `python -X utf8 server/peak_scores.py --fixture latest --as NAME`. `fixtures/climb` is such a climb
 (1:17.88, no falls); `fixtures/falls` slid into the ring's hole once on purpose (`stumble: ['ring']`, 1:24.04).
-The bot steers like `peak/bots.js`'s `climb()` (round the ring too); teach it a new obstacle there first.
+The bot steers like `peak/dev/bots.js`'s `climb()` (round the ring too); teach it a new obstacle there first.
 `keepFrames()` keeps the game going in a tab that's out of sight.
 
 ## Production

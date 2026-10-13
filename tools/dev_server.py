@@ -26,7 +26,7 @@ class DevHandler(SimpleHTTPRequestHandler):
             return super().do_GET()
         revision = hashlib.sha256()
         for path in sorted([
-            ROOT / "index.html", ROOT / "sounds.js", *ROOT.glob("peak.html"), *ROOT.glob("peak/*.js"),
+            ROOT / "index.html", ROOT / "sounds.js", *ROOT.glob("peak.html"), *ROOT.glob("peak/**/*.js"),
             *ROOT.glob("models/*.glb"), *ROOT.glob("audio/*.wav"),
         ]):
             stat = path.stat()

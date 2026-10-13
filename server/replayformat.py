@@ -1,4 +1,4 @@
-"""The shape of a recorded climb (peak/replay.js), checked before anything else looks at it: anything off here
+"""The shape of a recorded climb (peak/scores/replay.js), checked before anything else looks at it: anything off here
 is a malformed request (400), not a climb. verify.py checks what the climb says.
 
     { v: 1, route: fingerprint, phase: ms,

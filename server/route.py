@@ -1,4 +1,4 @@
-"""The route as the game exported it (route.json, made by peak/routedata.js): the solids Mnot can stand on, the
+"""The route as the game exported it (route.json, made by peak/scores/routedata.js): the solids Mnot can stand on, the
 planks and the rope, the ice, checkpoints, the summit, the walking line, the wind gaps, the gondola's timetable and
 the rig's numbers. Answers the geometry questions the replay checker (verify.py) asks."""
 import json
@@ -11,7 +11,7 @@ SEGMENT = {"skip": 2.0, "fast": 4.0, "share": 0.9}
 
 
 class Outline:
-    """A convex outline in XZ; distance() is like Solid.closest().d in peak/world.js (< 0 inside)."""
+    """A convex outline in XZ; distance() is like Solid.closest().d in peak/world/world.js (< 0 inside)."""
 
     def __init__(self, poly):
         self.poly = [(float(x), float(z)) for x, z in poly]

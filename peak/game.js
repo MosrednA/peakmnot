@@ -1,7 +1,7 @@
 // The rules: dents are the health, checkpoints pop them out, a fall into the abyss costs a dent and brings Mnot back
 // to the last safe spot, and the fourth dent flattens the can: back to the last checkpoint. Reach the summit flag
 // to win. Every mishap gets a joke (quips.js) and how many dents the can has.
-import { quip } from './quips.js';
+import { quip } from './ui/quips.js';
 
 export const MAX_DENTS = 4;
 const HURT_IMPACT = 9;          // a landing this fast (m/s, about a 2.7 m drop) dents the can
