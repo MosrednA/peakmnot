@@ -1,0 +1,287 @@
+{
+  "provider": "original deterministic synthesis",
+  "sample_rate": 22050,
+  "channels": 1,
+  "format": "PCM_16",
+  "sounds": [
+    {
+      "id": "lift",
+      "duration": 0.42,
+      "loop": false,
+      "peak": 0.35000000000000003,
+      "rms": 0.05348180825177357,
+      "seam_step": 0,
+      "bytes": 18566
+    },
+    {
+      "id": "land-soft",
+      "duration": 0.3,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.05145248991109649,
+      "seam_step": 0,
+      "bytes": 13274
+    },
+    {
+      "id": "land-hard",
+      "duration": 0.5500226757369614,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.05019926650537868,
+      "seam_step": 0,
+      "bytes": 24300
+    },
+    {
+      "id": "crash-rock",
+      "duration": 0.32,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.03186724853770573,
+      "seam_step": 0,
+      "bytes": 14156
+    },
+    {
+      "id": "crash-tree",
+      "duration": 0.38,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.028177102744128248,
+      "seam_step": 0,
+      "bytes": 16802
+    },
+    {
+      "id": "crash-metal",
+      "duration": 0.5500226757369614,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.05100312356180387,
+      "seam_step": 0,
+      "bytes": 24300
+    },
+    {
+      "id": "crash-desk",
+      "duration": 0.32997732426303855,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.04711036990946137,
+      "seam_step": 0,
+      "bytes": 14596
+    },
+    {
+      "id": "crash-printer",
+      "duration": 0.6499773242630386,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.055118669360639846,
+      "seam_step": 0,
+      "bytes": 28708
+    },
+    {
+      "id": "wheel",
+      "duration": 0.34,
+      "loop": false,
+      "peak": 0.2780417219825409,
+      "rms": 0.075,
+      "seam_step": 0,
+      "bytes": 15038
+    },
+    {
+      "id": "snowman",
+      "duration": 0.26,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.051248014537233634,
+      "seam_step": 0,
+      "bytes": 11510
+    },
+    {
+      "id": "chair",
+      "duration": 0.48,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.054282011995372796,
+      "seam_step": 0,
+      "bytes": 21212
+    },
+    {
+      "id": "photographer",
+      "duration": 0.34997732426303857,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.041501403110804816,
+      "seam_step": 0,
+      "bytes": 15478
+    },
+    {
+      "id": "cooler",
+      "duration": 0.6499773242630386,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.05594554327279521,
+      "seam_step": 0,
+      "bytes": 28708
+    },
+    {
+      "id": "ficus",
+      "duration": 0.34,
+      "loop": false,
+      "peak": 0.3499999999999999,
+      "rms": 0.042310267255885874,
+      "seam_step": 0,
+      "bytes": 15038
+    },
+    {
+      "id": "strike",
+      "duration": 1.1,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.05143276382389217,
+      "seam_step": 0,
+      "bytes": 48554
+    },
+    {
+      "id": "crowd",
+      "duration": 1.0,
+      "loop": false,
+      "peak": 0.34747723933357,
+      "rms": 0.075,
+      "seam_step": 0,
+      "bytes": 44144
+    },
+    {
+      "id": "photo",
+      "duration": 0.18,
+      "loop": false,
+      "peak": 0.31836912959230085,
+      "rms": 0.075,
+      "seam_step": 0,
+      "bytes": 7982
+    },
+    {
+      "id": "pit",
+      "duration": 0.78,
+      "loop": false,
+      "peak": 0.35000000000000003,
+      "rms": 0.05372135782970213,
+      "seam_step": 0,
+      "bytes": 34442
+    },
+    {
+      "id": "lost",
+      "duration": 0.7,
+      "loop": false,
+      "peak": 0.2631285059995737,
+      "rms": 0.07500000000000001,
+      "seam_step": 0,
+      "bytes": 30914
+    },
+    {
+      "id": "splash",
+      "duration": 0.8499773242630385,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.04784695628578625,
+      "seam_step": 0,
+      "bytes": 37528
+    },
+    {
+      "id": "wrecked",
+      "duration": 0.8499773242630385,
+      "loop": false,
+      "peak": 0.35,
+      "rms": 0.06690581472568666,
+      "seam_step": 0,
+      "bytes": 37528
+    },
+    {
+      "id": "finish",
+      "duration": 1.3500226757369616,
+      "loop": false,
+      "peak": 0.31672558998050704,
+      "rms": 0.07500000000000001,
+      "seam_step": 0,
+      "bytes": 59580
+    },
+    {
+      "id": "bonus",
+      "duration": 0.36,
+      "loop": false,
+      "peak": 0.28838019623957595,
+      "rms": 0.07499999999999998,
+      "seam_step": 0,
+      "bytes": 15920
+    },
+    {
+      "id": "roll-piste",
+      "duration": 2.0,
+      "loop": true,
+      "peak": 0.23622632147506512,
+      "rms": 0.055,
+      "seam_step": 0.0,
+      "bytes": 88244
+    },
+    {
+      "id": "roll-ice",
+      "duration": 2.0,
+      "loop": true,
+      "peak": 0.2597555054545617,
+      "rms": 0.055,
+      "seam_step": 0.0,
+      "bytes": 88244
+    },
+    {
+      "id": "roll-bank",
+      "duration": 2.0,
+      "loop": true,
+      "peak": 0.24163108163288674,
+      "rms": 0.05500000000000001,
+      "seam_step": 0.0,
+      "bytes": 88244
+    },
+    {
+      "id": "roll-powder",
+      "duration": 2.0,
+      "loop": true,
+      "peak": 0.2529115506493528,
+      "rms": 0.05499999999999999,
+      "seam_step": 0.0,
+      "bytes": 88244
+    },
+    {
+      "id": "wind",
+      "duration": 2.0,
+      "loop": true,
+      "peak": 0.22786095131156703,
+      "rms": 0.055,
+      "seam_step": 0.0,
+      "bytes": 88244
+    },
+    {
+      "id": "brake",
+      "duration": 2.0,
+      "loop": true,
+      "peak": 0.24095948229037514,
+      "rms": 0.05499999999999999,
+      "seam_step": 0.0,
+      "bytes": 88244
+    },
+    {
+      "id": "scrape",
+      "duration": 2.0,
+      "loop": true,
+      "peak": 0.25068615741043293,
+      "rms": 0.05499999999999999,
+      "seam_step": 0.0,
+      "bytes": 88244
+    },
+    {
+      "id": "swivel",
+      "duration": 2.0,
+      "loop": true,
+      "peak": 0.16234257860431467,
+      "rms": 0.05499999999999999,
+      "seam_step": 0.0,
+      "bytes": 88244
+    }
+  ]
+}

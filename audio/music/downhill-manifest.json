@@ -1,0 +1,42 @@
+{
+  "title": "Pocket Altitude \u2014 Desk to Piste",
+  "key": "D major",
+  "bpm": 120,
+  "bars": 32,
+  "sample_rate": 44100,
+  "renderer": "FluidSynth 2.6.1",
+  "soundfont": "GeneralUser GS 2.0.3",
+  "source_scores": [
+    "audio/music/peak-climb.mid",
+    "audio/music/peak-summit.mid"
+  ],
+  "instruments": [
+    "marimba",
+    "pizzicato strings",
+    "tuba",
+    "glockenspiel",
+    "whistle",
+    "vibraphone",
+    "brush kit"
+  ],
+  "assets": [
+    {
+      "id": "peak-downhill",
+      "file": "audio/music/peak-downhill.mp3",
+      "duration": 64.0,
+      "bytes": 896904,
+      "peak": 0.48767492175102234,
+      "rms": 0.07000000029802322,
+      "loop": true
+    },
+    {
+      "id": "peak-downhill-finish",
+      "file": "audio/music/peak-downhill-finish.mp3",
+      "duration": 4.4,
+      "bytes": 62717,
+      "peak": 0.6499999761581421,
+      "rms": 0.0786236971616745,
+      "loop": false
+    }
+  ]
+}
