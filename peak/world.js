@@ -3,6 +3,7 @@
 // a plank or a rope.
 import * as THREE from 'three';
 import { toon } from './look.js';
+import { rock as rockMaterial } from './materials.js';
 
 export function random(seed) {   // mulberry32, so the mountain looks the same every time
   return () => {
@@ -14,7 +15,6 @@ export function random(seed) {   // mulberry32, so the mountain looks the same e
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
-const SNOW = new THREE.Color('#f3f7fd'), ROCK = new THREE.Color('#8b8fa3'), ROCK_DARK = new THREE.Color('#6d6f86');
 const WOOD = '#b07a4a', ROPE = '#d9c08a';
 
 // A rock you can stand on: a convex outline in XZ with a flat top. Its sides are walls.
@@ -196,7 +196,7 @@ export class World {
   // ------------------------------------------------------------------ building
 
   // A rock pillar: w by d with chamfered corners, turned by rot degrees, its top at y.
-  rock({ x, z, w, d, y, rot = 0, cap = 'snow', depth = 70, chamfer = 0.3, seed }) {
+  rock({ x, z, w, d, y, rot = 0, depth = 70, chamfer = 0.3, seed }) {
     const rand = seed === undefined ? this.rand : random(seed);
     const c = Math.cos(THREE.MathUtils.degToRad(rot)), s = Math.sin(THREE.MathUtils.degToRad(rot));
     const hw = w / 2, hd = d / 2, ch = Math.min(chamfer, hw * 0.6, hd * 0.6);
@@ -212,7 +212,7 @@ export class World {
     const pts = poly.map(([px, pz]) => ({ x: x + px * c + pz * s, z: z - px * s + pz * c }));
     const solid = new Solid(pts, y, y - depth);
     this.solids.push(solid);
-    const mesh = rockMesh(solid, rand, cap);
+    const mesh = rockMesh(solid, rand);
     this.group.add(mesh);
     this.blockers.push(mesh);
     return solid;
@@ -347,57 +347,55 @@ export class World {
 
 // ------------------------------------------------------------------ rock meshes
 
-// Flat-shaded facets with snow on top and dripping over the lip. The lip is exactly the collision outline.
-function rockMesh(solid, rand, cap) {
+// One closed surface: a ring at each depth, the sides bulging and widening towards the mountain's foot, and a top
+// that rises a few centimetres in a soft pillow of snow. The lip is exactly the collision outline. The material
+// (materials.js) paints the facets, the snow and the lip's ink line from aDrop; the shared vertices give smooth
+// normals, so the outline drawn round the rock has no cracks.
+function rockMesh(solid, rand) {
   const ring = [];
   for (const e of solid.edges) {
-    const n = Math.max(1, Math.round(e.len / 0.5));
+    const n = Math.max(1, Math.round(e.len / 0.45));
     for (let k = 0; k < n; k++) ring.push({ x: e.ax + (e.bx - e.ax) * k / n, z: e.az + (e.bz - e.az) * k / n });
   }
+  const N = ring.length;
   const { x: cx, y: cz } = solid.center;
   const depth = solid.top - solid.bottom;
   const levels = [0, 0.1, 0.32, 0.75, 1.4, 2.4, 3.8, 6, 9, 14, 21, 32, 48, depth].filter(v => v <= depth);
-  // per ring vertex: how far the snow drips down, and a wobble that grows deeper down
-  const drip = ring.map(() => 0.12 + 0.5 * rand() ** 2);
   const wobble = levels.map(() => ring.map(() => rand()));
-  const vertex = (i, level) => {
-    const p = ring[i % ring.length], dy = levels[level];
-    const ox = p.x - cx, oz = p.z - cz, len = Math.hypot(ox, oz);
-    // the lip curls in a little, then the face bulges out and widens towards the mountain's foot
-    const w = wobble[level][i % ring.length];
-    const out = level === 0 ? 0 : level === 1 ? -0.05 : -0.14 + 0.24 * w + Math.max(0, dy - 3) * 0.025;
-    return new THREE.Vector3(p.x + ox / len * out, solid.top - dy, p.z + oz / len * out);
-  };
-  const positions = [], colors = [];
-  const color = new THREE.Color();
-  const tri = (a, b, c, col) => {
-    positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
-    for (let k = 0; k < 3; k++) colors.push(col.r, col.g, col.b);
-  };
-  const top = new THREE.Vector3(cx, solid.top, cz);
-  const topColor = cap === 'snow' ? SNOW : cap === 'grass' ? new THREE.Color('#9db86a') : ROCK;
-  for (let i = 0; i < ring.length; i++) tri(top, vertex(i + 1, 0), vertex(i, 0), topColor);
-  for (let l = 0; l < levels.length - 1; l++) {
-    for (let i = 0; i < ring.length; i++) {
-      const a = vertex(i, l), b = vertex(i + 1, l), c = vertex(i, l + 1), d = vertex(i + 1, l + 1);
-      const mid = (levels[l] + levels[l + 1]) / 2;
-      const snowy = cap === 'snow' && mid < (drip[i] + drip[(i + 1) % ring.length]) / 2;
-      if (snowy) color.copy(SNOW);
-      else {
-        // banded strata, a little darker further down
-        const band = 0.5 + 0.5 * Math.sin((solid.top - mid) * 1.7 + i * 0.35 + rand() * 0.8);
-        color.copy(ROCK).lerp(ROCK_DARK, 0.25 + 0.5 * band * (1 - Math.exp(-mid / 6)));
-      }
-      tri(a, c, b, color);
-      tri(b, c, d, color);
+  const positions = [], drops = [], index = [];
+  const add = (x, y, z, drop) => { positions.push(x, y, z); drops.push(drop); return drops.length - 1; };
+  levels.forEach((dy, level) => {
+    for (let i = 0; i < N; i++) {
+      const p = ring[i], ox = p.x - cx, oz = p.z - cz, len = Math.hypot(ox, oz);
+      // the lip curls in a little, then the face bulges out and widens further down
+      const w = wobble[level][i];
+      const out = level === 0 ? 0 : level === 1 ? -0.05 : -0.14 + 0.24 * w + Math.max(0, dy - 3) * 0.025;
+      add(p.x + ox / len * out, solid.top - dy, p.z + oz / len * out, dy);
     }
+  });
+  for (let l = 0; l < levels.length - 1; l++) {
+    for (let i = 0; i < N; i++) {
+      const a = l * N + i, b = l * N + (i + 1) % N, c = a + N, d = b + N;
+      index.push(a, b, c, b, d, c);
+    }
+  }
+  // the top: an inner ring a little way in and up, then the middle
+  const inner = ring.map(p => {
+    const ox = cx - p.x, oz = cz - p.z, len = Math.hypot(ox, oz), k = Math.min(0.16, 0.3 * len);
+    return add(p.x + ox / len * k, solid.top + 0.025, p.z + oz / len * k, -k);
+  });
+  const reach = ring.reduce((sum, p) => sum + Math.hypot(p.x - cx, p.z - cz), 0) / N;
+  const middle = add(cx, solid.top + 0.035, cz, -reach);
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    index.push(inner[i], j, i, inner[i], inner[j], j, middle, inner[j], inner[i]);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute('aDrop', new THREE.Float32BufferAttribute(drops, 1));
+  geometry.setIndex(index);
   geometry.computeVertexNormals();
-  const mesh = new THREE.Mesh(geometry, toon('#ffffff', { vertexColors: true, outline: 'rock' }));
+  const mesh = new THREE.Mesh(geometry, rockMaterial());
   mesh.castShadow = mesh.receiveShadow = true;
   return mesh;
 }
-

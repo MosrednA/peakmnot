@@ -16,6 +16,7 @@ import { Dents } from './dents.js';
 import { Rockfall } from './rocks.js';
 import { Hud } from './hud.js';
 import { hookSounds } from './audio.js';
+import { time as shaderTime } from './materials.js';
 
 const manual = new URLSearchParams(location.search).has('manual');
 
@@ -63,6 +64,7 @@ follow.snap(player, world);
 let time = 0;
 function step(dt) {
   time += dt;
+  shaderTime.value = time;
   const forward = follow.forward();
   const intent = input.read(follow.heading(player, world), world.railAt(player.pos));
   if (intent.mute) sounds.setEnabled(!sounds.enabled);
@@ -108,6 +110,6 @@ addEventListener('resize', () => {
 });
 
 // for debugging and tests
-window.peak = { THREE, scene, camera, world, player, game, dents, rocks, weather, follow, input, mnot, sounds,
+window.peak = { THREE, renderer, scene, camera, world, player, game, dents, rocks, weather, follow, input, mnot, sounds,
   step(seconds = 1 / 60, dt = 1 / 60) { for (let t = 0; t < seconds - 1e-9; t += dt) step(dt); render(); },
   render, key: (code, down) => input.key(code, down) };

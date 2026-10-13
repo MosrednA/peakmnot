@@ -2,6 +2,7 @@
 //   const bots = await import('./peak/bots.js');
 //   bots.survey(peak)                  // how players with slow and quick reactions do on each beam
 //   bots.cross(peak, 'rope', { delay: 0.3 })
+//   bots.look(peak, [0.4, 4.3, 33.7])   // Mnot and the camera at a spot
 // A bot sees the lean `delay` seconds late, like a person, and holds the key that leans back once the lean (plus
 // where it's heading, if it anticipates) passes `dead` radians.
 import * as THREE from 'three';
@@ -11,6 +12,19 @@ const BEAMS = {
   rope: { at: [0.4, 4.3, 33.7], yaw: 0 },
   steep: { at: [2.7, 6.8, 59.2], yaw: 0 },
 };
+
+// Put Mnot somewhere and the camera on its shot there, for looking at a spot: bots.look(peak, [0, 0, -0.6]).
+export function look(peak, at, yaw = 0, { userYaw = 0, userPitch = 0 } = {}) {
+  const { player, world, follow, game } = peak;
+  player.celebrate = 0;
+  game.out = null;
+  player.spawn(new THREE.Vector3(...at), yaw);
+  peak.step(0.05);
+  follow.snap(player, world);
+  Object.assign(follow, { userYaw, userPitch, lastDrag: follow.time });
+  follow.update(0, player, world);
+  peak.render();
+}
 
 // Hold keys for a while, or until something happens.
 export function hold(peak, keys, seconds, until = () => false) {
