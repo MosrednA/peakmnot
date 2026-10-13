@@ -10,6 +10,8 @@ import { bursts } from '../look/bursts.js';
 
 const DELAY = 0.85;           // seconds from the first touch to the drop
 const GONE = 3.2;             // seconds from the drop until it is back
+const FALL = 1.3;             // seconds falling before the ledge disappears
+const REGROW = 0.35;           // seconds for the ledge to pop back into place
 const SHAKE = 0.04;           // metres, at the end of the shaking
 
 const CRACK_MATERIAL = noOutline(new THREE.MeshBasicMaterial({ color: '#2a2e45', side: THREE.DoubleSide,
@@ -29,6 +31,7 @@ export function looseLedge(world, x0, x1, z0, z1, y, { delay = DELAY, gone = GON
   const at = new THREE.Vector3(solid.center.x, y, solid.center.y);
   const spray = bursts(world), lip = new THREE.Vector3(), out = new THREE.Vector3();
   let state = 'still', t = 0, vy = 0;
+  const replayTiming = Object.freeze({ delay, gone, fall: FALL, back: REGROW });
 
   // a spot on the lip, and the way out over it
   const edgeSpot = (inset = 0) => {
@@ -47,7 +50,78 @@ export function looseLedge(world, x0, x1, z0, z1, y, { delay = DELAY, gone = GON
 
   const ledge = {
     solid,
+    group,
+    replayTiming,
     get state() { return state; },
+    // A watched run has no player physics to call solid.touch(). Rebuild its visible lifecycle from recorded contact
+    // times so pause, restart and backward seeks all land on the same pose without emitting live world events.
+    seekReplay(time, contacts = []) {
+      if (!Number.isFinite(time)) throw new TypeError('Replay time must be finite seconds');
+      const now = Math.max(0, time);
+      let contact = null;
+      for (const at of contacts) {
+        if (at > now) break;
+        contact = at;
+      }
+      const reset = () => {
+        solid.off = false;
+        body.position.set(0, 0, 0);
+        body.rotation.set(0, 0, 0);
+        group.visible = true;
+        group.scale.setScalar(1);
+        group.position.set(0, 0, 0);
+        cracks.show(0.5);
+      };
+      if (contact === null) {
+        state = 'still';
+        t = vy = 0;
+        reset();
+        return;
+      }
+
+      reset();
+      const elapsed = now - contact;
+      if (elapsed < delay) {
+        state = 'shaking';
+        t = elapsed;
+        vy = 0;
+        const k = delay > 0 ? Math.min(1, elapsed / delay) : 1;
+        const phase = elapsed * 32;
+        body.position.set(Math.sin(phase) * SHAKE * k, 0, Math.sin(phase * 1.37 + 1.8) * SHAKE * k);
+        cracks.show(0.5 + 0.5 * k);
+      } else {
+        const sinceDrop = elapsed - delay;
+        solid.off = sinceDrop < gone;
+        cracks.show(1);
+        if (sinceDrop < FALL) {
+          state = 'falling';
+          t = sinceDrop;
+          vy = -15 * sinceDrop;
+          body.position.set(0, -7.5 * sinceDrop * sinceDrop, 0);
+          body.rotation.set(sinceDrop * 0.5, 0, -sinceDrop * 0.35);
+        } else if (sinceDrop < gone) {
+          state = 'gone';
+          t = sinceDrop;
+          vy = -15 * sinceDrop;
+          group.visible = false;
+          body.position.set(0, -7.5 * sinceDrop * sinceDrop, 0);
+          body.rotation.set(sinceDrop * 0.5, 0, -sinceDrop * 0.35);
+        } else if (sinceDrop < gone + REGROW) {
+          state = 'back';
+          t = sinceDrop - gone;
+          vy = 0;
+          solid.off = false;
+          const k = Math.min(1, t / REGROW), s = 1 + 2.2 * (k - 1) ** 3 + 1.2 * (k - 1) ** 2;
+          group.scale.set(s, k < 1 ? s : 1, s);
+          group.position.set(at.x * (1 - s), at.y * (1 - s), at.z * (1 - s));
+        } else {
+          state = 'still';
+          t = 0;
+          vy = 0;
+          cracks.show(0.5);
+        }
+      }
+    },
     update(dt) {
       t += dt;
       if (state === 'still') cracks.show(0.5);
@@ -70,7 +144,7 @@ export function looseLedge(world, x0, x1, z0, z1, y, { delay = DELAY, gone = GON
         body.position.y += vy * dt;
         body.rotation.x += dt * 0.5;
         body.rotation.z -= dt * 0.35;
-        if (t > 1.3) { state = 'gone'; group.visible = false; }
+        if (t > FALL) { state = 'gone'; group.visible = false; }
       } else if (state === 'gone' && t >= gone) {
         state = 'back';
         t = 0;
@@ -81,7 +155,7 @@ export function looseLedge(world, x0, x1, z0, z1, y, { delay = DELAY, gone = GON
         world.emit('regrow', { at, solid });
       } else if (state === 'back') {
         // pops back in with a little overshoot
-        const k = Math.min(1, t / 0.35), s = 1 + 2.2 * (k - 1) ** 3 + 1.2 * (k - 1) ** 2;
+        const k = Math.min(1, t / REGROW), s = 1 + 2.2 * (k - 1) ** 3 + 1.2 * (k - 1) ** 2;
         group.scale.set(s, k < 1 ? s : 1, s);
         group.position.set(at.x * (1 - s), at.y * (1 - s), at.z * (1 - s));
         if (k >= 1) { state = 'still'; group.scale.setScalar(1); group.position.set(0, 0, 0); }
