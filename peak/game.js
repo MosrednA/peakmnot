@@ -6,6 +6,7 @@ import { quip } from './quips.js';
 export const MAX_DENTS = 4;
 const HURT_IMPACT = 9;          // a landing this fast (m/s, about a 2.7 m drop) dents the can
 const SAFE_TIME = 1.2;          // no new dent this soon after the last one
+const FADE = { fall: 2.4, flat: 1.4 };   // seconds out before the fade: a fall gets its beat, drop and poof (fall.js)
 
 export class Game {
   constructor({ player, world, hud, camera }) {
@@ -18,16 +19,32 @@ export class Game {
     this.time = 0;
     this.falls = 0;
     this.done = false;
-    this.out = null;              // { reason: 'fall' | 'flat', timer } while waiting to respawn
+    this.out = null;              // { reason: 'fall' | 'flat', cause, timer } while waiting to respawn
     this.safeTimer = 0;
     this.listeners = new Map();
-    player.on('lost', ({ reason }) => { this.out = { reason, timer: 0 }; if (reason === 'fall') this.falls++; });
+    player.watcher = camera.camera?.position ?? null;      // Mnot looks at the camera before it drops
+    player.on('lost', ({ reason, cause }) => {
+      this.out = { reason, cause, timer: 0 };
+      if (reason === 'fall') this.falls++;
+    });
     player.on('land', ({ impact }) => { if (impact >= HURT_IMPACT) this.dent('landing'); });
-    // the first plank explains itself
-    let taught = false;
-    player.on('beam', () => {
-      if (!taught) hud.toast('Balance!', 'A / D to lean back · Shift to stand still', 3.2);
-      taught = true;
+    // the first plank, ice, loose ledge and wind gap explain themselves
+    const taught = new Set();
+    const teach = (what, title, line, seconds = 3.2) => {
+      if (!taught.has(what) && !this.out) hud.toast(title, line, seconds);
+      taught.add(what);
+    };
+    player.on('beam', () => teach('beam', 'Balance!', 'A / D to lean back · Shift to stand still'));
+    player.on('ice', () => teach('ice', 'Ice!', 'It keeps sliding: steer against it · Shift grips', 3));
+    // a pratfall on the ice costs nothing but pride: a joke, and the first time a hint
+    player.on('pratfall', () => {
+      const hint = taught.has('pratfall') ? '' : 'Steer in small taps · Shift grips';
+      if (!this.out) hud.toast(quip('pratfall'), hint, 1.8, 'oops');
+      taught.add('pratfall');
+    });
+    world.on('crack', () => teach('crack', 'Loose rock!', "Don't hang about", 2));
+    world.on('gust', ({ at }) => {
+      if (player.pos.distanceTo(at) < 4) teach('gust', 'Wind gap!', 'Watch the windsock · jump in the lull', 3);
     });
   }
 
@@ -75,18 +92,18 @@ export class Game {
     }
   }
 
-  // Flattened: squash, wait, then fade to white and come back.
+  // Fallen: watch it drop into the clouds. Flattened: squash and wait. Then fade to white and come back.
   waitForRespawn(dt) {
     const o = this.out, p = this.player;
     o.timer += dt;
     if (o.reason === 'flat') p.squash = Math.max(0.16, p.squash - dt * 6);
-    const fadeAt = o.reason === 'fall' ? 0.9 : 1.4;
+    const fadeAt = FADE[o.reason];
     if (o.timer > fadeAt && !o.faded) { o.faded = true; this.hud.fade(true); }
     if (o.timer > fadeAt + 0.45) this.respawn();
   }
 
   respawn() {
-    const reason = this.out.reason;
+    const { reason, cause } = this.out;
     this.out = null;
     if (reason === 'fall') this.dents++;
     const flat = this.dents >= MAX_DENTS;
@@ -97,7 +114,7 @@ export class Game {
     } else {
       this.player.spawn(this.player.safe.pos.clone(), this.player.safe.yaw);
       this.emit('dent', { reason: 'fall', from: null, dents: this.dents });
-      this.hud.toast(quip('fall'), dentCount(this.dents), 2.2);
+      this.hud.toast(quip(cause ?? 'fall'), dentCount(this.dents), 2.2);
     }
     this.safeTimer = SAFE_TIME;
     this.camera.snap(this.player, this.world);

@@ -1,218 +1,136 @@
-// Props along the route: checkpoint flags, the summit flag, signs, a tent, cairns and strings of pennants that show
-// the wind. Each returns its object; the ones that move are in world.animated with an update(dt, time, weather).
+// Props along the route. The pieces live in their own modules (flags.js, signs.js, camp.js); this file gathers them
+// for route.js, adds the small stuff (cairns, a snack stash, a lost microphone, a bench) and dresses the route once
+// it is built: beams fitted to their ledges, signs turned to the camera, every prop's feet checked to stand on rock
+// (footing.js), the trailhead map drawn.
+// Every prop is marked userData.fade, so fade.js can dissolve it while it stands between the camera and Mnot.
 import * as THREE from 'three';
 import { toon } from './look.js';
-import { post, tube } from './beams.js';
+import { wood } from './wood.js';
+import { fitBeams } from './beams.js';
+import { lookYaw } from './camera.js';
+import { aim, snowStrip, faceMaterial } from './signs.js';
+import { painted, letter, planks } from './paint.js';
+import { feet, settle } from './footing.js';
+import { stoneStack } from './flags.js';
 
-const RED = '#e23b2e';
-
-// A small cloth on a pole that flaps in the wind. width × height, split so it can ripple.
-function cloth(width, height, color) {
-  const geometry = new THREE.PlaneGeometry(width, height, 8, 3);
-  geometry.translate(width / 2, -height / 2, 0);
-  const rest = geometry.attributes.position.array.slice();
-  const mesh = new THREE.Mesh(geometry, toon(color, { side: THREE.DoubleSide }));
-  mesh.castShadow = true;
-  mesh.update = (time, strength) => {
-    const pos = geometry.attributes.position.array;
-    for (let i = 0; i < pos.length; i += 3) {
-      const x = rest[i], k = x / width;
-      pos[i + 2] = k * (0.08 + 0.12 * strength) * Math.sin(x * 9 - time * (5 + 9 * strength)) * width;
-      pos[i + 1] = rest[i + 1] - k * k * 0.25 * height * (1 - strength);   // droops when the air is still
-    }
-    geometry.attributes.position.needsUpdate = true;
-    geometry.computeVertexNormals();
-  };
-  return mesh;
-}
-
-// The cloth turns to blow downwind.
-function blowWith(pivot, wind, dt) {
-  if (wind.strength < 0.02) return;
-  const yaw = Math.atan2(-wind.dir.z, wind.dir.x);
-  let d = yaw - pivot.rotation.y;
-  d = Math.atan2(Math.sin(d), Math.cos(d));
-  pivot.rotation.y += d * (1 - Math.exp(-3 * dt));
-}
-
-export function checkpointFlag(world, foot) {
-  const group = new THREE.Group();
-  group.position.copy(foot);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.035, 1.9, 8), toon('#d8dde6'));
-  pole.position.y = 0.95;
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), toon('#f2c14e'));
-  knob.position.y = 1.92;
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.12, 9), toon('#6d6f86'));
-  base.position.y = 0.04;
-  const pivot = new THREE.Group();
-  pivot.position.y = 1.85;
-  const flag = cloth(0.7, 0.45, '#9fb3c8');
-  pivot.add(flag);
-  group.add(pole, knob, base, pivot);
-  for (const m of [pole, knob, base]) m.castShadow = true;
-  world.group.add(group);
-  let raise = 0, active = false;
-  const object = {
-    group,
-    get active() { return active; },
-    activate() {
-      if (active) return false;
-      active = true;
-      flag.material = toon(RED, { side: THREE.DoubleSide });
-      return true;
-    },
-    reset() { active = false; flag.material = toon('#9fb3c8', { side: THREE.DoubleSide }); },
-    update(dt, time, weather) {
-      const wind = weather.windAt(foot);
-      raise = THREE.MathUtils.damp(raise, active ? 1 : 0.45, 3, dt);
-      pivot.position.y = 0.6 + 1.25 * raise;
-      blowWith(pivot, wind, dt);
-      flag.update(time, wind.strength);
-    },
-  };
-  world.animated.push(object);
-  return object;
-}
-
-export function summitFlag(world, foot) {
-  const group = new THREE.Group();
-  group.position.copy(foot);
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 3.2, 8), toon('#d8dde6'));
-  pole.position.y = 1.6;
-  const pivot = new THREE.Group();
-  pivot.position.y = 3.1;
-  const flag = cloth(1.5, 0.9, RED);
-  pivot.add(flag);
-  const stones = cairn(world, foot.clone(), 0.9, 4);
-  group.add(pole, pivot);
-  pole.castShadow = true;
-  world.group.add(group);
-  const object = {
-    group, stones,
-    update(dt, time, weather) {
-      const wind = weather.windAt(foot);
-      blowWith(pivot, wind, dt);
-      flag.update(time, Math.max(0.45, wind.strength));
-    },
-  };
-  world.animated.push(object);
-  return object;
-}
-
-// A flat panel with text, drawn on a canvas.
-export function sign(text, { width = 1, height = 0.5, background = '#f4ead2', color = '#4a3424', size = 48 } = {}) {
-  const canvas = document.createElement('canvas');
-  const scale = 256 / height;
-  canvas.width = Math.round(width * scale);
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = background;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = color;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const lines = text.split('\n');
-  ctx.font = `700 ${size * 2}px system-ui, "Segoe UI", sans-serif`;
-  lines.forEach((line, i) => {
-    ctx.fillText(line, canvas.width / 2, canvas.height / 2 + (i - (lines.length - 1) / 2) * size * 2.3);
-  });
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  const material = new THREE.MeshBasicMaterial({ map: texture });
-  material.userData.outlineParameters = { visible: false };
-  return new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
-}
-
-// A wooden sign on a post, facing yaw (radians, 0 = facing +Z).
-export function signpost(world, foot, yaw, text, options = {}) {
-  const group = new THREE.Group();
-  group.position.copy(foot);
-  group.rotation.y = yaw;
-  const width = options.width ?? 1.1, height = options.height ?? 0.5;
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.3, 7), toon('#8a5a34'));
-  post.position.y = 0.6;
-  const board = new THREE.Mesh(new THREE.BoxGeometry(width + 0.08, height + 0.08, 0.05), toon('#a8743f'));
-  board.position.y = 1.1;
-  const face = sign(text, { width, height, ...options });
-  face.position.set(0, 1.1, 0.028);
-  group.add(post, board, face);
-  post.castShadow = board.castShadow = true;
-  world.group.add(group);
-  return group;
-}
-
-export function tent(world, foot, yaw) {
-  const group = new THREE.Group();
-  group.position.copy(foot);
-  group.rotation.y = yaw;
-  const shape = new THREE.Shape([new THREE.Vector2(-0.8, 0), new THREE.Vector2(0.8, 0), new THREE.Vector2(0, 1.05)]);
-  const body = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 1.6, bevelEnabled: false }), toon('#f08a24'));
-  body.position.z = -0.8;
-  const door = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(-0.28, 0),
-    new THREE.Vector2(0.28, 0), new THREE.Vector2(0, 0.6)])), toon('#4a3a5a', { outline: false }));
-  door.position.z = 0.805;
-  group.add(body, door);
-  body.castShadow = true;
-  world.group.add(group);
-  return group;
-}
+export { checkpointFlag, summitFlag, pennants } from './flags.js';
+export { signpost, warningSign } from './signs.js';
+export { trailMap } from './trailmap.js';
+export { tent, podcastTable } from './camp.js';
+export { onRock } from './footing.js';
 
 // A stack of flat stones.
 export function cairn(world, foot, size = 0.4, count = 4) {
-  const group = new THREE.Group();
+  const group = stoneStack(size, count);
   group.position.copy(foot);
-  let y = 0;
-  for (let i = 0; i < count; i++) {
-    const r = size * (1 - i / (count + 1)) * 0.5, h = r * 0.55;
-    const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 0), toon('#9a9db0'));
-    stone.scale.set(r, h, r * 0.9);
-    stone.rotation.y = i * 1.7;
-    stone.position.y = y + h * 0.8;
-    stone.castShadow = true;
-    y += h * 1.5;
-    group.add(stone);
-  }
+  group.userData.fade = true;
   world.group.add(group);
+  feet(group, [[0, 0]], 'cairn', size * 0.45);
   return group;
 }
 
-// A string of little pennants between two posts. They flutter with the wind, so you can see a gust coming.
-export function pennants(world, a, b, colors = [RED, '#f2c14e', '#ffffff', '#3d8fd6']) {
-  const pa = a.clone().setY(a.y + 1.3), pb = b.clone().setY(b.y + 1.3);
-  world.group.add(post(a, 1.4, 0.035), post(b, 1.4, 0.035));
-  const points = [], count = Math.max(3, Math.round(pa.distanceTo(pb) / 0.32));
-  for (let i = 0; i <= 12; i++) {
-    const t = i / 12;
-    points.push(pa.clone().lerp(pb, t).setY(pa.y + (pb.y - pa.y) * t - 0.25 * Math.sin(Math.PI * t)));
+// A crate of snacks with its lid off: the climb's real fuel.
+export function snackStash(world, foot, yaw) {
+  const group = new THREE.Group();
+  group.position.copy(foot);
+  group.userData.fade = true;
+  const label = painted(256, 128, (ctx, w, h) => {
+    planks(ctx, w, h, { count: 2, seed: 31, color: '#b8864e', nails: false });
+    letter(ctx, 'SNACKS\n(do not feed\nthe can)', w / 2, h / 2, { size: h * 0.2, color: 'rgba(30, 20, 15, 0.85)', line: 1.05 });
+  });
+  const side = wood('#b8864e', 'x');
+  const crate = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.26, 0.3), [side, side, side, side, faceMaterial(label), side]);
+  crate.position.y = 0.13;
+  crate.castShadow = true;
+  group.add(crate);
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.02, 0.32), wood('#a87a46', 'x'));
+  lid.position.set(-0.05, 0.03, 0.3);
+  lid.rotation.set(0.1, 0.4, 0.05);
+  group.add(lid);
+  for (const [x, z, color] of [[-0.1, -0.03, '#f2c14e'], [0.06, 0.04, '#3d8fd6'], [0.12, -0.06, '#e23b2e']]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.16), toon(color));
+    bar.position.set(x, 0.27, z);
+    bar.rotation.set(0.2, x * 5, 0.3);
+    group.add(bar);
   }
-  const line = new THREE.CatmullRomCurve3(points);
-  world.group.add(tube(points, 0.008));
-  const flags = [], across = new THREE.Vector3(-(pb.z - pa.z), 0, pb.x - pa.x).normalize();
-  for (let i = 1; i < count; i++) {
-    const p = line.getPointAt(i / count);
-    const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-0.09, 0, 0),
-      new THREE.Vector3(0.09, 0, 0), new THREE.Vector3(0, -0.2, 0)]);
-    geometry.computeVertexNormals();
-    const flag = new THREE.Mesh(geometry, toon(colors[i % colors.length], { side: THREE.DoubleSide, outline: false }));
-    flag.position.copy(p);
-    flag.lookAt(p.clone().add(across));      // local X runs along the string, local Z across it
-    flag.userData = { phase: i * 0.9, rest: flag.quaternion.clone() };
-    flags.push(flag);
-    world.group.add(flag);
+  const snow = snowStrip(0.4, 0.06, 0.025, 5);
+  snow.position.set(0, 0.26, -0.13);
+  group.add(snow);
+  world.group.add(group);
+  feet(group, [[-0.21, -0.15], [0.21, -0.15], [-0.21, 0.15], [0.21, 0.15]], 'snack stash', 0.02);
+  aim(world, group, yaw);
+  return group;
+}
+
+// A microphone someone dropped on the way up, cable and all.
+export function lostMic(world, foot, yaw) {
+  const group = new THREE.Group();
+  group.position.copy(foot);
+  group.userData.fade = true;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.022, 0.16, 12), toon('#2c2f3a'));
+  body.rotation.z = Math.PI / 2;
+  body.position.set(0, 0.035, 0);
+  const foam = new THREE.Mesh(new THREE.SphereGeometry(0.046, 12, 9), toon('#e23b2e'));
+  foam.position.set(0.11, 0.045, 0);
+  const points = [new THREE.Vector3(-0.08, 0.03, 0), new THREE.Vector3(-0.2, 0.02, 0.08), new THREE.Vector3(-0.3, 0.02, -0.05),
+    new THREE.Vector3(-0.45, 0.02, 0.03)];
+  const cable = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 16, 0.008, 5), toon('#1d1d26'));
+  body.castShadow = foam.castShadow = true;
+  group.add(body, foam, cable);
+  world.group.add(group);
+  feet(group, [[0.11, 0], [-0.45, 0.03]], 'lost mic', 0.03);
+  aim(world, group, yaw);
+  return group;
+}
+
+// A plank bench on two stumps, for getting your breath back at a checkpoint.
+export function bench(world, foot, yaw) {
+  const group = new THREE.Group();
+  group.position.copy(foot);
+  group.userData.fade = true;
+  for (const x of [-0.38, 0.38]) {
+    const stump = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.36, 9), wood('#7a4f2e', 'y'));
+    stump.position.set(x, 0.15, 0);
+    stump.castShadow = true;
+    group.add(stump);
   }
-  const swing = new THREE.Quaternion(), X = new THREE.Vector3(1, 0, 0), middle = pa.clone().lerp(pb, 0.5);
-  const object = {
-    update(dt, time, weather) {
-      const wind = weather.windAt(middle);
-      // a turn about the string lifts the pennants downwind
-      const s = wind.strength * Math.abs(wind.dir.dot(across)), side = Math.sign(wind.dir.dot(across)) || 1;
-      for (const flag of flags) {
-        const angle = -side * (0.1 + 1.1 * s) + 0.25 * (0.3 + s) * Math.sin(time * (4 + 8 * s) + flag.userData.phase);
-        flag.quaternion.copy(flag.userData.rest).multiply(swing.setFromAxisAngle(X, angle));
-      }
-    },
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.05, 0.26), wood('#a8743f', 'x'));
+  seat.position.y = 0.355;
+  seat.castShadow = seat.receiveShadow = true;
+  const snow = snowStrip(0.5, 0.2, 0.03, 9);
+  snow.position.set(0.22, 0.38, 0);
+  group.add(seat, snow);
+  world.group.add(group);
+  feet(group, [[-0.38, 0], [0.38, 0]], 'bench', 0.14);
+  aim(world, group, yaw);
+  return group;
+}
+
+// ------------------------------------------------------------------ dressing the route
+
+// Where the camera stands when Mnot is on the walking line nearest to point.
+export function cameraNear(world, point) {
+  const shot = world.railAt(point), right = new THREE.Vector3(-shot.dir.z, 0, shot.dir.x);
+  const yaw = lookYaw(shot), pitch = shot.pitch;
+  const target = point.clone().addScaledVector(right, -shot.side);
+  target.y += 0.9;
+  const look = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+  return target.addScaledVector(look, -shot.distance);
+}
+
+// Once the route and its camera rail exist: fit the beams, turn the props that face the camera, stand every prop on
+// its rock (turning it again if it has to move), draw the maps.
+export function dressRoute(world) {
+  fitBeams(world);
+  const turns = new Map((world.aimed ?? []).map(({ object, turn }) => [object, turn]));
+  const face = (object) => {
+    if (!turns.has(object)) return;
+    const eye = cameraNear(world, object.position);
+    object.rotation.y = Math.atan2(eye.x - object.position.x, eye.z - object.position.z) + turns.get(object);
   };
-  world.animated.push(object);
-  return object;
+  turns.forEach((turn, object) => face(object));
+  const footed = [];
+  world.group.traverse((o) => { if (o.userData.feet) footed.push(o); });
+  for (const object of footed) settle(world, object, face);
+  world.group.traverse((o) => { if (o.userData.draw) o.userData.draw(world); });
 }

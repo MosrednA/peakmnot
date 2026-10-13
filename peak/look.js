@@ -8,8 +8,10 @@ function toonRamp(...tones) {
   return ramp;
 }
 
-// Mnot keeps the viewer's two tones (three on the metal); the mountain gets three, so the facets read.
-export const RAMPS = { mnot: toonRamp(120, 255), metal: toonRamp(95, 170, 255), world: toonRamp(118, 196, 255) };
+// Mnot keeps the viewer's two tones (three on the metal); the mountain gets three, so the facets read. The far
+// range turns its shady side further from the sun, so the faces read from far away.
+export const RAMPS = { mnot: toonRamp(120, 255), metal: toonRamp(95, 170, 255), world: toonRamp(118, 196, 255),
+  far: toonRamp(52, 160, 255) };
 
 const OUTLINES = {
   mnot: { color: [0.09, 0.3, 0.38], thickness: 0.0045 },

@@ -31,11 +31,12 @@ const linear = hex => new THREE.Color(hex);
 
 // ------------------------------------------------------------------ rock
 
-// The rock's colours: warm granite in the light, cooler slate, darker strata and a blue-grey far down.
+// The rock's colours: warm granite in the light, cooler slate, darker strata and a blue-grey far down; the haze is
+// the cloud sea's (sky.js uBelow).
 const ROCK = {
-  warm: linear('#b8aca4'), cool: linear('#979bb3'), strata: linear('#76728a'), deep: linear('#56607e'),
-  lichen: linear('#d9a14e'), moss: linear('#9fae6a'), snow: linear('#ffffff'), snowEdge: linear('#c9d8f0'),
-  ink: linear('#2f3550'), haze: linear('#e6eff8'),
+  warm: linear('#c4a896'), cool: linear('#9397b6'), strata: linear('#776e8a'), deep: linear('#56628a'),
+  lichen: linear('#dda04a'), moss: linear('#9fae6a'), snow: linear('#ffffff'), snowEdge: linear('#c4d5f2'),
+  ink: linear('#2f3550'), haze: linear('#e3ecf7'),
 };
 
 let rockMaterial = null;
@@ -53,15 +54,18 @@ export function rock() {
       .replace('#include <common>', `#include <common>
         attribute float aDrop;
         varying vec3 vWorld;
+        varying vec3 vRest;
         varying float vDrop;`)
       .replace('#include <project_vertex>', `#include <project_vertex>
         vWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
+        vRest = transformed;     // where it was built, so the paint stays put on a rock that falls away
         vDrop = aDrop;`);
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         ${Object.keys(ROCK).map(k => `uniform vec3 u_${k};`).join('\n')}
         uniform float uTime;
         varying vec3 vWorld;
+        varying vec3 vRest;
         varying float vDrop;
         ${NOISE}
         float snowMask, lipMask;`)
@@ -72,8 +76,11 @@ export function rock() {
         vec3 nonPerturbedNormal = normal;`)
       .replace('#include <color_fragment>', `#include <color_fragment>
         {
-          vec3 p = vWorld;
+          vec3 p = vRest;
           vec3 up = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
+          // the size of a pixel on the rock: detail finer than a few pixels fades out instead of shimmering
+          float px = length(fwidth(p));
+          float fine = 1.0 - smoothstep(0.012, 0.035, px), mid = 1.0 - smoothstep(0.04, 0.12, px);
           // rock: layers of sediment in a few tones, wavy and a little tilted, each with a dark seam on top
           float warp = fbm3(p * 0.21);
           float t = (p.y + warp * 1.1 + 0.12 * sin(p.x * 0.37 + p.z * 0.23)) * 1.35;
@@ -82,13 +89,14 @@ export function rock() {
           vec3 c = mix(u_warm, u_cool, smoothstep(0.25, 0.75, fbm3(p * 0.09 + 3.1)));
           c = mix(c, u_strata, step(0.66, tone) * 0.6);
           c *= 0.92 + 0.16 * tone;
-          c = mix(c, u_strata * 0.7, (1.0 - smoothstep(0.0, 0.07, f)) * 0.7);
+          float seam = max(0.07, fwidth(t) * 1.5);
+          c = mix(c, u_strata * 0.7, (1.0 - smoothstep(0.0, seam, f)) * 0.7 * (0.07 / seam));
           c = mix(c, c * 1.12, smoothstep(0.75, 1.0, f));
           // grain, and here and there a thin crack running down
-          c *= 0.93 + 0.14 * noise3(p * vec3(9.0, 14.0, 9.0));
+          c *= 1.0 + (0.14 * noise3(p * vec3(9.0, 14.0, 9.0)) - 0.07) * fine;
           float crack = abs(noise3(vec3(p.x * 2.6, p.y * 0.3, p.z * 2.6) + 7.0) - 0.5);
           float cracked = smoothstep(0.55, 0.7, noise3(p * 0.4 + 2.0));
-          c = mix(c, u_strata * 0.55, (1.0 - smoothstep(0.008, 0.02, crack)) * cracked * 0.8);
+          c = mix(c, u_strata * 0.55, (1.0 - smoothstep(0.008, 0.02, crack)) * cracked * 0.8 * mid);
           // lichen and moss in small patches just under the lip, where the sun gets to them
           float near = 1.0 - smoothstep(0.4, 2.2, vDrop);
           float growth = smoothstep(0.62, 0.67, fbm3(p * 3.2 + 11.0)) * near * step(0.0, vDrop);
@@ -100,7 +108,7 @@ export function rock() {
           float aa = fwidth(vDrop) + 1e-4;
           snowMask = max(1.0 - smoothstep(line - aa, line + aa, vDrop), step(0.78, up.y));
           float rim = smoothstep(line - 0.09, line - 0.02, vDrop) * (1.0 - step(0.78, up.y));
-          vec3 snow = mix(u_snow, u_snowEdge, max(rim, 0.25 * noise3(p * vec3(2.0, 6.0, 2.0))));
+          vec3 snow = mix(u_snow, u_snowEdge, max(rim, 0.25 * noise3(p * vec3(2.0, 6.0, 2.0)) * mid));
           c *= 1.0 - 0.28 * (1.0 - smoothstep(line, line + 0.45, vDrop)) * step(0.0, vDrop);   // the snow's overhang
           diffuseColor.rgb *= mix(c, snow, snowMask);
           // the ink line along the lip, about two pixels wide at any distance
@@ -109,10 +117,11 @@ export function rock() {
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         {
           // sparkle on the snow
-          vec3 cell = floor(vWorld * 34.0);
+          vec3 cell = floor(vRest * 34.0);
           float g = hash3(cell);
           float twinkle = step(0.994, g) * max(0.0, sin(uTime * 2.6 + g * 300.0));
-          totalEmissiveRadiance += snowMask * twinkle * vec3(0.9, 0.95, 1.0);
+          float close = 1.0 - smoothstep(0.006, 0.02, length(fwidth(vWorld)));   // only where a cell is pixels wide
+          totalEmissiveRadiance += snowMask * twinkle * close * vec3(0.9, 0.95, 1.0);
         }`)
       .replace('#include <tonemapping_fragment>', `
         gl_FragColor.rgb = mix(gl_FragColor.rgb, u_ink, lipMask * 0.85);

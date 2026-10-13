@@ -31,6 +31,8 @@ export class Solid {
       return { ax: a.x, az: a.z, bx: b.x, bz: b.z, nx, nz, len };
     });
     this.radius = Math.max(...poly.map(p => Math.hypot(p.x - cx, p.z - cz)));
+    this.off = false;                              // a crumbled ledge is gone for a while
+    this.moved = new THREE.Vector3();              // a moving platform's last step
   }
 
   // Signed distance from the outline (< 0 inside) and the direction that leads out.
@@ -52,6 +54,17 @@ export class Solid {
 
   near(x, z, margin) {
     return Math.hypot(x - this.center.x, z - this.center.y) < this.radius + margin;
+  }
+
+  // Slide the whole solid (a moving platform); whoever stands on it goes along (player.js reads moved).
+  moveBy(dx, dy, dz) {
+    for (const p of this.poly) { p.x += dx; p.z += dz; }
+    for (const e of this.edges) { e.ax += dx; e.az += dz; e.bx += dx; e.bz += dz; }
+    this.center.x += dx;
+    this.center.y += dz;
+    this.top += dy;
+    this.bottom += dy;
+    this.moved.set(dx, dy, dz);
   }
 }
 
@@ -111,9 +124,18 @@ export class World {
     this.rail = [];           // the camera's guide along the route: { at, theta, pitch, distance }
     this.blockers = [];       // meshes the camera stays in front of
     this.animated = [];       // things with an update(dt, time, weather)
+    this.ice = [];            // icy patches (ice.js): { outline (a Solid), y, drift, lift(x, z), reach }
+    this.rings = [];          // ring.js's rings of ice round a hole, for the bots
+    this.hazards = [];        // timed things (gondolas, wind gaps) that can tell a bot to wait: wait(pos) → true
     this.summit = null;
     this.rand = random(7);
+    this.listeners = new Map();
   }
+
+  // Events, for sounds and tests: 'crack', 'crumble' and 'regrow' (loose ledges), 'gondola' (sets off or docks),
+  // 'gust' (a wind gap starts to blow). Each gets { at } and a little more.
+  on(name, fn) { (this.listeners.get(name) ?? this.listeners.set(name, []).get(name)).push(fn); }
+  emit(name, data) { for (const fn of this.listeners.get(name) ?? []) fn(data); }
 
   // ------------------------------------------------------------------ queries
 
@@ -121,7 +143,7 @@ export class World {
   ground(x, z, maxY, margin = 0.1) {
     let best = null;
     for (const s of this.solids) {
-      if (s.top > maxY || s.top < (best?.top ?? -Infinity) || !s.near(x, z, margin)) continue;
+      if (s.off || s.top > maxY || s.top < (best?.top ?? -Infinity) || !s.near(x, z, margin)) continue;
       if (s.closest(x, z).d <= margin) best = s;
     }
     return best;
@@ -145,7 +167,7 @@ export class World {
     let hit = null;
     for (let pass = 0; pass < 2; pass++) {
       for (const s of this.solids) {
-        if (s.top <= stepTop || s.bottom >= headY || !s.near(pos.x, pos.z, radius)) continue;
+        if (s.off || s.top <= stepTop || s.bottom >= headY || !s.near(pos.x, pos.z, radius)) continue;
         const c = s.closest(pos.x, pos.z);
         if (c.d >= radius) continue;
         pos.x += c.nx * (radius - c.d);
@@ -180,6 +202,13 @@ export class World {
     return { dir: dir.normalize(), side, theta: mix('theta'), pitch: mix('pitch'), distance: mix('distance') };
   }
 
+  // The icy patch (ice.js) at (x, z) on a rock top at height y, or null; icy() just says whether there is one.
+  iceAt(x, z, y) {
+    return this.ice.find(patch => Math.abs(patch.y - y) < 0.06 && patch.outline.closest(x, z).d <= patch.reach) ?? null;
+  }
+
+  icy(x, z, y) { return !!this.iceAt(x, z, y); }
+
   zonesAt(kind, x, z) {
     let value = 0;
     for (const zone of this.zones) {
@@ -193,7 +222,17 @@ export class World {
   // ------------------------------------------------------------------ building
 
   // A rock pillar: w by d with chamfered corners, turned by rot degrees, its top at y.
-  rock({ x, z, w, d, y, rot = 0, depth = 70, chamfer = 0.3, seed }) {
+  rock(options) {
+    const { solid, rand } = this.outline(options);
+    this.solids.push(solid);
+    const mesh = rockMesh(solid, rand);
+    this.group.add(mesh);
+    this.blockers.push(mesh);
+    return solid;
+  }
+
+  // A rock's Solid without a mesh (crumble.js gives loose ledges their own), and the random numbers for its look.
+  outline({ x, z, w, d, y, rot = 0, depth = 70, chamfer = 0.3, seed }) {
     const rand = seed === undefined ? this.rand : random(seed);
     const c = Math.cos(THREE.MathUtils.degToRad(rot)), s = Math.sin(THREE.MathUtils.degToRad(rot));
     const hw = w / 2, hd = d / 2, ch = Math.min(chamfer, hw * 0.6, hd * 0.6);
@@ -207,12 +246,7 @@ export class World {
       poly.push([px + toPrev[0], pz + toPrev[1]], [px + toNext[0], pz + toNext[1]]);
     }
     const pts = poly.map(([px, pz]) => ({ x: x + px * c + pz * s, z: z - px * s + pz * c }));
-    const solid = new Solid(pts, y, y - depth);
-    this.solids.push(solid);
-    const mesh = rockMesh(solid, rand);
-    this.group.add(mesh);
-    this.blockers.push(mesh);
-    return solid;
+    return { solid: new Solid(pts, y, y - depth), rand };
   }
 
   // A board walk: wide enough to walk on without balancing. Its top is a flat solid from a to b.

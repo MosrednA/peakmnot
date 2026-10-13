@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RAMPS } from './look.js';
 
-const ONE_SHOTS = new Set(['JumpStart', 'LeapStart', 'Land', 'LeapLand', 'LandHard']);
+const ONE_SHOTS = new Set(['JumpStart', 'LeapStart', 'Land', 'LeapLand', 'LandHard', 'PushGlasses', 'LookUp', 'TapFoot']);
 const GAITS = new Set(['Walk', 'Run']);
 
 export const RIG_DEFAULTS = { walk_speed: 0.625, run_speed: 2.08, jump_takeoff: 0.12, leap_takeoff: 0.12,

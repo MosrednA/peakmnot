@@ -1,0 +1,77 @@
+/* The title screen (title.js): the logo up top, the menu and a rotating tip at the bottom, Mnot in between. Same
+   look as the HUD: cream cards with an ink outline, Fredoka, the ink stroke of the toon lines. */
+#title-screen { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between;
+  align-items: center; padding: 5.5vh 16px 2.4vh; box-sizing: border-box; pointer-events: none; }
+#title-screen[hidden] { display: none; }
+#title-screen button, #title-screen .ts-howto { pointer-events: auto; }
+#title-screen.leaving .ts-top { animation: ts-out-up 0.5s ease-in both; }
+#title-screen.leaving .ts-bottom, #title-screen.leaving .ts-howto { animation: ts-out-down 0.45s ease-in both; }
+@keyframes ts-out-up { to { transform: translateY(-40px); opacity: 0; } }
+@keyframes ts-out-down { to { transform: translateY(40px); opacity: 0; } }
+
+#title-screen.leaving button { pointer-events: none; }
+
+/* the HUD waits until the climb starts, then fades in as the title leaves (filter, so each part keeps its opacity) */
+body.title-up #hud > :not(#title-screen) { visibility: hidden; }
+body.title-out #hud > :not(#title-screen) { animation: ts-hud-in 0.5s 0.12s ease-out backwards; }
+@keyframes ts-hud-in { from { filter: opacity(0); } to { filter: opacity(1); } }
+
+.ts-top { display: flex; flex-direction: column; align-items: center; animation: ts-drop 0.9s 0.1s
+  cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+@keyframes ts-drop { from { transform: translateY(-60px) scale(0.85); opacity: 0; } 50% { opacity: 1; } }
+
+/* PEAK MNOT: chunky red letters with an ink stroke, snow on top, each bobbing a little after the one before */
+.ts-logo { margin: 0; display: flex; gap: 0.02em; font: 700 clamp(56px, 11vw, 124px)/1 Fredoka, sans-serif;
+  letter-spacing: 0.01em; white-space: nowrap; }
+.ts-logo .gap { width: 0.32em; }
+.ts-logo .l { position: relative; display: inline-block; color: var(--red);
+  -webkit-text-stroke: 0.13em var(--ink); paint-order: stroke fill; text-shadow: 0 0.075em 0 var(--ink);
+  animation: ts-bob 2.6s calc(var(--i) * 0.11s) ease-in-out infinite; }
+.ts-logo .l::after { content: attr(data-l); position: absolute; left: 0; top: 0; color: #fff;
+  -webkit-text-stroke: 0.13em var(--ink); paint-order: stroke fill;
+  clip-path: polygon(0 0, 100% 0, 100% 31%, 86% 36%, 74% 31%, 60% 39%, 46% 33%, 30% 37%, 16% 32%, 0 36%); }
+.ts-logo .l:nth-child(odd)::after { clip-path: polygon(0 0, 100% 0, 100% 34%, 82% 30%, 68% 38%, 52% 31%, 38% 36%,
+  22% 31%, 10% 37%, 0 32%); }
+@keyframes ts-bob { 0%, 100% { transform: translateY(0) rotate(0); } 45% { transform: translateY(-0.07em)
+  rotate(-1.5deg); } 70% { transform: translateY(0.015em) rotate(0.8deg); } }
+
+.ts-bottom { display: flex; flex-direction: column; align-items: center; gap: 9px; max-width: 100%;
+  animation: ts-rise 0.7s 0.35s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes ts-rise { from { transform: translateY(50px); opacity: 0; } }
+.ts-menu { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.ts-menu button { font: 600 15px Fredoka, sans-serif; color: var(--ink); padding: 8px 16px; cursor: pointer; }
+.ts-menu button:hover { transform: translateY(1px); box-shadow: 0 2px 0 var(--ink); }
+.ts-menu button:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+.ts-menu .ts-start { padding: 9px 26px; font-size: 21px; font-weight: 700; color: #fff; background: var(--red);
+  -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; animation: ts-nudge 2.2s 1.4s ease-in-out infinite; }
+@keyframes ts-nudge { 0%, 80%, 100% { transform: none; } 86% { transform: scale(1.06) rotate(-2deg); }
+  93% { transform: scale(1.03) rotate(1.5deg); } }
+#title-sound[aria-pressed="false"] { color: var(--muted); }
+.ts-press { margin: 0; font-size: 15px; font-weight: 600; color: #fff; -webkit-text-stroke: 4px var(--ink);
+  paint-order: stroke fill; animation: ts-blink 1.6s ease-in-out infinite; }
+@keyframes ts-blink { 50% { opacity: 0.45; } }
+.ts-tip { margin: 0; max-width: min(560px, 100%); padding: 5px 14px; box-sizing: border-box; font-size: 13.5px;
+  text-align: center; transition: opacity 0.4s, transform 0.4s; }
+.ts-tip.swap { opacity: 0; transform: translateY(6px); }
+
+/* How to play: everything in one card */
+.ts-howto { position: absolute; left: 50%; bottom: calc(2.4vh + 150px); width: min(430px, calc(100% - 32px));
+  transform: translateX(-50%); padding: 12px 16px 13px; box-sizing: border-box; font-size: 13.5px; }
+.ts-howto[hidden] { display: none; }
+.ts-howto h2 { margin: 0 0 6px; font-size: 17px; color: var(--red); }
+.ts-howto dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0 0 8px; }
+.ts-howto dt { white-space: nowrap; }
+.ts-howto dd { margin: 0; }
+.ts-howto p { margin: 0; color: var(--ink); }
+.ts-howto kbd { display: inline-block; min-width: 10px; padding: 0 5px; margin: 0 1px; border: 1.5px solid var(--ink);
+  border-radius: 5px; box-shadow: 0 1.5px 0 var(--ink); background: #fff; font: 600 11px/16px Fredoka, sans-serif; }
+
+@media (max-width: 560px), (max-height: 520px) {
+  .ts-menu { gap: 7px; }
+  .ts-menu button { font-size: 13px; padding: 6px 11px; }
+  .ts-menu .ts-start { font-size: 17px; padding: 7px 18px; }
+  .ts-howto { bottom: calc(2.4vh + 170px); font-size: 12.5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ts-logo .l, .ts-menu .ts-start, .ts-press { animation: none; }
+}

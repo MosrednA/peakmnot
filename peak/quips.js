@@ -6,6 +6,15 @@ const LINES = {
   rock: ['Bonk!', 'Klonk!', 'Ow. Aluminium.', 'Rock 1, can 0.'],
   landing: ['Klonk!', 'Oof.', 'That left a mark.'],
   flat: ['Flattened!', 'Recycled!', 'Crushed it. Literally.'],
+  // falls, by what caused them (player.js cause())
+  crumble: ['Not load-bearing. Noted.', 'That ledge was still in beta.', 'Should have read the cracks.',
+    'Loose rock. Looser plan.'],
+  ice: ['Coefficient of friction: no.', 'Shift happens.', 'Ice to meet you.', 'A slippery slope argument.'],
+  gust: ['Gone with the wind.', 'Venturi says hi.', 'Aerodynamics of a can: poor.', 'Should have read the windsock.'],
+  gondola: ['Mind the gap.', 'The gondola waits for no can.', 'Timing: not a strength.', 'Missed the 4:15.'],
+  // a pratfall on the ice (skate.js): no dent, just pride
+  pratfall: ['Newton\'s first law, live.', 'Friction has left the chat.', 'Whoopsie-daisy.',
+    'Nailed the landing. With the back.', 'Momentum: conserved.', 'Ice 1, Mnot 0.'],
 };
 const bags = {};
 

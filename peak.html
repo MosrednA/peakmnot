@@ -2,43 +2,119 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#4aa8f0">
 <title>Peak Mnot</title>
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
 <style>
-  :root { --panel: rgba(18, 32, 48, 0.62); --text: #f4f8fc; --muted: #c4d3e2; --accent: #e23b2e; }
-  html, body { margin: 0; height: 100%; background: #cfe3f5; color: var(--text);
-    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; user-select: none; }
+  /* The HUD looks like the trail's own signs: cream cards with an ink outline, like the toon lines in the scene. */
+  :root { --ink: #2b3352; --card: #fff7e8; --muted: #6b6f86; --red: #e23b2e; --teal: #22a98f; --gold: #ffc23d;
+    --sky: #4aa8f0; --coral: #ff6a55; }
+  html, body { margin: 0; height: 100%; background: #cfe3f5; color: var(--ink);
+    font: 500 14px/1.35 Fredoka, system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; user-select: none; }
   canvas { display: block; touch-action: none; }
   #hud { position: fixed; inset: 0; pointer-events: none; }
-  #title { position: absolute; top: 12px; left: 16px; padding: 6px 12px; border-radius: 9px; background: var(--panel); }
-  #title b { font-size: 17px; letter-spacing: 0.02em; }
-  #title span { color: var(--muted); font-size: 12px; }
+  .card { background: var(--card); border: 2.5px solid var(--ink); border-radius: 14px; box-shadow: 0 3px 0 var(--ink); }
+  #title { position: absolute; top: 12px; left: 14px; padding: 5px 12px 6px; }
+  #title b { display: block; font-size: 19px; font-weight: 700; letter-spacing: 0.01em; color: var(--red);
+    text-shadow: 0 1.5px 0 #ffd9c2; }
+  #stats { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  #stats .time::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 5px;
+    border: 2px solid var(--ink); border-radius: 50%; vertical-align: -1px;
+    background: linear-gradient(var(--ink), var(--ink)) 3.5px 1px / 2px 4px no-repeat; }
+  #stats .dents { display: flex; gap: 3px; }
+  #stats .can { width: 12px; height: 18px; border: 2px solid var(--ink); border-radius: 3px 3px 4px 4px;
+    box-sizing: border-box; background: linear-gradient(#cfd6e4 0 3px, var(--red) 3px); transition: transform 0.25s; }
+  #stats .can.dented { background: linear-gradient(#a9aec0 0 3px, #8d6f78 3px); transform: rotate(-9deg) scaleY(0.8);
+    clip-path: polygon(0 0, 100% 0, 100% 42%, 62% 55%, 100% 68%, 100% 100%, 0 100%, 0 60%, 30% 48%, 0 36%); }
+  #stats .falls::before { content: "↓"; margin-right: 3px; color: var(--sky); font-weight: 700; }
   #help { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
-    padding: 5px 12px; border-radius: 9px; background: var(--panel); color: var(--muted); font-size: 12px;
-    text-align: center; }
-  #toast { position: absolute; top: 22%; left: 0; right: 0; text-align: center; font-size: 28px; font-weight: 700;
-    letter-spacing: 0.04em; opacity: 0; transition: opacity 0.4s;
-    text-shadow: 0 2px 8px rgba(0, 30, 60, 0.6), 0 0 2px rgba(0, 30, 60, 0.8); }
-  #toast small { display: block; font-size: 15px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
-  #balance { position: absolute; left: 50%; bottom: 64px; width: 220px; height: 14px; margin-left: -110px;
-    border-radius: 7px; background: var(--panel); opacity: 0; transition: opacity 0.25s; }
-  #balance::before { content: ""; position: absolute; left: 30%; right: 30%; top: 3px; bottom: 3px; border-radius: 4px;
-    background: rgba(140, 220, 160, 0.35); }
-  #balance i { position: absolute; top: -3px; width: 6px; height: 20px; margin-left: -3px; left: 50%; border-radius: 3px;
-    background: #fff; box-shadow: 0 0 6px rgba(0, 0, 0, 0.35); }
+    padding: 4px 12px; border-radius: 12px; background: rgba(255, 247, 232, 0.82); color: var(--muted);
+    font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #help kbd { display: inline-block; min-width: 10px; padding: 0 5px; margin: 0 1px; border: 1.5px solid var(--ink);
+    border-radius: 5px; box-shadow: 0 1.5px 0 var(--ink); background: #fff; color: var(--ink); font: 600 11px/16px Fredoka, sans-serif; }
+  #toast { position: absolute; top: 20%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center;
+    gap: 6px; opacity: 0; transition: opacity 0.35s; }
+  #toast b { font-size: 40px; font-weight: 700; line-height: 1.05; letter-spacing: 0.01em; color: #fff;
+    -webkit-text-stroke: 7px var(--ink); paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); }
+  #toast small { padding: 3px 14px; font-size: 16px; font-weight: 600; }
+  #toast.checkpoint b { color: #7ff0c8; }
+  #toast.summit b { font-size: 58px; color: var(--gold); }
+  #toast.tip b { color: #9fdcff; }
+  #toast.oops b { color: #ffb3a4; }
+  #toast.show b { animation: pop 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+  #toast.show small { animation: pop 0.55s 0.08s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+  #toast.oops.show b { animation: wobble 0.6s ease-out both; }
+  @keyframes pop { from { transform: scale(0.4) rotate(-6deg); opacity: 0; } 60% { opacity: 1; } to { transform: none; } }
+  @keyframes wobble { 0% { transform: scale(0.5); opacity: 0; } 30% { transform: scale(1.12) rotate(4deg); opacity: 1; }
+    55% { transform: rotate(-3deg); } 80% { transform: rotate(1.5deg); } 100% { transform: none; } }
+  #balance { position: absolute; left: 50%; bottom: 58px; width: 260px; height: 18px; margin-left: -130px;
+    box-sizing: border-box; border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink);
+    border-radius: 12px; opacity: 0; transition: opacity 0.25s;
+    background: linear-gradient(90deg, var(--coral), var(--gold) 24%, #8fe0a4 40%, #8fe0a4 60%, var(--gold) 76%, var(--coral)); }
+  #balance::before, #balance::after { position: absolute; top: -3px; font: 700 13px/18px Fredoka, sans-serif; color: var(--ink); }
+  #balance::before { content: "◀"; left: -20px; }
+  #balance::after { content: "▶"; right: -20px; }
+  #balance i { position: absolute; top: -8px; width: 14px; height: 26px; margin-left: -7px; left: 50%; box-sizing: border-box;
+    border: 2.5px solid var(--ink); border-radius: 4px 4px 5px 5px; background: linear-gradient(#e7ebf3 0 5px, var(--red) 5px);
+    box-shadow: 0 2px 0 var(--ink); }
   #fade { position: absolute; inset: 0; background: #f2f7fc; opacity: 0; transition: opacity 0.35s; }
-  #sound { position: absolute; top: 12px; right: 16px; pointer-events: auto; font: inherit; color: var(--text);
-    background: var(--panel); border: 0; padding: 7px 12px; border-radius: 9px; cursor: pointer; }
+  #sound { position: absolute; top: 12px; right: 14px; pointer-events: auto; font: 600 13px Fredoka, sans-serif;
+    color: var(--ink); padding: 6px 12px 6px 10px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  #sound::before { content: ""; width: 16px; height: 14px; background: var(--ink);
+    -webkit-mask: var(--speaker) center / contain no-repeat; mask: var(--speaker) center / contain no-repeat; }
+  #sound { --speaker: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 14'%3E%3Cpath d='M1 4.5h3L8 1v12L4 9.5H1z'/%3E%3Cpath d='M10.5 4a4 4 0 0 1 0 6M12.5 2a7 7 0 0 1 0 10' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"); }
+  #sound[aria-pressed="false"] { color: var(--muted); --speaker: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 14'%3E%3Cpath d='M1 4.5h3L8 1v12L4 9.5H1z'/%3E%3Cpath d='M10.5 4.5l4 5M14.5 4.5l-4 5' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"); }
+  #sound:hover { transform: translateY(1px); box-shadow: 0 2px 0 var(--ink); }
+  @media (max-width: 560px) { #help { font-size: 11px; } #toast b { font-size: 30px; } #toast.summit b { font-size: 42px; } }
 </style>
+<link rel="stylesheet" href="peak/title.css">
+<link rel="stylesheet" href="peak/scores.css">
+<link rel="stylesheet" href="peak/touch.css">
 </head>
 <body>
 <div id="hud">
-  <div id="title"><b>Peak Mnot</b><br><span id="stats">loading…</span></div>
+  <div id="title" class="card"><b>Peak Mnot</b><div id="stats">loading…</div></div>
   <div id="toast"></div>
   <div id="balance"><i></i></div>
   <div id="fade"></div>
-  <div id="help">WASD to move · Shift for careful steps · Space to jump · drag to look around · M to mute</div>
-  <button id="sound" aria-pressed="true">Sound on</button>
+  <div id="help"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move · <kbd>Shift</kbd> careful steps ·
+    <kbd>Space</kbd> jump · drag to look around · <kbd>M</kbd> mute</div>
+  <button id="sound" class="card" aria-pressed="true">Sound on</button>
+  <div id="scores-hud"></div>
+  <div id="title-screen" hidden>
+    <div class="ts-top">
+      <h1 class="ts-logo">Peak Mnot</h1>
+    </div>
+    <div class="ts-howto card" id="title-howto" hidden>
+      <h2>How to play</h2>
+      <dl>
+        <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows</dt><dd>move; right always means onwards</dd>
+        <dt><kbd>Space</kbd></dt><dd>jump; a running jump clears about a metre</dd>
+        <dt><kbd>Shift</kbd></dt><dd>careful steps: stop at an edge, grip on ice</dd>
+        <dt><kbd>A</kbd> <kbd>D</kbd> on a plank or rope</dt><dd>lean against the wobble</dd>
+        <dt>drag, wheel, <kbd>M</kbd></dt><dd>look around, zoom, sound</dd>
+      </dl>
+      <p>Climb from base camp to the summit, fast: every fall or falling rock dents the can and the fourth dent
+        flattens it, each checkpoint flag pops the dents back out, loose ledges crumble, ice slides and wind gaps blow
+        on a beat, so look before you leap.</p>
+    </div>
+    <div class="ts-bottom">
+      <div class="ts-menu">
+        <button type="button" class="card ts-start" id="title-start">Start climbing</button>
+        <button type="button" class="card" id="hall-of-fame">Hall of Fame</button>
+        <button type="button" class="card" id="title-help" aria-expanded="false" aria-controls="title-howto">How to play</button>
+        <button type="button" class="card" id="title-sound" aria-pressed="true">Sound on</button>
+      </div>
+      <p class="ts-press">Press any key to start</p>
+      <p class="ts-tip card" id="title-tip" aria-live="polite"></p>
+    </div>
+  </div>
 </div>
 <script type="importmap">
 { "imports": {

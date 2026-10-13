@@ -1,10 +1,14 @@
 // Wind and snow. The wind has a slowly wandering direction and comes in gusts: calm, a build-up you can see in the
 // streaks and pennants, a blow, and a calm again. Some places are windier (route zones). Snow comes in showers, and
 // always falls near the top.
+// A wind gap ('gust' zone) is different: the wind is funnelled through it in one direction, on a steady beat of
+// lull, build-up, blow and drop that you can learn from its windsock, and it shoves Mnot hard in mid-air (player.js
+// reads wind.jet). world.emit('gust', { at, zone }) when one starts to build up.
 import * as THREE from 'three';
 import { random } from './world.js';
 
 const BASE_WIND = 0.3;   // windiness outside the zones
+const BEAT = { lull: 3.4, rise: 0.8, blow: 1.8, drop: 0.7 };   // a wind gap's beat, in seconds
 
 export class Weather {
   constructor(scene, world, seed = 5) {
@@ -19,6 +23,45 @@ export class Weather {
     this.shower = { on: false, left: 30 };
     this.flakes = new Snow(scene);
     this.streaks = new Streaks(scene);
+    this.gaps = world.zones.filter(z => z.kind === 'gust');
+    for (const zone of this.gaps) {
+      zone.dir = new THREE.Vector3(Math.sin(zone.yaw), 0, Math.cos(zone.yaw));
+      zone.at = new THREE.Vector3(zone.x, zone.y ?? 0, zone.z);
+      zone.beat = { ...BEAT, ...zone.beat };
+      zone.period = zone.beat.lull + zone.beat.rise + zone.beat.blow + zone.beat.drop;
+      zone.rising = false;
+      world.hazards.push({ kind: 'gust', zone, wait: pos => this.holdBack(zone, pos) });
+    }
+  }
+
+  // A wind gap's own gust, 0..1, at time t: lull, build-up, blow, drop.
+  beat(zone, t = this.time) {
+    const b = zone.beat, p = ((t + (zone.offset ?? 0)) % zone.period + zone.period) % zone.period;
+    if (p < b.lull) return 0;
+    if (p < b.lull + b.rise) return THREE.MathUtils.smoothstep(p, b.lull, b.lull + b.rise);
+    if (p < b.lull + b.rise + b.blow) return 1;
+    return 1 - THREE.MathUtils.smoothstep(p, b.lull + b.rise + b.blow, zone.period);
+  }
+
+  // How much of the wind gaps' pull reaches pos (0..1), which one, and its gust there now.
+  gapAt(pos) {
+    let best = null;
+    for (const zone of this.gaps) {
+      if (Math.abs(pos.y - zone.at.y) > 2.5) continue;
+      const d = Math.hypot(pos.x - zone.x, pos.z - zone.z);
+      const reach = 1 - THREE.MathUtils.smoothstep(d, zone.radius * 0.6, zone.radius);
+      if (reach <= 0 || best && reach <= best.reach) continue;
+      best = { zone, reach, jet: reach * zone.strength * this.beat(zone) };
+    }
+    return best;
+  }
+
+  // For bots: before the gap, wait for a lull that lasts long enough to jump through.
+  holdBack(zone, pos) {
+    const rel = new THREE.Vector3(pos.x - zone.x, 0, pos.z - zone.z);
+    if (Math.abs(pos.y - zone.at.y) > 1.2 || rel.length() > zone.radius || rel.dot(zone.dir) < 0.15) return false;
+    for (let k = 0; k <= 1.6; k += 0.2) if (this.beat(zone, this.time + k) > 0.02) return true;
+    return false;
   }
 
   // How hard the wind blows at a point, 0..1.
@@ -27,8 +70,12 @@ export class Weather {
     return THREE.MathUtils.clamp((0.12 + 0.88 * this.gust) * local * 1.25, 0, 1);
   }
 
+  // jet: a wind gap's push (0..1), which shoves Mnot much harder than the strength alone
   windAt(pos) {
-    return { dir: this.dir, strength: this.strengthAt(pos) };
+    const strength = this.strengthAt(pos), gap = this.gaps.length ? this.gapAt(pos) : null;
+    if (!gap) return { dir: this.dir, strength, jet: 0 };
+    const dir = this.dir.clone().lerp(gap.zone.dir, Math.min(1, gap.reach * 1.5)).normalize();
+    return { dir, strength: Math.max(strength, gap.jet), jet: gap.jet };
   }
 
   update(dt, focus, camera) {
@@ -38,12 +85,16 @@ export class Weather {
     this.dir.set(Math.sin(yaw), 0, Math.cos(yaw));
     this.stepGusts(dt);
     this.stepShowers(dt);
+    for (const zone of this.gaps) {
+      const rising = this.beat(zone) > 0 && this.beat(zone, t - dt) === 0;
+      if (rising) this.world.emit('gust', { at: zone.at, zone });
+    }
     const snowZone = this.world.zonesAt('snow', focus.x, focus.z);
     const wantSnow = Math.max(this.shower.on ? 0.8 : 0, snowZone);
     this.snow = THREE.MathUtils.damp(this.snow, wantSnow, 0.6, dt);
-    const strength = this.strengthAt(focus);
-    this.flakes.update(dt, camera.position, this.dir, strength, this.snow);
-    this.streaks.update(dt, focus, this.dir, strength, this.rand);
+    const wind = this.windAt(focus);
+    this.flakes.update(dt, camera.position, wind.dir, wind.strength, this.snow);
+    this.streaks.update(dt, focus, wind.dir, wind.strength, this.rand);
   }
 
   // calm → rising → blowing → falling → calm, each for a random while

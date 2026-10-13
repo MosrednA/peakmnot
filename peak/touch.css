@@ -1,0 +1,83 @@
+/* Touch controls (touch.js): the floating stick, the jump button, the touch hints, and the page holding still under
+   the fingers. The same cream cards and ink outlines as the HUD. Everything here is either scoped to body.touch or
+   only adds the safe-area insets (notches, the home bar), which are 0 on a desktop. */
+
+/* no browser fights: no pull-to-refresh, selection, long-press menus or tap flashes while playing */
+html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+body { -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+#hud { touch-action: none; }
+.sc-panel { touch-action: pan-y; -webkit-user-select: text; }
+
+/* the safe area */
+#title { top: calc(12px + env(safe-area-inset-top)); left: calc(14px + env(safe-area-inset-left)); }
+#sound { top: calc(12px + env(safe-area-inset-top)); right: calc(14px + env(safe-area-inset-right)); }
+#scores-hud { top: calc(56px + env(safe-area-inset-top)); right: calc(14px + env(safe-area-inset-right)); }
+#help { bottom: calc(12px + env(safe-area-inset-bottom)); }
+#balance { bottom: calc(58px + env(safe-area-inset-bottom)); }
+#title-screen { padding: calc(5.5vh + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+  calc(2.4vh + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)); }
+
+/* the layer for the fingers: above the scene, under the HUD; its padding is the safe area, which touch.js reads */
+#touch { position: fixed; inset: 0; box-sizing: border-box; touch-action: none; user-select: none;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+#touch[hidden] { display: none; }
+body.title-up #touch > * { visibility: hidden; }
+
+/* the stick: where the thumb lands; faded at the bottom left while it waits. The dashed ring is the careful zone. */
+.tc-stick { position: absolute; left: 0; top: 0; box-sizing: border-box; border-radius: 50%; pointer-events: none;
+  background: rgba(255, 247, 232, 0.3); border: 2.5px solid rgba(43, 51, 82, 0.6); opacity: 0.5;
+  transition: opacity 0.2s; }
+.tc-stick.held { opacity: 1; background: rgba(255, 247, 232, 0.42); }
+.tc-ring { position: absolute; left: 50%; top: 50%; width: calc(var(--careful) * 100%);
+  height: calc(var(--careful) * 100%); transform: translate(-50%, -50%); box-sizing: border-box; border-radius: 50%;
+  border: 2px dashed rgba(43, 51, 82, 0.4); }
+.tc-knob { position: absolute; left: 27%; top: 27%; width: 46%; height: 46%; box-sizing: border-box;
+  border-radius: 50%; border: 2.5px solid var(--ink); box-shadow: 0 3px 0 var(--ink);
+  background: radial-gradient(circle at 50% 40%, #fff 0 18%, #cfd6e4 19% 52%, #9aa3b8 53% 60%, #e7ebf3 61%); }
+.tc-stick.careful .tc-knob { background: radial-gradient(circle at 50% 40%, #e9fff6 0 18%, var(--teal) 19%); }
+.tc-stick.run .tc-knob { background: radial-gradient(circle at 50% 40%, #ffd9c2 0 18%, var(--red) 19%); }
+
+/* the jump button, in reach of the right thumb; the ring round it counts as the button too */
+.tc-jump { position: absolute; right: calc(22px + env(safe-area-inset-right));
+  bottom: calc(20px + env(safe-area-inset-bottom)); width: clamp(66px, 20vmin, 92px); aspect-ratio: 1;
+  display: grid; place-items: center; box-sizing: border-box; border-radius: 50%; background: var(--red);
+  border: 3px solid var(--ink); box-shadow: 0 4px 0 var(--ink); color: #fff;
+  font: 700 clamp(15px, 4.6vmin, 20px) Fredoka, sans-serif; letter-spacing: 0.02em;
+  -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; opacity: 0.92; }
+.tc-jump::before { content: ""; position: absolute; inset: -16px; border-radius: 50%; }
+.tc-jump.down { transform: translateY(3px) scale(0.96); box-shadow: 0 1px 0 var(--ink); opacity: 1; }
+
+/* the words: touch hints instead of the keys, "Tap to start", How to play */
+body.touch #help, body:not(.touch) #touch-help { display: none; }
+#touch-help { position: absolute; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom));
+  transform: translateX(-50%); max-width: calc(100% - 2 * clamp(128px, 24vmin, 170px)); box-sizing: border-box;
+  padding: 4px 12px; border-radius: 12px; background: rgba(255, 247, 232, 0.82); color: var(--muted);
+  font-size: 12px; text-align: center; transition: opacity 1.2s; }
+#touch-help b { color: var(--ink); font-weight: 600; }
+#touch-help.gone { opacity: 0; }
+body.touch .ts-press:not(.tc-press), body:not(.touch) .tc-press { display: none; }
+body.touch #title-howto dl:not(.tc-howto), body:not(.touch) .tc-howto { display: none; }
+body.touch .ts-howto dt { white-space: normal; font-weight: 600; }
+
+/* the summit card while the on-screen keyboard is up (Safari): in what's left of the screen */
+.sc-panel.tc-kb { top: var(--kb-top); bottom: auto; max-height: var(--kb-height); transform: none; }
+
+/* bigger targets for fingers */
+body.touch .sc-x { padding: 8px 12px; }
+body.touch .sc-send, body.touch .sc-again { padding: 8px 14px; }
+
+/* small landscape phones: a slimmer HUD, so the climb gets the room */
+@media (max-height: 500px) {
+  body.touch #title { padding: 3px 10px 4px; }
+  body.touch #title b { font-size: 15px; }
+  body.touch #stats { font-size: 12px; gap: 9px; }
+  body.touch #sound, body.touch .sc-trophy { padding: 4px 10px 4px 8px; font-size: 12px; }
+  body.touch #scores-hud { top: calc(46px + env(safe-area-inset-top)); }
+  body.touch #balance { bottom: calc(46px + env(safe-area-inset-bottom)); }
+  body.touch #toast { top: 16%; }
+}
+/* portrait: the hints go up under the HUD, clear of the stick and the button */
+@media (max-aspect-ratio: 1/1) {
+  #touch-help { bottom: auto; top: calc(108px + env(safe-area-inset-top)); max-width: calc(100% - 32px); }
+  body.touch #balance { bottom: calc(clamp(66px, 20vmin, 92px) + 44px + env(safe-area-inset-bottom)); }
+}

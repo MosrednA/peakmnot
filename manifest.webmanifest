@@ -1,0 +1,12 @@
+{
+  "name": "Peak Mnot",
+  "short_name": "Peak Mnot",
+  "description": "Climb a mountain as Mnot, the soda can with big glasses.",
+  "start_url": "peak.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#cfe3f5",
+  "theme_color": "#4aa8f0",
+  "icons": [{ "src": "favicon.png", "sizes": "128x128", "type": "image/png", "purpose": "any" }]
+}

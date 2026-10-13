@@ -1,9 +1,11 @@
 // Rockfall: inside a 'rockfall' zone (route.js) rocks drop from the cliff now and then. A shadow on the ground
-// warns where one will land, growing and darkening until it hits, which leaves time to dodge; a hit dents the can
-// and bonks Mnot aside. Rocks that miss bounce, roll off down the slope and shrink away.
+// warns where one will land, growing and darkening until it hits, while pebbles and grit trickle down onto the spot
+// from above, which leaves time to dodge; a hit dents the can and bonks Mnot aside. The rock lands in a burst of
+// snow and stone chips (bursts.js), then bounces, rolls off down the slope and shrinks away.
 import * as THREE from 'three';
 import { toon, noOutline } from './look.js';
 import { random } from './world.js';
+import { bursts } from './bursts.js';
 
 const WARNING = 1.2;          // seconds from the shadow appearing to the hit
 const DROP = 6.5;             // metres a rock falls in that time
@@ -14,8 +16,6 @@ const AIMED = 0.55;           // the share of rocks dropped where Mnot is headin
 
 const ROCK_GEOMETRY = new THREE.DodecahedronGeometry(0.25, 0);
 const SHADOW_GEOMETRY = new THREE.CircleGeometry(HIT_RADIUS, 24).rotateX(-Math.PI / 2);
-const RING_GEOMETRY = new THREE.RingGeometry(HIT_RADIUS - 0.05, HIT_RADIUS, 32).rotateX(-Math.PI / 2);
-const PUFF_GEOMETRY = new THREE.RingGeometry(0.3, 0.5, 24).rotateX(-Math.PI / 2);
 
 export class Rockfall {
   constructor(scene, world, { player, game }) {
@@ -66,14 +66,11 @@ export class Rockfall {
     mesh.scale.setScalar(size);
     const shadow = new THREE.Mesh(SHADOW_GEOMETRY, noOutline(new THREE.MeshBasicMaterial({
       color: '#1d2238', transparent: true, opacity: 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })));
-    shadow.position.copy(target).y += 0.02;
-    // the ring shows the whole danger zone at once; the shadow inside grows and darkens
-    shadow.add(new THREE.Mesh(RING_GEOMETRY, noOutline(new THREE.MeshBasicMaterial({
-      color: '#1d2238', transparent: true, opacity: 0.55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }))));
+    shadow.position.copy(target).y += 0.06;           // over the snow pillow on the rock's top
     this.scene.add(mesh, shadow);
     const spin = new THREE.Vector3(this.rand() - 0.5, this.rand() - 0.5, this.rand() - 0.5).normalize();
     this.rocks.push({ mesh, shadow, target, spin, size, t: 0, landed: false, pos: target.clone().setY(target.y + DROP),
-      vel: new THREE.Vector3(), vy: 0, puff: null });
+      vel: new THREE.Vector3(), vy: 0, trickle: 0 });
   }
 
   fly(rock, dt) {
@@ -83,10 +80,14 @@ export class Rockfall {
     if (!rock.landed) {
       const k = Math.min(1, rock.t / WARNING);
       rock.pos.y = rock.target.y + DROP - 0.5 * GRAVITY * rock.t ** 2;
-      shadow.material.opacity = 0.15 + 0.55 * k * k;
-      const ring = shadow.children[0];
-      shadow.scale.setScalar(0.3 + 0.7 * k);
-      ring.scale.setScalar(1 / shadow.scale.x);
+      shadow.material.opacity = 0.32 + 0.48 * k * k;
+      shadow.scale.setScalar(0.5 + 0.5 * k);
+      // pebbles and grit trickle down onto the spot, quicker as the rock comes; the first ones at once
+      rock.trickle -= dt;
+      if (rock.trickle <= 0 && k < 0.85) {
+        bursts(this.world).trickle(rock.target, HIT_RADIUS * 0.9, { pebble: this.rand() < 0.6 });
+        rock.trickle = 0.16 - 0.1 * k;
+      }
       if (rock.t >= WARNING) this.land(rock);
     } else {
       // bounce and roll off down the slope
@@ -100,11 +101,6 @@ export class Rockfall {
       }
       const fade = THREE.MathUtils.clamp((rock.t - WARNING - 1.2) / 0.5, 0, 1);
       mesh.scale.setScalar(rock.size * (1 - fade));
-      if (rock.puff) {
-        const k = (rock.t - WARNING) / 0.4;
-        rock.puff.scale.setScalar(0.6 + 1.6 * k);
-        rock.puff.material.opacity = Math.max(0, 0.8 * (1 - k));
-      }
       if (fade >= 1 || rock.pos.y < rock.target.y - 15) this.remove(rock);
     }
     mesh.position.copy(rock.pos).y += 0.2 * (rock.landed ? 0 : 1);
@@ -115,7 +111,6 @@ export class Rockfall {
     rock.pos.y = rock.target.y + 0.2;
     this.scene.remove(rock.shadow);
     rock.shadow.material.dispose();
-    rock.shadow.children[0].material.dispose();
     const p = this.player;
     const away = new THREE.Vector3(p.pos.x - rock.target.x, 0, p.pos.z - rock.target.z);
     const hit = p.mode !== 'out' && away.length() < HIT_RADIUS && p.pos.y > rock.target.y - 0.5 && p.pos.y < rock.target.y + 1.4;
@@ -127,17 +122,14 @@ export class Rockfall {
     // off it goes, down the slope (the steps climb towards +z), a little sideways
     rock.vel.set((this.rand() - 0.5) * 1.2, 0, -1.6 - this.rand());
     rock.vy = 2.6;
-    const puff = new THREE.Mesh(PUFF_GEOMETRY, noOutline(new THREE.MeshBasicMaterial({
-      color: '#ffffff', transparent: true, opacity: 0.8, depthWrite: false })));
-    puff.position.copy(rock.target).y += 0.04;
-    this.scene.add(puff);
-    rock.puff = puff;
+    const spray = bursts(this.world);
+    spray.snow(rock.target, { puffs: 8, flakes: 10, spread: 0.6, grit: 0.4 });
+    spray.chips(rock.target, { count: 5 });
     for (const fn of this.listeners) fn({ hit, at: rock.target });
   }
 
   remove(rock) {
     rock.gone = true;
     this.scene.remove(rock.mesh);
-    if (rock.puff) { this.scene.remove(rock.puff); rock.puff.material.dispose(); }
   }
 }
