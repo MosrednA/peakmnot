@@ -73,6 +73,7 @@ line that adds a new page.
 | Path | What |
 |---|---|
 | [`peak.html`, `peak/`](peak/README.md) | The game: about fifty small ES modules for the route, the physics, the camera, the look, the props and the HUD |
+| [`downhill.html`, `peak/downhill/`](peak/downhill/README.md) | The second mini game, a prototype in the same world: Mnot down the mountain on a very expensive office chair |
 | [`server/`](server/) | The high-score server: Python's standard library and SQLite, and it checks every climb before it counts |
 | [`models/`](models/README.md) | Mnot: the model, the rig and fourteen animation clips, built from code in Blender |
 | `index.html` | The animation viewer |

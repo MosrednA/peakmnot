@@ -1,6 +1,8 @@
 # Performance
 
 What the climb costs to draw, how to measure it on any computer, what the first pass found, and what's left to try.
+The office-chair downhill came later, on the same look; [The downhill](#the-downhill) says what it took over and what
+its own pass found.
 
 ## Measuring
 
@@ -172,6 +174,37 @@ quality's top step, with 4× MSAA.
 - **Full retina would fit.** At pixel ratio 2 a frame takes 13.8 ms, under the 16.7 ms of a 60 Hz screen. But the
   adaptive quality starts at 1.5 (`RATIOS` in `look/post.js`), so the game never tries 2.
 
+## The downhill
+
+The downhill (`downhill.html`, [`peak/downhill/`](../peak/downhill/README.md)) is built on the climb's look, so it
+starts with what paid off above: the rock shader that skips what can't be seen, the sky after the solid things, the
+scene buffer without its depth copied out, the adaptive pixel ratio and the warm-up behind the preloader. Of the
+loading it has the same: in the production build it's its own page with its own bundle (`downhill-*.js`, about
+36 KiB gzipped), it loads only its own sounds (of the climb's effects only the wave, `MnotSounds({ effects })`), its
+effects are AAC `.m4a` like the climb's (31 files, 1.28 MB of WAV to 236 KB), and its music waits for the first frame
+and the sound's unlock.
+
+Measured in October 2026 on the desktop GPU, in `downhill.html?manual` with the autopilot riding, a 1551×1441 canvas
+at pixel ratio 2, at eleven spots from the gate to the finish:
+
+- **It's light.** A frame with the GPU waited for takes 2.2–3.9 ms; `render()` 1.1–3.1 ms of JS for 172–650 draw
+  calls and 0.45–1.05 million triangles, both the most near the top, where most of the run is in view. As on the climb, the
+  JS is the cost on a desktop GPU.
+- **Two shaders were still built on the way down**, though the warm-up drew every shader once. Both are fixed in the
+  warm-up (`main.js`):
+  - a painted prop far down the run, 82 s into the ride. `obstacles.update` hides whatever is more than 230 m ahead, so the
+    warm-up never drew it. The warm-up now shows everything that's hidden, for its one frame (but no light: one more
+    light would build every shader again);
+  - a banner's shadow, 4 s in. three.js draws every shadow with one depth material, and builds that one's shader again
+    only when the kind of mesh changes (Mnot's skinned can, the instanced ones), from whichever mesh comes first after
+    the change. A painted mesh there (a banner, a sign) wants a shader of its own, so which shaders a frame needs
+    depends on what the sun's shadow camera sees. The painted things that cast a shadow now get a depth material of
+    their own, and the shared one only ever sees plain ones. The picture is the same, pixel for pixel, at four spots
+    with and without it.
+
+  After that, nothing was built in a whole ride, the finish party, a second ride, a respawn, and 19 crashes with 10
+  lost casters.
+
 ## Not done yet
 
 In rough order of what they'd give, and what they'd cost:
@@ -194,6 +227,10 @@ In rough order of what they'd give, and what they'd cost:
   of frames well inside the budget.
 - **Phones** haven't been measured on real hardware yet: `?perf` on a phone will tell. Phones start at ratio 1 and
   get a smaller shadow map (`post.js`).
+- **The downhill's draw calls**: up to 650 at the top, more than the climb's most. Its obstacles, pines and props
+  that share a material could be merged, as the climb's could. `?perf` doesn't measure the downhill yet.
+- **The climb's shadows** draw with the same shared depth material. Its warm-up built everything in play when it was
+  measured, but its painted props could get a depth material of their own too, to be sure.
 
 ## Checking a change
 
@@ -201,14 +238,14 @@ In rough order of what they'd give, and what they'd cost:
 
    ```bash
    git archive HEAD | tar -x -C ../peak-before
-   python -m http.server 5294 --directory ../peak-before
+   python -m http.server 5298 --directory ../peak-before
    ```
 
    Make the `../peak-before` folder first.
 2. Time both ABBA: old, new, new, old. Use the same size and GPU each time, and keep the `--out` files.
 
    ```bash
-   node tools/perf.mjs --igpu --size 1512x945 --dpr 2 --url http://127.0.0.1:5294/ --out a1.json
+   node tools/perf.mjs --igpu --size 1512x945 --dpr 2 --url http://127.0.0.1:5298/ --out a1.json
    node tools/perf.mjs --igpu --size 1512x945 --dpr 2 --out b1.json
    ```
 

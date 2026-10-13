@@ -1,7 +1,10 @@
 # Making a level
 
 How the climb is put together, and how to change a stretch or build a new one. It's written for people and for agents
-alike; the [`level-designer`](../.claude/agents/level-designer.md) agent works from it.
+alike; the [`level-designer`](../.claude/agents/level-designer.md) agent works from it. The downhill, the second mini
+game, is built differently (a piste along a centreline, an office chair's physics): its
+[README](../peak/downhill/README.md) covers it, and [the team](agents.md#the-mini-games) says what every mini game
+shares.
 
 ## The idea
 

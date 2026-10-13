@@ -36,6 +36,54 @@ The areas overlap at the edges. `route.js` is shared between the level designer 
 (the props). `peak/main.js` and `peak.html` take one-line hooks from anyone. Each file's first comment says what
 it does, and [peak/README.md](../peak/README.md) has the full module table.
 
+## The mini games
+
+Peak Mnot is growing into a handful of mini games in one world. Each has its own page and its own folder, and they
+share the mountain, the look, Mnot and the furniture round the game.
+
+| Game | Page | Folder | |
+|---|---|---|---|
+| The climb | `peak.html` | `peak/` (the shared modules live here too) | Live |
+| The downhill, on an office chair | `downhill.html` | [`peak/downhill/`](../peak/downhill/README.md) | A prototype, local only |
+
+**Same style and vibe, another game.** Every mini game:
+
+- **Is set in the same world**: the same range above the sea of clouds, the same late-morning light, painted rock
+  and snow, toon shading with ink outlines. `peak/look/` is shared, not copied.
+- **Stars the same Mnot**: the model and the clips from `models/mnot.glb`, with the game's own poses on top in its own
+  module. The glasses are the face.
+- **Wears the same HUD**: cream cards with an ink outline, the Fredoka font, the palette, toasts that pop. It has a
+  title screen, a finish card and a Hall of Fame (`peak/scores/leaderboard.js`, in the game's own words), with house
+  records so a fresh board isn't empty.
+- **Sounds like family**: the same sound switch, and music that is a variant of "Pocket Altitude".
+- **Has one premise and lives it.** The climb is the nerds digging far too deep into a detail. The downhill is a
+  €1,649 ergonomic office chair on a mountain, so knock-off chairs are the bowling pins, the signs talk chair
+  ("Ergonomically certified for 0 km/h.") and an office waits at the bottom. Every prop, sign, toast and tip comes out of the game's premise.
+- **Jokes the same way**: short, dry, nerdy and true to the podcast; never grim.
+
+**Shared modules.** A game imports what the others have and keeps its own logic in its own folder. When it needs a
+shared module to do more, it adds an option or an export and leaves the other games exactly as they were: their
+checks must still pass. Say so on the board.
+
+**Who owns what in each game.** The specialists' areas carry over from game to game. In the downhill:
+
+| Agent | Its files in `peak/downhill/` |
+|---|---|
+| `level-designer` | `track.js` (the piste and its features), `ride.js` (the physics), where things stand in `obstacles.js`, `bowling.js`, `bonus.js`, `autopilot.js` |
+| `art-director` | `chair.js`, `office.js`, the props' looks in `obstacles.js` (signs, banners, snowmen), `marks.js`, `camera.js`, and the title's shot and props (`title.js`) |
+| `look-dev` | The scene and the light in `main.js`, the snow's materials in `track.js`, the CSS of `downhill.html` |
+| `animator` | `rider.js` (Mnot on the chair), `party.js` (the finish party) |
+| `score-keeper` | `record.js`, `scores.js`, `routedata.js`, and the downhill's side of `server/` |
+| `mobile` | The touch controls in `main.js` |
+| Codex | `sfx.js`, `music.js`, `audio/downhill/`, `audio/music/peak-downhill*` |
+
+**A new mini game** gets a page next to `peak.html`, a folder `peak/<game>/` with a README like the downhill's (the
+rules, the modules, who owns what, how to test), a `?manual` mode that steps the game from the console, a test bot
+that plays it through, and its own port in `.claude/launch.json` while it's being made. Its high scores get a board
+of their own on the score server, under `/api/<game>/`.
+
+A brief for a specialist names the game. Without one, they ask, or check every game the change touches.
+
 ## How they work together
 
 - **The house rules** ([AGENTS.md](../AGENTS.md)). Look first (`git status`, `git log`, the board). Patch shared
@@ -90,13 +138,14 @@ Every specialist runs the checks for its area. Before a commit, all of these pas
 | Check | How |
 |---|---|
 | The whole climb | `bots.climb` in `peak.html?manual` reaches the summit ([peak/README.md](../peak/README.md#tuning-with-the-bots)) |
+| The whole downhill | `downhill.autopilot(true)` in `downhill.html?manual` reaches the finish ([peak/downhill/README.md](../peak/downhill/README.md#testing)) |
 | The score server | `python -m unittest discover server` |
 | The analytics events | `node --test tools/check_analytics.mjs` |
 | The replay motion | `node --test tools/check_replay_playback.mjs`: samples, strides, turns, clip blends and deterministic seeks |
 | The replay controls | `tools/check_replays.js` with `python tools/replay_test_server.py` on 5291: watch, ghost race, scrubbing and moving ledges |
 | The animation viewer | `tools/check_controls.js`, deterministic Playwright checks on `index.html` |
 | The gondola | `tools/check_gondola.js`: carried at the pallet's own speed, whatever the frame times |
-| The console | No errors in the browser console, on the title screen and while climbing |
+| The console | No errors in the browser console, on the title screen and while playing, in every game the change touches |
 | The docs | The folder's README is updated for what changed |
 | The production build | `npm run build` (after `npm ci` once) finishes, and the built page runs without console errors ([README.md](../README.md#run-it-yourself)) |
 
