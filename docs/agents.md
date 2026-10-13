@@ -92,6 +92,8 @@ Every specialist runs the checks for its area. Before a commit, all of these pas
 | The whole climb | `bots.climb` in `peak.html?manual` reaches the summit ([peak/README.md](../peak/README.md#tuning-with-the-bots)) |
 | The score server | `python -m unittest discover server` |
 | The analytics events | `node --test tools/check_analytics.mjs` |
+| The replay motion | `node --test tools/check_replay_playback.mjs`: samples, strides, turns, clip blends and deterministic seeks |
+| The replay controls | `tools/check_replays.js` with `python tools/replay_test_server.py` on 5291: watch, ghost race, scrubbing and moving ledges |
 | The animation viewer | `tools/check_controls.js`, deterministic Playwright checks on `index.html` |
 | The gondola | `tools/check_gondola.js`: carried at the pallet's own speed, whatever the frame times |
 | The console | No errors in the browser console, on the title screen and while climbing |

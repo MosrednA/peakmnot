@@ -66,6 +66,28 @@ async (page) => {
       && !!watchId && await page.locator('.replay-chip').innerText().then(text => text.includes('Demo climb')),
     { watchId, ...watchLoad });
 
+    const poseSeek = await page.evaluate(() => {
+      const a = window.peak.replays.actor, bones = [];
+      a.model.traverse(bone => { if (bone.isBone) bones.push(bone); });
+      const beam = a.replay.samples.find(s => s[7] === 2);
+      if (!beam) throw new Error('No beam in the replay fixture.');
+      const time = beam[0] / 1000 + 0.3;
+      a.seek(time);
+      const expected = bones.map(bone => bone.quaternion.toArray());
+      let error = 0;
+      for (const seek of [time, time, 0, a.duration, time, time]) {
+        a.seek(seek);
+        if (seek !== time) continue;
+        bones.forEach((bone, i) => {
+          const actual = bone.quaternion.toArray(), q = expected[i];
+          error = Math.max(error, Math.min(Math.max(...actual.map((v, k) => Math.abs(v - q[k]))),
+            Math.max(...actual.map((v, k) => Math.abs(v + q[k])))));
+        });
+      }
+      return { time, error };
+    });
+    check('Balancing pose is identical after pausing and backward seeks', poseSeek.error < 1e-9, poseSeek);
+
     const pauseTarget = await page.evaluate(() => {
       const c = window.peak.replays;
       const gondola = window.peak.world.animated.find(thing => thing.kind === 'gondola');

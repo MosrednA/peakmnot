@@ -1,7 +1,8 @@
 // Samples and displays a recorded climb as an independently animated character. The replay uses the recorder's
 // v1 format: millisecond timestamps and millimetre positions and velocities.
+import { ReplayMotion } from './motion.js';
 const MODES = ['ground', 'air', 'beam', 'out'];
-const FLAG_RESPAWN = 32, FLAG_JUMP = 1, FLAG_LAND = 2, FLAG_LOST = 16, FLAG_SUMMIT = 128;
+const FLAG_RESPAWN = 32;
 const GHOST_OPACITY = 0.36;
 const MAX_TIME_MS = 3 * 60 * 60 * 1000, MAX_SAMPLES = 30000;
 const ONE_SHOTS = new Set(['JumpStart', 'LeapStart', 'Land', 'LeapLand', 'LandHard', 'PushGlasses', 'LookUp', 'TapFoot']);
@@ -113,11 +114,14 @@ function interpolate(a, b, u) {
   const h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
   const hermite = (p0, v0, p1, v1) => h00 * p0 + h10 * v0 * dt + h01 * p1 + h11 * v1 * dt;
   const lerp = (x, y) => x + (y - x) * u;
+  // Beam velocities are deliberately zero in v1 (Balance moves the player directly). Zero tangents made the
+  // actor stop and start at every 10 Hz sample. The recorded beam path and supported height are continuous.
+  const beam = a[7] === 2 || b[7] === 2;
   return {
     time: seconds(a[0]) + dt * u,
-    x: hermite(a[1] / 1000, a[4] / 1000, b[1] / 1000, b[4] / 1000),
-    y: hermite(a[2] / 1000, a[6] / 1000, b[2] / 1000, b[6] / 1000),
-    z: hermite(a[3] / 1000, a[5] / 1000, b[3] / 1000, b[5] / 1000),
+    x: beam ? lerp(a[1], b[1]) / 1000 : hermite(a[1] / 1000, a[4] / 1000, b[1] / 1000, b[4] / 1000),
+    y: a[7] !== 1 ? lerp(a[2], b[2]) / 1000 : hermite(a[2] / 1000, a[6] / 1000, b[2] / 1000, b[6] / 1000),
+    z: beam ? lerp(a[3], b[3]) / 1000 : hermite(a[3] / 1000, a[5] / 1000, b[3] / 1000, b[5] / 1000),
     vx: lerp(a[4] / 1000, b[4] / 1000),
     vz: lerp(a[5] / 1000, b[5] / 1000),
     vy: lerp(a[6] / 1000, b[6] / 1000),
@@ -125,8 +129,8 @@ function interpolate(a, b, u) {
   };
 }
 
-// Pure v1 sampler, in seconds and metres. Hermite tangents come from the recorded velocities. Respawn samples are
-// hard boundaries, and the recorder intentionally leaves long gaps while Mnot is out, so those spans hold still.
+// Pure v1 sampler, in seconds and metres. Hermite tangents come from recorded velocities; beam paths and supported
+// heights use positions directly. Respawns are hard boundaries; intentionally unrecorded out gaps hold still.
 export function sampleReplay(replay, time) {
   if (!replay || !Array.isArray(replay.samples) || replay.samples.length === 0) invalid('samples are missing');
   if (!Number.isFinite(time)) throw new TypeError('Replay time must be finite seconds');
@@ -160,15 +164,15 @@ export class ReplayActor {
     // The route comparison belongs to the caller, which has the current route fingerprint. Still reject malformed
     // payloads here so a standalone viewer cannot create an unusable actor.
     validateReplay(replay, replay.route);
-    const [THREE, { loadMnot }] = await Promise.all([import('three'), import('../mnot/mnot.js')]);
+    const [THREE, { loadMnot }, { Pose }] = await Promise.all([import('three'), import('../mnot/mnot.js'), import('../mnot/pose.js')]);
     const mnot = await loadMnot();
-    const actor = new ReplayActor({ THREE, scene, world, replay, mnot, ghost });
+    const actor = new ReplayActor({ THREE, scene, world, replay, mnot, ghost, pose: new Pose(mnot) });
     scene.add(actor.root);
     actor.seek(0);
     return actor;
   }
 
-  constructor({ THREE, scene, world, replay, mnot, ghost }) {
+  constructor({ THREE, scene, world, replay, mnot, ghost, pose }) {
     this.THREE = THREE;
     this.scene = scene;
     this.world = world;
@@ -177,59 +181,33 @@ export class ReplayActor {
     this.animator = mnot.animator;
     this.model = mnot.model;
     this.rig = mnot.rig;
+    this.pose = pose;
+    this.clipPose = new Map();
+    this.model.traverse(bone => { if (bone.isBone) this.clipPose.set(bone, bone.quaternion.clone()); });
+    this.up = new THREE.Vector3(0, 1, 0);
     this.ghost = ghost;
     this.pos = new THREE.Vector3();
     this.vel = new THREE.Vector3();
     this.yaw = 0;
     this.mode = 'ground';
     this.vy = 0;
-    this.balance = { beam: null };
+    this.balance = { beam: null, lean: 0, facing: 1 };
+    this.tilt = { toppling: 0 };
+    this.fall = { active: false };
+    this.skate = { busy: false, flail: 0 };
     this.safe = { pos: new THREE.Vector3(), yaw: 0 };
     this.squash = 1;
     this.hang = 0;
     this.celebrate = 0;
     this.phase = seconds(replay.phase);
     this.duration = seconds(replay.samples.at(-1)[0]);
-    this.headings = this.buildHeadings();
+    const durations = new Map([...this.animator.actions].map(([name, action]) => [name, action.getClip().duration]));
+    this.motion = new ReplayMotion(replay, world, this.rig, durations);
+    this.headings = this.motion.motion.map(m => m.yaw);
     this.safeAt = this.buildSafeSamples();
-    this.jumps = [];
-    this.landings = [];
-    this.lost = [];
-    this.summits = [];
-    this.replay.samples.forEach((sample, index) => {
-      const event = { time: seconds(sample[0]), index, sample };
-      if (sample[8] & FLAG_JUMP) {
-        event.run = Math.hypot(sample[4], sample[5]) > 250;
-        this.jumps.push(event);
-      }
-      if (sample[8] & FLAG_LAND) {
-        const previous = this.replay.samples[index - 1];
-        const hard = (replay.events ?? []).some(([at, name, value]) => at === sample[0] && name === 'dent' && value === 'landing');
-        const moving = Math.hypot(sample[4], sample[5]) > 250 || previous && Math.hypot(previous[4], previous[5]) > 250;
-        event.clip = hard ? 'LandHard' : moving ? 'LeapLand' : 'Land';
-        this.landings.push(event);
-      }
-      if (sample[8] & FLAG_LOST) this.lost.push(event);
-      if (sample[8] & FLAG_SUMMIT) this.summits.push(event);
-    });
+    this.lost = this.motion.lost;
+    this.summits = this.motion.summits;
     if (ghost) this.applyGhostMaterial();
-  }
-
-  buildHeadings() {
-    let previous = 0;
-    return this.replay.samples.map((sample, index, samples) => {
-      const vx = sample[4], vz = sample[5];
-      if (Math.hypot(vx, vz) > 80) previous = Math.atan2(vx, vz);
-      else if (sample[7] === 2 && index > 0) {
-        const before = samples[index - 1], dx = sample[1] - before[1], dz = sample[3] - before[3];
-        if (Math.hypot(dx, dz) > 20) previous = Math.atan2(dx, dz);
-        else if (sample[9] >= 0 && this.world.beams?.[sample[9]]?.dir) {
-          const dir = this.world.beams[sample[9]].dir;
-          if (dir.lengthSq() > 0) previous = Math.atan2(dir.x, dir.z);
-        }
-      }
-      return previous;
-    });
   }
 
   buildSafeSamples() {
@@ -273,13 +251,8 @@ export class ReplayActor {
     this.squash = 1;
 
     const lo = bracket.lo;
-    let heading = Math.hypot(state.vx, state.vz) > 0.08 ? Math.atan2(state.vx, state.vz) : this.headings[lo];
-    if (state.mode === 'beam' && Math.hypot(state.vx, state.vz) <= 0.08 && bracket.hi !== bracket.lo) {
-      const a = samples[bracket.lo], b = samples[bracket.hi];
-      const dt = seconds(b[0] - a[0]), dx = (b[1] - a[1]) / 1000, dz = (b[3] - a[3]) / 1000;
-      if (dt > 0 && Math.hypot(dx, dz) / dt > 0.08) heading = Math.atan2(dx, dz);
-    }
-    this.yaw = heading;
+    const motion = this.motion.seek(boundedTime);
+    this.yaw = motion.yaw;
 
     const safeIndex = this.safeAt[lo];
     const safeSample = samples[safeIndex] ?? samples[0];
@@ -291,65 +264,42 @@ export class ReplayActor {
     const summit = lastEvent(this.summits, boundedTime);
     this.celebrate = summit ? Math.max(0, 4 - (boundedTime - summit.time)) : 0;
 
-    this.animateAt(boundedTime, state, bracket);
+    // AnimationMixer skips identical property writes. Restore the last unmodified clip pose first, or seeking
+    // a paused frame would apply Pose's balancing rotations on top of themselves every time.
+    for (const [bone, quaternion] of this.clipPose) bone.quaternion.copy(quaternion);
+    this.animateAt(motion);
+    for (const [bone, quaternion] of this.clipPose) quaternion.copy(bone.quaternion);
     this.root.position.copy(this.pos);
-    this.root.quaternion.setFromAxisAngle(new this.THREE.Vector3(0, 1, 0), this.yaw);
+    this.root.quaternion.setFromAxisAngle(this.up, this.yaw);
     this.root.scale.set(1, this.squash, 1);
+    // Reuse the live balancing stance, evaluated at absolute time rather than accumulating a procedural pose.
+    if (this.pose) {
+      this.pose.time = boundedTime;
+      this.pose.beam = motion.beamWeight;
+      this.pose.panic = 0;
+      const beam = this.world.beams?.[motion.beamSupport];
+      this.pose.stance = beam ? Math.max(0, Math.min(0.13, beam.width / 2 - 0.08)) : 0;
+      this.pose.update(0, this);
+    }
     return this;
   }
 
-  animateAt(time, state, bracket) {
-    const speed = Math.hypot(state.vx, state.vz);
-    const choose = (name, at = 0) => {
-      if (!this.animator.has(name)) return;
-      const action = this.animator.actions.get(name), duration = action.getClip().duration;
-      const clipTime = animationTime(name, at, duration);
-      this.animator.play(name, 0, { restart: true, at: clipTime });
+  animateAt({ weights, clipTimes }) {
+    const total = Object.values(weights).reduce((sum, weight) => sum + weight, 0) || 1;
+    let dominant = null, largest = 0;
+    for (const [name, action] of this.animator.actions) {
+      const weight = (weights[name] ?? 0) / total;
+      this.animator.weights.set(name, weight);
+      // Keep a fixed mixer action order, including zero-weight actions. Removing/re-adding faded clips changes
+      // quaternion blend order and can capture a procedural beam pose as the mixer's fallback/rest pose on seeks.
+      action.reset().play();
+      action.time = animationTime(name, clipTimes[name] ?? 0, action.getClip().duration);
       action.setEffectiveTimeScale(0);
-      this.animator.update(0);
-    };
-    const duration = name => this.animator.actions.get(name)?.getClip().duration ?? 0;
-
-    if (this.celebrate > 0) {
-      const event = lastEvent(this.summits, time);
-      const clipDuration = duration('Dance');
-      choose('Dance', clipDuration ? (time - event.time) % clipDuration : 0);
-      return;
+      action.setEffectiveWeight(weight);
+      if (weight > largest) { largest = weight; dominant = name; }
     }
-    if (state.mode === 'air') {
-      const jump = lastEvent(this.jumps, time);
-      const launch = jump?.run ? 'LeapStart' : 'JumpStart';
-      if (jump && time - jump.time < duration(launch)) choose(launch, time - jump.time);
-      else choose('Fall', jump ? time - jump.time - duration(launch) : time);
-      return;
-    }
-    if (state.mode === 'out') {
-      const lost = lastEvent(this.lost, time);
-      const elapsed = lost ? time - lost.time : 0;
-      if (this.hang > 0.22) choose('Run', Math.max(0, (0.5 - this.hang) * 1.8));
-      else if (this.hang > 0) choose('Idle', 0);
-      else choose('Fall', Math.max(0, elapsed - 0.5));
-      return;
-    }
-
-    const landing = lastEvent(this.landings, time);
-    if (landing && time - landing.time < duration(landing.clip)) {
-      choose(landing.clip, time - landing.time);
-      return;
-    }
-    if (state.mode === 'beam') {
-      let beamSpeed = speed;
-      if (beamSpeed <= 0.03 && bracket.hi !== bracket.lo) {
-        const a = this.replay.samples[bracket.lo], b = this.replay.samples[bracket.hi];
-        beamSpeed = Math.hypot(b[1] - a[1], b[3] - a[3]) / (b[0] - a[0]);
-      }
-      if (beamSpeed > 0.03) choose('Walk', time * beamSpeed / Math.max(0.1, this.rig.walk_speed));
-      else choose('Idle', time);
-      return;
-    }
-    if (speed < 0.08) choose('Idle', time);
-    else if (speed < 1.2) choose('Walk', time * speed / Math.max(0.1, this.rig.walk_speed));
-    else choose('Run', time * speed / Math.max(0.1, this.rig.run_speed));
+    this.animator.current = dominant;
+    this.animator.mixer.update(0);
   }
 
   dispose() {

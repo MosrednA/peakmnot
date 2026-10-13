@@ -80,10 +80,14 @@ climb with a named ghost beside Mnot; it can be hidden with the on-screen toggle
 with play/pause, restart, 0.5×/1×/2× speed and scrubbing. These pages use `?ghost=RUN_ID` and `?replay=RUN_ID` links;
 the Hall buttons make them. The viewer does not run live physics, record a climb or submit scores. House entries and
 entries whose replay is unavailable show why no replay action is offered.
-The v1 viewer derives Mnot's animation and follow-camera motion from recorded position/state samples. Watch run also
-rebuilds loose-ledge shaking, drops and regrowth from the recorded support indices, including when you pause or scrub.
-It does not recreate the snow and grit particle bursts. The gondola follows the replay's stored phase in Watch run
-and the new climb's clock in Race ghost. Racing keeps the normal live ledge physics.
+The v1 viewer derives Mnot's animation and follow-camera motion from recorded position/state samples. A continuous
+stride phase keeps the feet in step through speed changes; turns and clip changes ease instead of snapping. Beam
+motion uses recorded positions (v1 stores zero beam velocity), with the live game's narrow stance and balancing arms.
+Jump crouches use the rig's takeoff timing. Animation, heading and blends are evaluated at absolute replay time, so
+pausing, changing speed and backward scrubbing reproduce the same pose. Watch run also rebuilds loose-ledge shaking,
+drops and regrowth from the recorded support indices. V1 does not record the original camera gestures, balance lean
+or ice pratfall poses, and the viewer does not recreate the snow and grit particle bursts. The gondola follows the
+replay's stored phase in Watch run and the new climb's clock in Race ghost. Racing keeps the normal live ledge physics.
 
 ## Analytics
 
@@ -127,6 +131,7 @@ each with its CSS next to it.
 | `analytics.js` | Plausible goals for public climbs; excludes development and manual tests |
 | `replays/controller.js` | Loads a Hall replay and provides ghost-race or spectator controls; watched runs do not score |
 | `replays/playback.js` | Validates and samples a recorded run, then creates its animated replay actor |
+| `replays/motion.js` | Continuous stride phase, eased headings and deterministic clip blends for existing v1 runs |
 | `replays/loose-ledges.js` | Reconstructs replay contacts with crumbling ledges from recorded support indices |
 
 ### `world/`: the mountain and what happens on it
