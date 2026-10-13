@@ -10,11 +10,13 @@ import re
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import names                                               # noqa: E402
+import peak_scores                                         # noqa: E402
 import perf                                                # noqa: E402
 import verify                                              # noqa: E402
 from db import Database, MIGRATIONS                        # noqa: E402
@@ -135,6 +137,53 @@ class StaticFiles(unittest.TestCase):
     def test_the_sounds_are_served(self):
         r = self.server.request("GET", "/audio/fall.m4a")
         self.assertEqual((r.status, r.headers["Content-Type"]), (200, "audio/mp4"))
+        self.assertIn("https://cdn.jsdelivr.net", self.server.request("GET", "/").headers["Content-Security-Policy"])
+
+
+class BuiltSite(unittest.TestCase):
+    """The site as tools/build.mjs writes it (dist/), served from SITE_DIR."""
+    PAGE = (b'<!doctype html><link rel="stylesheet" href="assets/peak-ABCDEFGH.css"><script>plausible()</script>'
+            b'<script type="module" src="assets/peak-ABCD2345.js"></script>')
+
+    def setUp(self):
+        self.site = tempfile.TemporaryDirectory()
+        site = Path(self.site.name)
+        (site / "assets").mkdir()
+        (site / "models").mkdir()
+        (site / "peak.html").write_bytes(self.PAGE)
+        for name in ("peak-ABCD2345.js", "peak-ABCDEFGH.css", "fall-WXYZ2345.m4a", "camp-WXYZ2345.mp3", "loose.js"):
+            (site / "assets" / name).write_bytes(b"x")
+        (site / "models" / "mnot.glb").write_bytes(b"glTF")
+        patch = unittest.mock.patch.object(peak_scores, "SITE", site.resolve())
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.server = Server(Route(fixture()["route"]), static=True)
+
+    def tearDown(self):
+        self.server.close()
+        self.site.cleanup()
+
+    def test_the_page_is_served_as_built(self):
+        r = self.server.request("GET", "/")
+        self.assertEqual((r.status, r.data), (200, self.PAGE))           # no v/BUILD/: the names change themselves
+        self.assertNotIn("jsdelivr", r.headers["Content-Security-Policy"])  # three.js comes with the code
+        self.assertIn("'sha256-", r.headers["Content-Security-Policy"])
+        self.assertEqual(self.server.request("GET", "/models/mnot.glb").headers["Cache-Control"], "no-cache")
+
+    def test_the_hashed_files_are_kept_for_good(self):
+        for path, kind in (("/assets/peak-ABCD2345.js", "text/javascript; charset=utf-8"),
+                           ("/assets/peak-ABCDEFGH.css", "text/css; charset=utf-8"),
+                           ("/assets/fall-WXYZ2345.m4a", "audio/mp4"), ("/assets/camp-WXYZ2345.mp3", "audio/mpeg")):
+            r = self.server.request("GET", path)
+            self.assertEqual((r.status, r.headers["Content-Type"], r.headers["Cache-Control"]),
+                             (200, kind, "public, max-age=31536000, immutable"), path)
+            self.assertEqual(r.headers["X-Content-Type-Options"], "nosniff")
+
+    def test_nothing_else_is(self):
+        for path in ("/assets/loose.js", "/assets/peak-abcd2345.js", "/assets/peak-ABCD2345.html", "/assets/",
+                     "/assets/../peak.html", "/assets/sub/peak-ABCD2345.js", "/peak/main.js", "/server/api.py",
+                     "/v/000000000000/server/api.py"):
+            self.assertIn(self.server.request("GET", path).status, (404, 418), path)
 
 
 class Migrations(unittest.TestCase):

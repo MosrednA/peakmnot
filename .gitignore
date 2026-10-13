@@ -6,3 +6,6 @@ __pycache__/
 .mnot-qa/
 # the score server's database and generated key (server/README.md)
 /data/
+# the production build (tools/build.mjs) and what it needs from npm
+/dist/
+node_modules/

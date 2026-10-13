@@ -45,6 +45,7 @@ Settings come from the environment:
 | `ALLOWED_ORIGINS` | the viewer on 5280 | Origins that get CORS headers |
 | `TRUSTED_PROXIES` | loopback | Networks whose `X-Forwarded-For` is believed (the right-most address that isn't theirs) |
 | `HOST`, `PORT` | `127.0.0.1`, `5281` | Also `--host` and `--port` |
+| `SITE_DIR` | the repository | What `--static` serves: the source as it is, or a production build (`dist/`, below) |
 
 The command line also does housekeeping:
 
@@ -201,7 +202,8 @@ python -m unittest discover server
 ```
 
 `test_peak_scores.py` runs the API on a temporary database: a real climb, every cheat above, the limits, the eggs.
-`test_peak_parts.py` tests the name filter, the proxy addresses, the static files, the migrations and the checker.
+`test_peak_parts.py` tests the name filter, the proxy addresses, the static files (from the source and from a
+build), the migrations and the checker.
 Both replay the climbs in `fixtures/`, each with the route it was climbed on, so they keep testing the checker after
 the route moves on (one test then skips, saying the fixtures are older than `route.json`).
 
@@ -222,9 +224,17 @@ The bot steers like `peak/dev/bots.js`'s `climb()` (round the ring too); teach i
 
 One container serves the game and the API: `Dockerfile` (python:3.12-slim, a non-root user, port 8080, a health
 check on `/api/peak/health`), `docker-compose.yml` (the `peakmnot-data` volume, the environment) and `.mosdeploy.yml`
-for MosDeploy at <https://peakmnot.mosredna.eu>. The image holds only `peak.html`, the favicons, the web
-manifest, `sounds.js`, `music.js`, `peak/`, `models/mnot.glb`, the game's sounds and music, and the server; the
-server serves only those files (an allowlist), with a Content-Security-Policy that hashes the page's inline scripts.
+for MosDeploy at <https://peakmnot.mosredna.eu>. The Dockerfile's first stage (node:24-bookworm-slim) runs
+`npm ci` and the production build, `tools/build.mjs`; so building the image needs the npm registry, and nothing
+else changes on the host. The image holds only what the build wrote, `peak.html`, the favicons, the web manifest,
+`models/mnot.glb` and `assets/`, and the server. The server serves only those files (an allowlist), with a
+Content-Security-Policy that hashes the page's inline scripts.
+
+In `assets/` every file is named after its content (`peak-HASH.js`, `three-HASH.js`, `fall-HASH.m4a`), so it is
+served as immutable, and only the page itself is checked on every visit. Run from the source (no `SITE_DIR`), the
+server sends the page's links into `peak/` through `v/BUILD/` instead, a path that changes with the code. To try
+the image's site without Docker: `npm ci`, `npm run build`, then
+`SITE_DIR=dist python -X utf8 server/peak_scores.py --static --port 8080`.
 
 1. Onboard the project on MosDeploy (type compose, project `peakmnot`). It hands out a loopback port: put it in
    place of `12099` in `docker-compose.yml` and `.mosdeploy.yml` (marked `PORT_PLACEHOLDER`).

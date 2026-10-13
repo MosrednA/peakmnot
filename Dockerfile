@@ -1,5 +1,14 @@
-# Peak Mnot in one small container: the game's files and its score server (Python's standard library only) on one
+# Peak Mnot in one small container: the games, built, and the score server (Python's standard library only) on one
 # port. See server/README.md, "Production".
+
+# The games' code bundled and named by its content (tools/build.mjs, README.md "Run it yourself"), into /src/dist
+FROM node:24-bookworm-slim AS build
+WORKDIR /src
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY . .
+RUN node tools/build.mjs
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -13,12 +22,9 @@ RUN useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin mnot 
 
 WORKDIR /app
 
-# Only what the page and the server use (server/peak_scores.py serves an allowlist of these); .dockerignore keeps
-# the tests, fixtures, the bot and the masters out.
-COPY peak.html sounds.js music.js favicon.png favicon.ico share.jpg manifest.webmanifest ./
-COPY peak/ ./peak/
-COPY models/mnot.glb ./models/
-COPY audio/ ./audio/
+# Only what the pages and the server use (server/peak_scores.py serves an allowlist of these): the built site, with
+# its code, styles and sounds in assets/; .dockerignore keeps the tests, fixtures, the bot and the masters out.
+COPY --from=build /src/dist/ ./
 COPY server/ ./server/
 
 USER mnot

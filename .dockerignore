@@ -1,4 +1,4 @@
-# Only the game's files and the score server go into the image (Dockerfile); everything else stays out.
+# Only the game's files, its build and the score server go into the image (Dockerfile); everything else stays out.
 .git
 .agents
 .claude
@@ -6,7 +6,10 @@
 .playwright-mcp
 data
 docs
-tools
+tools/*
+!tools/build.mjs
+node_modules
+dist
 index.html
 **/__pycache__
 **/*.md

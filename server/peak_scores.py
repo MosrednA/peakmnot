@@ -36,6 +36,7 @@ from store import Store             # noqa: E402
 import verify                       # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
+SITE = Path(os.environ.get("SITE_DIR") or ROOT).resolve()     # what --static serves: the repository, or a build
 STATIC = re.compile(r"^/(peak\.html|sounds\.js|music\.js|favicon\.(png|ico)|share\.jpg|manifest\.webmanifest|"
                     r"peak/([a-z]+/)?[a-z0-9_-]+\.(js|css)|models/mnot\.glb|audio/[a-z0-9_-]+\.(wav|mp3|m4a)|"
                     r"audio/music/[a-z0-9_-]+\.mp3)$")
@@ -60,6 +61,9 @@ INLINE_SCRIPT = re.compile(rb"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S 
 VERSIONED = re.compile(r"^/v/([0-9a-f]{12})(/(?!peak\.html$).*)$")      # the code, never the page itself
 PAGE_CODE = re.compile(rb'((?:src|href)=")(peak/)')
 BUILD_FILES = ("*.js", "peak/**/*", "audio/**/*")    # what loads through v/BUILD/: the modules and, by music.js, music
+# A built site (tools/build.mjs, dist/) has its code, styles and sounds in assets/, each named by its content, so
+# each is kept for good; its page links them by those names.
+HASHED = re.compile(r"^/assets/[a-z0-9_-]+-[A-Z2-7]{8}\.(js|css|m4a|mp3|wav)$")
 
 
 def page_csp(html):
@@ -67,10 +71,12 @@ def page_csp(html):
     nothing else inline can run."""
     hashes = " ".join(f"'sha256-{base64.b64encode(hashlib.sha256(m).digest()).decode()}'"
                       for m in INLINE_SCRIPT.findall(html))
-    return PAGE_CSP.format(hashes=hashes)
+    policy = PAGE_CSP.format(hashes=hashes)
+    # a built page brings three.js along in its own code, so it needs nothing from the CDN
+    return policy if b"cdn.jsdelivr.net" in html else policy.replace(" https://cdn.jsdelivr.net", "")
 
 
-def build_id(root=ROOT):
+def build_id(root=SITE):
     """A short hash of every file the page loads through v/BUILD/, so the path changes whenever one of them does."""
     digest = hashlib.sha256()
     for file in sorted({f for pattern in BUILD_FILES for f in root.glob(pattern) if f.is_file()}):
@@ -154,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
             versioned = VERSIONED.match(path)
             file = "/peak.html" if path == "/" else versioned.group(2) if versioned else path
             current = bool(versioned) and versioned.group(1) == app.build
-            if STATIC.match(file) and self.static(file, method == "HEAD", current):
+            if self.static(file, method == "HEAD", current):
                 return
         body = b""
         if method == "POST":
@@ -201,17 +207,19 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
 
     def static(self, path, head, current=False):
-        """A file of the game; current when asked for through this build's v/BUILD/, so it can be kept for good."""
-        if not STATIC.match(path):
+        """A file of the game; current when asked for through this build's v/BUILD/, or named by its content
+        (HASHED), so it can be kept for good."""
+        hashed = bool(HASHED.match(path))
+        if not (STATIC.match(path) or hashed):
             return False
-        file = (ROOT / path.lstrip("/")).resolve()
-        if ROOT not in file.parents or not file.is_file():
+        file = (SITE / path.lstrip("/")).resolve()
+        if SITE not in file.parents or not file.is_file():
             return False
         app, page = self.server.app, file.suffix == ".html"
         stat = file.stat()
         # the page names the build in its links, so its tag does too: new code, new page
         tag = f'"{stat.st_mtime_ns:x}-{stat.st_size:x}' + (f'-{app.build}"' if page else '"')
-        cache = "public, max-age=31536000, immutable" if current else "no-cache"
+        cache = "public, max-age=31536000, immutable" if current or hashed else "no-cache"
         headers = {**SECURE, "Content-Type": TYPES[file.suffix], "ETag": tag, "Cache-Control": cache}
         if page:
             data, headers["Content-Security-Policy"] = app.page(file)
