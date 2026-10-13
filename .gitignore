@@ -4,3 +4,5 @@ __pycache__/
 # test and QA output
 .playwright-mcp/
 .mnot-qa/
+# the score server's database and generated key (server/README.md)
+/data/

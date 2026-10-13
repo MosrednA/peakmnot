@@ -1,0 +1,25 @@
+# Only the game's files and the score server go into the image (Dockerfile); everything else stays out.
+.git
+.agents
+.claude
+.mnot-qa
+.playwright-mcp
+data
+docs
+tools
+index.html
+**/__pycache__
+**/*.md
+models/*
+!models/mnot.glb
+audio/source
+audio/**/*.mid
+audio/**/*.json
+audio/preview.*
+audio/fall-preview.*
+server/test_*.py
+server/fixtures
+server/browser_bot.js
+server/export_route.py
+.env
+.env.*

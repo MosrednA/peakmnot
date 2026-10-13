@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["tools/dev_server.py"],
       "port": 5280
+    },
+    {
+      "name": "scores",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-X", "utf8", "server/peak_scores.py"],
+      "port": 5281
     }
   ]
 }

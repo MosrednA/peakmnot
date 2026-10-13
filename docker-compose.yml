@@ -1,0 +1,30 @@
+# Peak Mnot on MosDeploy (peakmnot.mosredna.eu): one container serves the game and /api/peak. See server/README.md,
+# "Production".
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      # the loopback port MosDeploy allocated at onboarding (its portBinding)
+      - "127.0.0.1:12014:8080"
+    environment:
+      DATA_DIR: /data
+      # the key behind the player secrets and the hashed addresses; set it in MosDeploy, never in this file
+      PEAK_SECRET: ${PEAK_SECRET:?PEAK_SECRET is required}
+      # only while rotating the key (server/README.md); empty otherwise
+      PEAK_SECRET_OLD: ${PEAK_SECRET_OLD:-}
+      # the page and the API share one origin; only that origin gets CORS headers (not the dev viewer's)
+      ALLOWED_ORIGINS: https://peakmnot.mosredna.eu
+      # the reverse proxy reaches the container from Docker's networks; its X-Forwarded-For is believed, nobody else's
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1/32,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16}
+    volumes:
+      - peakmnot-data:/data
+    labels:
+      - com.mosdeploy.project=peakmnot
+    mem_limit: 256m
+    cpus: 1.0
+
+volumes:
+  peakmnot-data:
+    labels:
+      - com.mosdeploy.project=peakmnot

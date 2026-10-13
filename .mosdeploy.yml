@@ -1,0 +1,23 @@
+type: compose
+# the loopback port MosDeploy allocated at onboarding; the same one as in docker-compose.yml
+port: 12014
+domain: peakmnot.mosredna.eu
+
+compose:
+  file: docker-compose.yml
+  project: peakmnot
+
+env:
+  managed: true
+  required:
+    - key: PEAK_SECRET
+      secret: true
+    - key: PEAK_SECRET_OLD
+      secret: true
+      default: ""
+    - key: TRUSTED_PROXIES
+      secret: false
+      default: "127.0.0.1/32,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
+
+database:
+  postgres: false
