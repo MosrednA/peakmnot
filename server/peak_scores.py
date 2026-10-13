@@ -42,10 +42,13 @@ TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=u
 SECURE = {"X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
           "Cross-Origin-Opener-Policy": "same-origin", "X-Frame-Options": "DENY"}
 API_CSP = "default-src 'none'; frame-ancestors 'none'"
+# The page may be shown in an iframe on the podcast's mascot site, and only there: frame-ancestors names it, and the
+# page goes without X-Frame-Options, which can't name a site.
 PAGE_CSP = ("default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://stats.mosredna.eu {hashes}; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; "
-            "img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://stats.mosredna.eu; "
-            "worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+            "img-src 'self' data: blob:; media-src 'self' blob:; "
+            "connect-src 'self' https://cdn.jsdelivr.net https://stats.mosredna.eu; worker-src 'self' blob:; "
+            "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://mnot.nl https://*.mnot.nl")
 DRAIN = 4 * 1024 * 1024               # bytes of an oversized body read (and dropped) before saying no
 INLINE_SCRIPT = re.compile(rb"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S | re.I)
 # The page loads its code through v/BUILD/ (App.page): Cloudflare tells browsers to keep JS and CSS for hours, so a
@@ -209,6 +212,7 @@ class Handler(BaseHTTPRequestHandler):
         headers = {**SECURE, "Content-Type": TYPES[file.suffix], "ETag": tag, "Cache-Control": cache}
         if page:
             data, headers["Content-Security-Policy"] = app.page(file)
+            del headers["X-Frame-Options"]          # frame-ancestors says who may frame it (PAGE_CSP)
         if self.headers.get("If-None-Match") == tag:
             self.send_response(304)
             for key in ("ETag", "Cache-Control"):

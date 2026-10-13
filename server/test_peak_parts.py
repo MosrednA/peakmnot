@@ -91,6 +91,10 @@ class StaticFiles(unittest.TestCase):
             self.assertIn("https://stats.mosredna.eu", directives[kind].split())
         self.assertNotIn("'unsafe-inline'", directives["script-src"])
         self.assertNotIn("unsafe-inline' https://cdn", csp)
+        # only the mascot site may show the page in an iframe; everything else stays unframeable
+        self.assertEqual(directives["frame-ancestors"].split(), ["https://mnot.nl", "https://*.mnot.nl"])
+        self.assertNotIn("X-Frame-Options", r.headers)
+        self.assertEqual(self.server.request("GET", "/peak/main.js").headers["X-Frame-Options"], "DENY")
         self.assertEqual(r.headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(r.headers["Referrer-Policy"], "no-referrer")
         tag = r.headers["ETag"]
