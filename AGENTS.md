@@ -53,3 +53,14 @@ Code on the rig and animation, Codex on sound). Uncommitted work has no undo, so
 
 Read it when you start, before you write to a shared file, and when you finish. If it doesn't exist yet, create it.
 It is kept out of git (`.git/info/exclude`).
+
+### Messaging another agent
+
+When something needs another agent's attention now, message its thread directly with the `agent-messaging` skill
+(`~/.agents/skills/agent-messaging`):
+
+- see the threads with `python ~/.agents/skills/agent-messaging/agent_msg.py list --cwd <this folder>`;
+- send with `… send --to codex|claude --message "…"`.
+
+Codex threads get the message on their next turn, Claude Code sessions on their next tool call or prompt. Put the
+longer brief on the board and point to it, and reply in the sender's thread.
