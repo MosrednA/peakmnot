@@ -25,7 +25,10 @@ from store import Store, body_hash
 
 MAX_BODY = 512 * 1024           # bytes on the wire
 MAX_UNZIPPED = 2 * 1024 * 1024  # bytes after gunzip
-SLACK = 2.0                     # seconds of clock difference forgiven between the game and the server
+SLACK = 10.0                    # seconds of clock difference forgiven between the game and the server: the run's
+                                # clock starts when its first request lands, and on a slow line that can be seconds
+                                # after it left. It only stops a run sent in faster than it was played (waiting gets
+                                # round that anyway); verify.py checks the climb itself.
 MAX_T0 = 15000                  # ms: the game's clock when it asked for a run
 LIMITS = {                      # (requests, per seconds)
     "run": (30, 600), "write": (150, 600), "read": (120, 60), "claim": (20, 3600), "egg": (30, 60),

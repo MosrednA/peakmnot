@@ -77,8 +77,9 @@ and housekeeping keeps it. In the container:
    its clock. It gets a run id and a nonce. If the route has changed since the page loaded, the answer is 409
    "route changed", and the game simply hides the scores.
 2. **Checkpoints.** At each flag the game sends a split, `POST /api/peak/run/ID/split` with `{cp, t}`. The server
-   checks that it's the next checkpoint, later than the last one, not ahead of the server's own clock for this run,
-   and not quicker than that stretch can be done.
+   checks that it's the next checkpoint, later than the last one, not ahead of the server's own clock for this run
+   (by more than ten seconds: that clock starts when the run's request lands, which on a slow line can be seconds
+   after it left; the game reads its clock again for every try of it), and not quicker than that stretch can be done.
 3. **Summit.** `POST /api/peak/run/ID/finish` sends the time, the falls and dents, and the recorded climb, gzipped
    (`peak/scores/replay.js`: Mnot's position, speed and state about ten times a second, every key change and every game
    event). The server checks the splits and the clock again, then the replay (`verify.py`, below), and answers with
@@ -221,8 +222,8 @@ stored for audits (`--reverify`).
 - teleporting, flying, standing on air, speeding up, moving without keys, jumping without Space, skipping a
   checkpoint, respawning further up, riding a gondola that isn't there;
 - slowing down or speeding up a whole recording: the parabolas and speeds stop fitting;
-- splits from the future, a finish faster than the server's own clock for the run, reused nonces, replayed or
-  edited requests, a second claim of the same climb;
+- splits from the future, a finish faster than the server's own clock for the run (give or take ten seconds for a
+  slow line), reused nonces, replayed or edited requests, a second claim of the same climb;
 - taking over someone else's entry (their secret is needed) or a house record;
 - injection and junk: parameterized SQL, names shown as text only and filtered, size limits on bodies (512 KB) and
   on what they unzip to (2 MB), rate limits per address (hashed) and per player.

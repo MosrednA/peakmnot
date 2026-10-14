@@ -42,16 +42,24 @@ export async function gzip(bytes) {
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-// A POST to the API: JSON, gzipped if zip (and the browser can), signed with key (the run's nonce) unless it's null.
-// A network error is tried again twice: the server answers a retry the same way.
-export async function postJson(url, data, { zip = false, key = null } = {}) {
+async function encode(data, zip, key) {
   let body = new TextEncoder().encode(JSON.stringify(data)), type = 'application/json';
   if (zip && typeof CompressionStream === 'function') { body = await gzip(body); type = 'application/gzip'; }
   const headers = { 'Content-Type': type };
   if (key) headers['X-Mnot-Sig'] = await sign(key, body);
+  return { body, headers };
+}
+
+// A POST to the API: JSON, gzipped if zip (and the browser can), signed with key (the run's nonce) unless it's null.
+// A network error is tried again twice: the server answers a retry the same way. data can be a function instead,
+// made afresh for every try, for a body that says when it left (the run's first request).
+export async function postJson(url, data, { zip = false, key = null } = {}) {
+  const fresh = typeof data === 'function';
+  let request = fresh ? null : await encode(data, zip, key);
   for (let attempt = 0; ; attempt++) {
+    if (fresh) request = await encode(data(), zip, key);
     try {
-      const res = await fetch(url, { method: 'POST', headers, body, credentials: 'omit' });
+      const res = await fetch(url, { method: 'POST', headers: request.headers, body: request.body, credentials: 'omit' });
       const json = await res.json().catch(() => ({}));
       return { ok: res.ok, status: res.status, json };
     } catch (err) {
@@ -93,8 +101,10 @@ export function createRun({ base, enqueue, route, clock, words, onOff = () => {}
   enqueue(async () => {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        // t0: how far the game's clock had got when this left
-        const res = await post('/run', { v: 1, route: await route, t0: ms(clock()) }, { signed: false });
+        // t0: how far the game's clock had got when this left, read again for every try: the server starts the
+        // run's clock when it lands, so a try that left later mustn't say it left at the first one's time
+        const fingerprint = await route;
+        const res = await post('/run', () => ({ v: 1, route: fingerprint, t0: ms(clock()) }), { signed: false });
         if (!res.ok) return run.off(res.json.message ?? `the server said ${res.status}`);
         Object.assign(run, { id: res.json.run, nonce: res.json.nonce, status: 'live' });
         return;

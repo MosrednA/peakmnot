@@ -401,6 +401,13 @@ class Cheats(ScoreTest):
         r = c.post("split", {"cp": 1, "t": 60000})
         self.assertEqual((r.status, r.json["error"]), (422, "time_travel"))
 
+    def test_a_run_that_was_slow_to_arrive(self):
+        # the run's request took seconds on a slow line, so the game's clock is ahead of the server's: forgiven
+        c = Climber(self.server, self.climb)
+        c.at(15000)
+        r = c.post("split", {"cp": 1, "t": 22000})
+        self.assertEqual(r.status, 200, r.json)
+
     def test_skipping_a_checkpoint(self):
         c = Climber(self.server, self.climb)
         c.at(60000)
