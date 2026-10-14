@@ -90,17 +90,17 @@
     <h1 class="ts-logo" id="logo">Mnot Games</h1>
     <p class="tag card">One mountain. One can. <b>Several bad ideas.</b></p>
   </header>
-  <!-- a card for each game: its route live (PAGES in server/peak_scores.py), its file on the dev server, and its
-       shot (peak/games/main.js) -->
+  <!-- a card for each game: its route live (PAGES in server/peak_scores.py), its file on the dev server, its
+       Plausible goal (peak/games/analytics.js, "Games: <goal>") and its shot (peak/games/main.js) -->
   <ul class="games">
-    <li><a class="game card" href="/" data-file="peak.html">
+    <li><a class="game card" href="/" data-file="peak.html" data-goal="Play Climb">
       <div class="thumb"><img data-thumb="climb" width="800" height="500"
         alt="Mnot at the first camp of the climb, the mountains behind"></div>
       <h2>Peak Mnot</h2>
       <p>A soda can with big glasses climbs a mountain. Badly.</p>
       <span class="play">Play</span>
     </a></li>
-    <li><a class="game card" href="/downhill" data-file="downhill.html">
+    <li><a class="game card" href="/downhill" data-file="downhill.html" data-goal="Play Downhill">
       <span class="sticker">Prototype</span>
       <div class="thumb"><img data-thumb="downhill" width="800" height="500"
         alt="Mnot on an office chair, rolling down the piste to a pit stop"></div>
@@ -116,7 +116,7 @@
     </div></li>
   </ul>
   <footer>
-    <a class="viewer card" href="/viewer" data-file="index.html">Meet Mnot: the model and every game's moves</a>
+    <a class="viewer card" href="/viewer" data-file="index.html" data-goal="Viewer">Meet Mnot: the model and every game's moves</a>
     <p>Mnot is the mascot of the Met Nerds om Tafel podcast.</p>
   </footer>
 </main>

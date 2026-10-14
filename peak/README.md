@@ -125,7 +125,11 @@ The climb's `analytics.js` listens to the title, game and player events for thes
 | `Flattened` | `Climb: Flattened` | The fourth dent flattens the can; each time |
 
 The climb's events kept their names from before the prefix, so the history stays on the same goals; the prefix is
-their display name. The goals are configured under
+their display name.
+
+The page of all the games (`/games`) counts which game a visitor goes to play: `peak/games/analytics.js` sends the
+`data-goal` of the link that was clicked (or middle-clicked), as `Games: Play Climb`, `Games: Play Downhill` and
+`Games: Viewer`. A new game's card names its own, `data-goal="Play <Game>"`, and gets its goal in Plausible. The goals are configured under
 [Settings → Goals](https://stats.mosredna.eu/peakmnot.mosredna.eu/settings/goals), with **Show in dashboard** enabled.
 Conversion counts appear after a matching event is received. When adding a goal, create the matching **Custom
 event** in Plausible too, with the event name exactly as sent and the display name with its game in front: sending
@@ -138,7 +142,8 @@ replays or scores. Only `peakmnot.mosredna.eu` is tracked; localhost, other host
 are excluded. Missing or blocked analytics does not stop the game. The production page's CSP allows only the
 Plausible host in addition to its existing script and connection sources; inline scripts still require hashes.
 
-Run `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs` for the event checks and
+Run `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs tools/check_games_analytics.mjs` for
+the event checks and
 `python -m unittest discover server` for the production CSP check.
 
 ## Modules

@@ -1,6 +1,10 @@
 // The page of all the games (games.html, at /games): a card for each game, with a shot from about a quarter of the
-// way in, and one for the next. A new game adds its card to games.html and its shot here (800 x 500, a JPEG), and a
-// tab to the viewer (.claude/skills/mini-game/SKILL.md, "The files").
+// way in, and one for the next. A new game adds its card to games.html (with its goal, analytics.js) and its shot
+// here (800 x 500, a JPEG), and a tab to the viewer (.claude/skills/mini-game/SKILL.md, "The files").
+import { hookAnalytics } from './analytics.js';
+
+hookAnalytics(document);
+
 const THUMBS = {
   climb: new URL('./climb.jpg', import.meta.url),
   downhill: new URL('./downhill.jpg', import.meta.url),
