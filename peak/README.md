@@ -110,7 +110,9 @@ Every mini game uses cookieless Plausible at `stats.mosredna.eu`, all on one sit
 tracker in each page's head (`peak.html`, `downhill.html`, `games.html`) counts pageviews, so **Top pages** splits
 them by game: `/`, `/downhill`, `/games`. Each game's goals carry its name in front, so they stay together in **Goal
 conversions** however many games there are: the climb's show as `Climb: …`, the downhill's are `Downhill: …`
-([peak/downhill/README.md](downhill/README.md#analytics)). A new game sends its goals as `<Game>: <goal>`.
+([peak/downhill/README.md](downhill/README.md#analytics)). A new game sends its goals as `<Game>: <goal>` through
+the kit's `goals()` (`peak/kit/analytics.js`, which counts on the public site only), from the `mini-game` skill's
+template ("Stats").
 
 The climb's `analytics.js` listens to the title, game and player events for these custom goals:
 

@@ -20,6 +20,7 @@ import { confetti } from '../kit/party.js';
 import { GamepadInput, BUTTON } from '../kit/gamepad.js';
 import { PadMenu } from '../kit/padmenu.js';
 import { Title } from './title.js';
+import { hookAnalytics } from './analytics.js';
 
 const manual = new URLSearchParams(location.search).has('manual');
 const GOAL = new THREE.Vector3(0, 0, 14);       // the flag, 14 m ahead
@@ -76,6 +77,7 @@ function finish() {
   confetti(puffs, player.pos);
   pad.rumble('cheer');
   mnot.animator.play('Dance', 0.3);
+  stats.finish();
 }
 function restart() {
   player.pos.set(0, 0, 0);
@@ -126,6 +128,8 @@ function placeCamera(dt) {
 // the title (title.js); it listens after the controls above, so the key that starts isn't read twice
 const title = new Title({ camera, dom: renderer.domElement, mnot, player, follow });
 title.on('start', () => begin());
+// the Plausible goals (analytics.js, on the kit's goals()): the start and the finish, on the public site only
+const stats = hookAnalytics({ title, manual });
 
 // ------------------------------------------------------------------ the loop
 

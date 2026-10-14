@@ -2,9 +2,8 @@
 // starts the game, each pit stop and the finish count once a page, and each mishap counts when it happens in a run.
 // Every goal starts with "Downhill: ", so each game's goals stay together in the dashboard (peak/README.md,
 // "Analytics"). No names, player ids, times or scores. Local development and ?manual bots stay out of the stats; a
-// blocked tracker never interrupts the ride.
-
-/** @typedef {(name: string) => void} Plausible */
+// blocked tracker never interrupts the ride (the kit's goals(), kit/analytics.js).
+import { goals } from '../kit/analytics.js';
 
 /**
  * @param {{
@@ -15,15 +14,11 @@
  * }} sources  pits: FEATURES.pits (track.js), the start and then the pit stops, in metres
  */
 export function hookAnalytics({ title, ride, pits, manual }) {
-  if (manual || location.hostname !== 'peakmnot.mosredna.eu') return;
-  const tracker = /** @type {Window & { plausible?: Plausible }} */ (window);
+  const track = goals('Downhill', { manual });
+  if (!track) return;
   let started = false, racing = false, finished = false;
   /** @type {Set<number>} */
   const reached = new Set();
-  /** @param {string} name */
-  const track = name => {
-    try { tracker.plausible?.(`Downhill: ${name}`); } catch { /* analytics is optional */ }
-  };
 
   title.on('start', () => {
     if (started) return;

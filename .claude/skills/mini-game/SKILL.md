@@ -1,6 +1,6 @@
 ---
 name: mini-game
-description: The recipe for a new Peak Mnot mini game, or a big change to one - the premise and the vibe, the page and its folder, the shared kit (stage, loop, HUD, title screen, finish party, controller), effects, sound and music, high scores, the production build, performance, phones and controllers, tests and checks, and who does what. Use when making a new mini game, or when adding a title screen, finish party, HUD, sound, scores, controller support or a page to one.
+description: The recipe for a new Peak Mnot mini game, or a big change to one - the premise and the vibe, the page and its folder, the shared kit (stage, loop, HUD, title screen, finish party, controller, stats), effects, sound and music, high scores, stats and their Plausible goals, the production build, performance, phones and controllers, tests and checks, and who does what. Use when making a new mini game, or when adding a title screen, finish party, HUD, sound, scores, controller support, stats or a page to one.
 ---
 
 # A new mini game
@@ -43,7 +43,7 @@ do what it does.
 | `audio/<game>/` | Its effects, WAV masters and AAC `.m4a` (Codex) |
 | `server/<game>.py`, `server/<game>.json` | Its high scores' checker and route (step 6) |
 | `peak/<game>/viewer.js` | Its tab in the animation viewer (`index.html`, live at `/viewer`): Mnot with what the game adds (the chair, the moves, the party), and a line in `GAMES` in `peak/viewer/tabs.js`. The downhill's is the example |
-| `peak/<game>/analytics.js` | Its Plausible goals, each named `<Game>: <goal>` so a game's goals stay together, the tracker in the page's head, and the goals added in Plausible by hand ([peak/README.md](../../../peak/README.md#analytics)). The downhill's is the example, `tools/check_downhill_analytics.mjs` its check |
+| `peak/<game>/analytics.js` | Its Plausible goals on the kit's `goals()`, each sent as `<Game>: <goal>` so a game's goals stay together. From [templates/analytics.js](templates/analytics.js), its check `tools/check_<game>_analytics.mjs` from [templates/check_analytics.mjs](templates/check_analytics.mjs) (step 6, "Stats") |
 | `share-<game>.jpg` | Its link preview (Slack, Discord, WhatsApp): the title screen at 1200 x 630, a JPEG, with the logo, Mnot clear of it, and the tagline in place of the menu, linked from the page's `og:` and `twitter:` tags (the template has them), in `FILES` in `tools/build.mjs` and in the server test's list of plain files. The climb's `share.jpg` and the downhill's are the examples |
 | `games.html`, `peak/games/<game>.jpg` | Its card on the page of all the games (`/games`), with `data-goal="Play <Game>"` (a `Games: Play <Game>` goal in Plausible too), in place of the "?" card or before it, and its shot from about a quarter of the way in (800 x 500, a JPEG, never the title or the finish: no spoilers) in `THUMBS` in `peak/games/main.js` |
 
@@ -64,6 +64,7 @@ games see.
 - `toaster()`, `pop()`, `soundSwitch()` for the HUD; `kit.css` for its look.
 - `TitleScreen` for the title; `Beat` and `confetti()` for the finish party.
 - `GamepadInput` and `PadMenu` (with `pad.css`) for the controller, which every game has (step 10).
+- `goals('<Game>', { manual })` for its Plausible goals, which every game has too (step 6, "Stats").
 
 Change the kit only with an option whose default keeps every game as it is, and check every game (its README says
 how).
@@ -110,6 +111,29 @@ A board of its own on the one score server (`server/README.md`, "Several games")
 5. tests: real recorded runs in `server/fixtures/<game>/` and the cheats the checker turns down.
 
 The score-keeper does this. `?manual` sends nothing unless `&scores`.
+
+### Stats
+
+Every game counts its visitors and its moments in cookieless Plausible, all on the one site `peakmnot.mosredna.eu`
+([peak/README.md](../../../peak/README.md#analytics), "Analytics"):
+
+1. the tracker in the page's head (the template has it): pageviews on the public site only, never in `?manual`;
+2. `peak/<game>/analytics.js` from [templates/analytics.js](templates/analytics.js), on the kit's
+   `goals('<Game>', { manual })` (`peak/kit/analytics.js`, null off the public site, so nothing even listens there):
+   `Start` and `Finish` once a page, and the game's own moments, a checkpoint once and a mishap each time (the
+   downhill's is the example). Only the goal's name: never names, player ids, times or scores;
+3. its check, `tools/check_<game>_analytics.mjs` from [templates/check_analytics.mjs](templates/check_analytics.mjs),
+   added to the analytics row in `docs/agents.md` and the command in `peak/README.md`;
+4. its card on `/games` names `data-goal="Play <Game>"` (`peak/games/analytics.js` sends it as `Games: Play <Game>`);
+5. every goal as a **Custom event** goal in Plausible, or the dashboard won't show it: in
+   [Settings → Goals](https://stats.mosredna.eu/peakmnot.mosredna.eu/settings/goals), Add goal → Custom event, the
+   event name exactly as sent (`My Game: Start`; pick "Create …"), the display name fills itself in. `Games: Play
+   <Game>` too. With the user's go an agent does this in the user's own Chrome (Claude in Chrome, where they're signed
+   in); otherwise list the goals for the user to add;
+6. a look as if live before handing over: in Playwright, route `https://peakmnot.mosredna.eu/**` to the local score
+   server (5294 serves the repository), set `window.__plausible = true` in an init script (the tracker skips
+   automated browsers otherwise), and fulfil its POSTs to `https://stats.mosredna.eu/api/**` yourself, so the real
+   tracker runs and nothing reaches the real stats. Each goal should show up once, at its moment.
 
 ## 7. The build
 

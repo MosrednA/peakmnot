@@ -2,7 +2,7 @@
 
 What every mini game is built on, so a new one starts from the same base as the others: the stage and its light,
 the frame loop and the preloader, the handle for tests, the HUD's moving parts, the title screen, the finish
-party's beat and confetti, and the controller. The downhill (`peak/downhill/`) is built on it. The climb
+party's beat and confetti, the controller and the stats' goals. The downhill (`peak/downhill/`) is built on it. The climb
 (`peak/main.js`) came first and still has its own copies of the same things (it uses the kit's controller); it can
 move onto the kit later.
 
@@ -24,6 +24,7 @@ three keep up with the games.
 | `gamepad.js` | `class GamepadInput`: a controller (the Gamepad API's standard layout; Xbox, PlayStation, Switch). `poll()` once a step, then `stick`, `dpad`, `keys(held)` (the stick and D-pad as W A S D), `look` (the right stick as a camera drag), `down(b)`, `value(b)` (the triggers), `fresh` (pressed this step, by `BUTTON`), `used`, `rumble('bump' \| 'hit' \| 'cheer')`, the player's `settings` (kept in `localStorage`). With several connected, the one in use wins; everything lets go while the page isn't in front |
 | `padmenu.js` | `class PadMenu`: the controller on the screen. Its chip in the corner, the card behind it (the buttons, Camera, Look speed and Rumble; the Menu button or a click), and the page's hints in the controller's buttons while it's in use (the help line, "Press A to …", How to play). `update(dt)` after `poll()` presses the title's buttons, the Hall of Fame's and the finish card's, and says (true) when the controller went to the page. `glyphs(names)` draws buttons |
 | `pad.css` | The chip, the card and the button glyphs (A, ✕ or B, by the controller's maker); `body.pad` swaps the keyboard's hints (`key-only`) for the controller's (`pad-only`). A page links it after `kit.css` |
+| `analytics.js` | `goals(game, { manual })`: the game's Plausible goals, a `send(name)` that counts `<game>: <name>` on the public site only (null on localhost, staging and `?manual`, so the game doesn't listen there); a blocked tracker never interrupts. The tracker itself is in the page's head. The downhill, `/games` and the template use it |
 | `kit.css` | The HUD's look: the palette as CSS variables, the cards, the time, the Sound button, the help line, the toast and its pop, the panel and the finish card. A page links it after `peak/ui/title.css` and adds its own parts inline |
 
 ## How a game uses it
@@ -37,6 +38,7 @@ soundSwitch(sounds, document.getElementById('sound'));
 const title = new Title({ camera, dom: renderer.domElement, … });   // extends TitleScreen
 const pad = new GamepadInput();
 const padMenu = new PadMenu(pad, { sounds, controls: [['move dpad', 'walk'], ['a', 'jump']], help: [['move', 'walk']] });
+const track = goals('My Game', { manual });     // in peak/<game>/analytics.js: track?.('Start'), track?.('Finish')
 
 function step(dt) {
   pad.poll();
