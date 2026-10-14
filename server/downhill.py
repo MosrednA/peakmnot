@@ -214,6 +214,11 @@ class Route:
             fade = smooth(M["from"], M["from"] + 5, s) * (1 - smooth(M["to"] - 5, M["to"], s)) * \
                 (1 - smooth(P - 1.5, P, a))
             h += M["height"] * fade * math.sin(0.8 * s + 0.6 * d) * math.sin(0.9 * d - 0.25 * s + 0.6)
+        for B in f.get("rollers", ()):                 # (a route from before them has none)
+            if B["from"] < s < B["to"] and a < P + 0.5:
+                fade = smooth(B["from"], B["from"] + 4, s) * (1 - smooth(B["to"] - 4, B["to"], s)) * \
+                    (1 - smooth(P - 1.5, P, a))
+                h += B["height"] * fade * math.sin(2 * math.pi * (s - B["from"]) / B["length"] + 0.12 * d)
         rim = h
         hole = C["from"] < s < C["to"] and a < self.edge
         if hole:

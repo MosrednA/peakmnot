@@ -3,10 +3,10 @@
 The second mini game, in the same world as the climb: Mnot rides a very expensive ergonomic office chair down the
 mountain, from just below the summit to a finish above the clouds. The chair rolls on five casters with nothing
 scripted: gravity, the snow and Mnot's heels do the steering, and the gas lift is the jump. On the way down: a
-slalom through rocks, a kicker over a crevasse, ice in a bend, moguls, a river in a gorge with ice floes to hop, a
-bowling lane with ten knock-off chairs as pins, a ski jump with a K line, and an office at the bottom. It's a
-prototype. The production build has it (`tools/build.mjs`), and the score server serves it at `/downhill`, next to
-the climb at `/`.
+slalom through rocks, a kicker over a crevasse, ice in a bend, moguls, rollers that throw a fast chair into hops (after
+the pit stop at 488 m and after the river), a river in a gorge with ice floes to hop, a bowling lane with ten knock-off
+chairs as pins, a ski jump with a K line, and an office at the bottom. It's a prototype. The production build has it
+(`tools/build.mjs`), and the score server serves it at `/downhill`, next to the climb at `/`.
 
 Play: `python tools/dev_server.py`, then open <http://127.0.0.1:5280/downhill.html>. The `downhill` entry in
 `.claude/launch.json` serves the same folder on port 5293, for an agent that wants its own server. With the high

@@ -1,9 +1,10 @@
 // The piste for the office-chair descent (prototype): a centreline from the summit down to a finish above the
 // clouds, sampled every half metre, and a cross-section round it: a groomed piste with a slight dish, snow banks that
 // rise either side and tilt into the bends, a strip of deep powder on top of them, and the drop beyond. Along the
-// way: a kicker before a crevasse, ice in a bend, moguls, a meltwater river in a gorge with ice floes to hop, a
-// bowling lane and a ski jump (the pins, the office and the rest stand in obstacles.js). The chair's physics asks ground(x, z) for the height, the
-// slope and the surface; the snow mesh is drawn from the same function, so what you see is what you ride on.
+// way: a kicker before a crevasse, ice in a bend, moguls, rollers, a meltwater river in a gorge with ice floes to
+// hop, more rollers, a bowling lane and a ski jump (the pins, the office and the rest stand in obstacles.js). The
+// chair's physics asks ground(x, z) for the height, the slope and the surface; the snow mesh is drawn from the same
+// function, so what you see is what you ride on.
 import * as THREE from 'three';
 import { toon } from '../look/look.js';
 import { rock } from '../look/materials.js';
@@ -34,6 +35,8 @@ export const FEATURES = {
   crevasse: { from: 221, to: 226.5, depth: 9 },     // ...a crevasse right across, banks and all
   ice: { from: 322, to: 354 },
   moguls: { from: 416, to: 452, height: 0.32 },
+  // waves right across the piste, a little askew, that throw a fast chair into hops: after the pit, after the river
+  rollers: [{ from: 494, to: 548, height: 0.3, length: 8 }, { from: 660, to: 684, height: 0.27, length: 7 }],
   river: { from: 574, to: 647 },                    // a gorge with a meltwater river: hop the floes (FLOES)
   lane: { from: 692, to: 723 },                     // a bowling lane, down to...
   pins: 724,                                        // ...ten cheap chairs standing like pins (the head pin's s)
@@ -196,6 +199,12 @@ export class Track {
     if (s > M.from && s < M.to && a < PISTE + 0.5) {
       const fade = smooth(M.from, M.from + 5, s) * (1 - smooth(M.to - 5, M.to, s)) * (1 - smooth(PISTE - 1.5, PISTE, a));
       h += M.height * fade * Math.sin(0.8 * s + 0.6 * d) * Math.sin(0.9 * d - 0.25 * s + 0.6);
+    }
+    for (const B of FEATURES.rollers) {
+      if (s > B.from && s < B.to && a < PISTE + 0.5) {
+        const fade = smooth(B.from, B.from + 4, s) * (1 - smooth(B.to - 4, B.to, s)) * (1 - smooth(PISTE - 1.5, PISTE, a));
+        h += B.height * fade * Math.sin(2 * Math.PI * (s - B.from) / B.length + 0.12 * d);
+      }
     }
     out.rim = h;
     out.hole = s > C.from && s < C.to && a < EDGE;
