@@ -66,7 +66,7 @@ python server/peak_scores.py --showcase FILE --as NAME      # keep a recorded cl
 
 `--showcase` takes a replay as the game records it (`-` reads it from stdin), reads the time, falls, dents and splits
 off it, checks it like a finish, and prints the id for `peak.html?replay=ID`. It's for climbs that aren't a
-player's, such as the AI climber's (`ai/`): the link plays it, but it's never on the board or in the Hall of Fame,
+player's, such as a bot's: the link plays it, but it's never on the board or in the Hall of Fame,
 and housekeeping keeps it. In the container:
 `docker compose exec -T app python server/peak_scores.py --showcase - --as NAME < replay.json`.
 

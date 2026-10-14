@@ -378,7 +378,7 @@ def reverify(app, run_id, game="peak"):
 
 def showcase(app, path, name):
     """Check a recorded climb like a finish would (its claim and splits read off the replay) and keep it, shown by
-    link only: peak.html?replay=ID. For climbs that aren't a player's, such as the AI climber's (ai/)."""
+    link only: peak.html?replay=ID. For climbs that aren't a player's, such as a bot's."""
     if not name or names.clean(name) != (name, None):
         print("Give it a name with --as that the board would take as it is.")
         return 1

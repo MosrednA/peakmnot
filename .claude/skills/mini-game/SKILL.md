@@ -238,18 +238,3 @@ works"):
 
 Follow AGENTS.md: look first, patch in place, commit only your own files by name, keep line endings, and say on the
 board what you're touching. Only the coordinator or the user pushes; a push to `main` deploys.
-
-## 13. An AI player
-
-A neural network can learn the game too, in `ai/` ([ai/README.md](../../../ai/README.md); not in the build, not on
-the site): it plays the game's own modules in Node, hundreds at once. It needs what a well-made game has anyway:
-
-- the world, the physics, the rules and the recorder in modules without the DOM, stepped at a fixed physics step, so
-  a run in Node is the run in the browser;
-- the test bot (`autopilot.js`): its run through the headless game passes the server's check, and that proves the
-  copy is faithful;
-- the server's checker (step 6), which judges the AI's runs as it judges a player's.
-
-Copy `ai/games/_template/` to `ai/games/<game>/`, fill in its TODOs, check it (`node sim/check_env.mjs --game
-<game>`) and train (`train.py --game <game>`). The AI never goes on the board; the climb's best is shown by link only
-(`--showcase`, `server/README.md`).
