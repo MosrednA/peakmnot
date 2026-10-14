@@ -1,6 +1,6 @@
 # The team
 
-Peak Mnot is made by a human with opinions, the maintainer, and AI coding agents working side by side in the same
+Mnot Games is made by a human with opinions, the maintainer, and AI coding agents working side by side in the same
 folder. This page is for anyone who opens the repository, people and agents alike. It covers who does what, how
 the agents keep out of each other's way, and how to put the same specialists to work on your own idea.
 
@@ -38,12 +38,13 @@ it does, and [peak/README.md](../peak/README.md) has the full module table.
 
 ## The mini games
 
-Peak Mnot is growing into a handful of mini games in one world. Each has its own page and its own folder, and they
-share the mountain, the look, Mnot and the furniture round the game.
+Mnot Games contains mini games in one world. Each has its own page and its own folder, and they share the mountain,
+the look, Mnot and the furniture round the game. [The multi-game guide](multi-game.md) maps the pages, routes and
+shared modules; [the documentation index](README.md) points to each game's rules and the infrastructure references.
 
 | Game | Page | Folder | |
 |---|---|---|---|
-| The climb | `peak.html` | `peak/` (the shared modules live here too) | Live |
+| The climb | `peak.html` | `peak/` (the shared modules live here too) | Live at `/` |
 | The downhill, on an office chair | `downhill.html` | [`peak/downhill/`](../peak/downhill/README.md) | A prototype, at `/downhill`, linked from `/games` |
 
 Every game has its card and its shot on the page of all the games (`games.html`, at `/games`), its tab in the

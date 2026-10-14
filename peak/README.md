@@ -1,5 +1,9 @@
 # Peak Mnot
 
+The climb is the first game in [Mnot Games](../README.md). This reference covers its rules and implementation;
+[the multi-game guide](../docs/multi-game.md) explains how the downhill, selection page, viewer and shared kit fit
+together. The climb lives at `/`, the selection page at `/games`.
+
 "Peak Mnot" is the community's name for the moment the nerds dig far too deep into a detail. The game takes it
 literally: Mnot climbs a mountain from base camp to the summit. Mnot jumps over gaps between ledges, hops over loose
 ledges before they crumble, slides on ice, times jumps through wind gaps, rides a gondola, balances over planks and
@@ -245,16 +249,16 @@ each with its CSS next to it.
 
 | File | What |
 |---|---|
-| `scores.js` | The high scores: asks the score server for a run at the start, sends the splits and the recorded climb, the summit card with the name field (styled in `scores.css`) |
+| `scores.js` | Shared `createRun()`, `createBoard()` and `apiBase()` for every game, plus the climb's score integration and summit card (styled in `scores.css`) |
 | `replay.js` | Records the climb for the server's check: Mnot's position, speed and state about ten times a second, the keys and the game's events |
 | `leaderboard.js` | The Hall of Fame panel (the HUD trophy and the title's button), replay actions for eligible rows, and the board on the summit card; names go in as text only |
 | `routedata.js` | The route as plain data for the server (`server/route.json`) and its fingerprint |
 
 ### `kit/`: the base every mini game is built on
 
-The other mini games (the downhill so far) build on it; the climb has its own copies of the same things in `main.js`
-and `ui/`. Its README ([kit/README.md](kit/README.md)) has the API, and the `mini-game` skill
-(`.claude/skills/mini-game/`) the recipe for a new game.
+The other mini games (the downhill so far) build on it; the climb has its own stage, loop, title and HUD in `main.js`
+and `ui/`, and uses the kit's controller. Its README ([kit/README.md](kit/README.md)) has the API, and the
+[mini-game skill](../.claude/skills/mini-game/SKILL.md) the recipe for a new game.
 
 | File | What |
 |---|---|
@@ -264,6 +268,8 @@ and `ui/`. Its README ([kit/README.md](kit/README.md)) has the API, and the `min
 | `hud.js` | The toast, a card popping in, the Sound button and the audio unlock |
 | `title.js` | The title screen: the menu, the tips, any key or tap starts, the glide into the game's camera |
 | `party.js` | The finish party's beat on the music, and confetti |
+| `gamepad.js`, `padmenu.js`, `pad.css` | Controller input, settings, menu, button glyphs and hints, shared by the climb and downhill |
+| `analytics.js` | Public-site-only prefixed Plausible goals for new games and `/games` |
 | `kit.css` | The HUD's look |
 
 ### `dev/`: for tuning and tests

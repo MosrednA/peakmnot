@@ -1,24 +1,38 @@
-# Peak Mnot
+# Mnot Games
 
-**A soda can with big glasses climbs a mountain. Badly.**
+**One mountain. One can. Several bad ideas.**
 
 ![Mnot at base camp, on the title screen](docs/title.webp)
 
 Mnot is the mascot of [Met Nerds om Tafel](https://metnerdsomtafel.nl/), a Dutch podcast about nerd stuff. Among
-its listeners, "Peak Mnot" is the moment the nerds dig far too deep into a detail. This game takes that literally:
+its listeners, "Peak Mnot" is the moment the nerds dig far too deep into a detail. The first game takes that literally:
 get Mnot from base camp to the summit (4,810 m, ish) over loose ledges, ice, wind gaps, a gondola, wobbly planks and a
 rope, while rocks come down.
 
 The can is the health bar. Every fall or hit dents it, the fourth dent flattens it, and a checkpoint flag pops the
 dents back out. The fastest climbs go on the Hall of Fame.
 
-**Play it at <https://peakmnot.mosredna.eu>.**
+The repository now holds several mini games in that same world, sharing Mnot, the look, the controls' kit and one
+score server. Each game has its own rules, page and Hall of Fame.
+
+**Choose a game at <https://peakmnot.mosredna.eu/games>.** The climb remains at the site's root.
+
+| Game | Play | Rules and code |
+|---|---|---|
+| Peak Mnot | [Climb the mountain](https://peakmnot.mosredna.eu/) | [The climb](peak/README.md): loose ledges, ice, wind, a gondola and balancing |
+| Mnot Downhill (prototype) | [Ride the office chair](https://peakmnot.mosredna.eu/downhill) | [The downhill](peak/downhill/README.md): steering, casters, pit stops, bowling and a ski jump |
+
+The shared [animation viewer](https://peakmnot.mosredna.eu/viewer) shows Mnot's rig and clips, and the downhill's
+chair, moves and finish party in its own tab.
 
 | | |
 |---|---|
 | ![Mnot balancing on the rope over the abyss](docs/rope.webp) | ![Mnot dancing on the summit in the confetti](docs/summit.webp) |
 
 ## How to play
+
+These are the climb's controls. The [downhill's controls](peak/downhill/README.md) use the same keyboard, touch and
+controller inputs for steering, braking and the chair's gas lift.
 
 | Key | |
 |---|---|
@@ -52,14 +66,23 @@ the game is plain JavaScript modules, and three.js comes from a CDN through an i
 python tools/dev_server.py
 ```
 
-Then open <http://127.0.0.1:5280/peak.html>. The dev server reloads open tabs when a file changes. For the high
-scores, start the score server next to it (it listens on port 5281, and the game finds it there):
+Then open <http://127.0.0.1:5280/games.html> to choose a game. The climb is `peak.html`, the downhill is
+`downhill.html`, and the viewer is at `/` (`index.html`). The dev server reloads open tabs when watched code,
+models or sounds change. For the high scores, start the score server next to it (it listens on port 5281, and the
+games find it there):
 
 ```bash
 python -X utf8 server/peak_scores.py
 ```
 
-`http://127.0.0.1:5280/` is the animation viewer: Mnot on a turntable, with a button for every clip.
+To serve all the source pages and their scores on one origin, with the same routes as production:
+
+```bash
+python -X utf8 server/peak_scores.py --static --port 5294
+```
+
+Open <http://127.0.0.1:5294/games>. The climb is `/`, the downhill `/downhill`, and the viewer `/viewer`. The
+route table and shared modules are explained in [the multi-game guide](docs/multi-game.md).
 
 The live site runs a production build of the same files: [esbuild](https://esbuild.github.io/) bundles and minifies
 each page's code, three.js goes in a file of its own that browsers keep between releases, and every file is named
@@ -68,8 +91,16 @@ after its content. The Docker image makes the build itself. To try it locally yo
 ```bash
 npm ci
 npm run build
-SITE_DIR=dist python -X utf8 server/peak_scores.py --static --port 8080
 ```
+
+Then point the score server at the built site (PowerShell):
+
+```powershell
+$env:SITE_DIR = 'dist'
+python -X utf8 server/peak_scores.py --static --port 8080
+```
+
+In a POSIX shell, use `SITE_DIR=dist python -X utf8 server/peak_scores.py --static --port 8080` instead.
 
 Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/games` and `/viewer`.
 [`tools/build.mjs`](tools/build.mjs) explains what it does, including the one line that adds a new page.
@@ -78,21 +109,22 @@ Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/games
 
 | Path | What |
 |---|---|
-| [`peak.html`, `peak/`](peak/README.md) | The game: about fifty small ES modules for the route, the physics, the camera, the look, the props and the HUD |
+| [`peak.html`, `peak/`](peak/README.md) | The climb, plus the shared modules that came from it: the look, Mnot, props, input and scores |
+| [`peak/kit/`](peak/kit/README.md) | The base for new games: stage, loop, preloader, HUD, title, finish party, controller and analytics |
 | [`downhill.html`, `peak/downhill/`](peak/downhill/README.md) | The second mini game, a prototype in the same world: Mnot down the mountain on a very expensive office chair |
-| [`server/`](server/) | The high-score server: Python's standard library and SQLite, and it checks every climb before it counts |
-| [`models/`](models/README.md) | Mnot: the model, the rig and fourteen animation clips, built from code in Blender |
-| [`games.html`, `peak/games/`](peak/games/main.js) | The page of all the games, at `/games`: a card for each |
+| [`server/`](server/README.md) | One high-score server and SQLite database; each game's checker verifies runs for its own board |
+| [`models/`](models/README.md) | The shared Mnot model, rig and animation clips, built from code in Blender |
+| [`games.html`, `peak/games/`](games.html) | The page of all the games, at `/games`: cards, screenshots and navigation goals |
 | `index.html`, `peak/viewer/` | The animation viewer, at `/viewer`: Mnot, and a tab for each game ([models/README.md](models/README.md)) |
 | [`sounds.js`, `music.js`, `audio/`](audio/README.md) | Sound effects, and the music, "Pocket Altitude" |
 | `tools/` | The dev server, the production build, the Blender build script, browser checks and the sound scripts |
 | [`AGENTS.md`](AGENTS.md) | The house rules for the AI agents that work on this repository |
-| [`docs/`](docs/agents.md) | [The team](docs/agents.md) (who does what, and the specialist agents in `.claude/agents/`), [making a level](docs/making-a-level.md) and [performance](docs/performance.md) |
+| [`docs/`](docs/README.md) | The documentation index: [multi-game setup](docs/multi-game.md), [the team](docs/agents.md), [making a level](docs/making-a-level.md) and [performance](docs/performance.md) |
 
 ## How it's made
 
-- **Analytics.** Cookieless Plausible counts public visits and climb milestones. The goals and development exclusions
-  are documented in [peak/README.md](peak/README.md#analytics).
+- **Analytics.** Cookieless Plausible counts public visits, each game's milestones and game selection on `/games`.
+  The goals and development exclusions are documented in [peak/README.md](peak/README.md#analytics).
 - **three.js**, with toon shading and outlines. There's no framework, and the bundler (esbuild) only runs for the
   live site: in development the browser loads the modules as they are.
 - **Mnot is built from code.** `tools/build_mnot.py` builds the mesh, the rig, the skin weights and every clip in
@@ -108,10 +140,14 @@ Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/games
 
 ## About the high scores
 
-The score server doesn't take the browser's word for anything. The game records each climb, and the server checks
+One server shares players and names across games, while each game keeps its own board and run checker. The climb
+uses `/api/peak/`, the downhill `/api/downhill/`; both use the same submission protocol and SQLite database.
+
+The score server doesn't take the browser's word for anything. The climb records each run, and the server checks
 every step against the route and Mnot's physics: standing on rock that is there, never faster than its legs (or the
 ice, the wind and the gondola) allow, flying on real parabolas, and reaching every checkpoint. Only then does the
-time go on the board.
+time go on the board. The downhill's checker verifies the piste, chair physics, pit stops and bonus before its time
+counts. See [server/README.md](server/README.md#several-games).
 
 Yes, you can read the anti-cheat; that's the point. If you find a hole in it, please open an issue rather than
 posting 0:01. The server has a few surprises for people who try anyway.
@@ -130,6 +166,9 @@ Ideas, bugs and pull requests are welcome.
 
 - **Changing the route or making a level:** start with [docs/making-a-level.md](docs/making-a-level.md). The score
   server checks climbs against an export of the route, so re-export `server/route.json` after a change.
+- **Adding a mini game:** start with [the multi-game guide](docs/multi-game.md) and follow the
+  [mini-game skill and templates](.claude/skills/mini-game/SKILL.md). Build on the shared kit, then register the
+  page, card, viewer tab, score checker, analytics and link preview together.
 - **Before a pull request:** climb the route with `bots.climb` in `peak.html?manual` (see
   [peak/README.md](peak/README.md#testing-by-hand)), and run the score server's tests:
 

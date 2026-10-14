@@ -1,8 +1,9 @@
 # Mnot: model, rig and viewer
 
-A soda can with big glasses and rubber-hose arms and legs, rigged and animated for a browser game. This page
+A soda can with big glasses and rubber-hose arms and legs, rigged and animated for the Mnot mini games. This page
 covers Mnot itself: the model, the rig, the clips, the animation viewer and its checks. Paths are from the
-repository root. For the game, see the [front page](../README.md) and [peak/README.md](../peak/README.md).
+repository root. For the games, see the [front page](../README.md), [the climb](../peak/README.md) and
+[the downhill](../peak/downhill/README.md). [The multi-game guide](../docs/multi-game.md) explains the shared setup.
 
 | File | What |
 |---|---|
