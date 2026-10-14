@@ -7,7 +7,11 @@ party's beat and confetti, and the controller. The downhill (`peak/downhill/`) i
 move onto the kit later.
 
 The recipe for a whole new game (its page, its folder, the premise, sound, scores, the build and the checks) is the
-`mini-game` skill in [.claude/skills/mini-game/](../../.claude/skills/mini-game/SKILL.md), with templates.
+`mini-game` skill in [.claude/skills/mini-game/](../../.claude/skills/mini-game/SKILL.md), with templates. A new
+game also updates the page of all the games (`games.html`, at `/games`: its card, and its shot in
+`peak/games/main.js`) and the viewer (`index.html`, at `/viewer`: its tab, `peak/<game>/viewer.js`, in `GAMES` in
+`peak/viewer/tabs.js`), and sends its Plausible goals as `<Game>: <goal>` (`peak/README.md`, "Analytics"), so all
+three keep up with the games.
 
 | File | What |
 |---|---|

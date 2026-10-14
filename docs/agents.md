@@ -44,7 +44,11 @@ share the mountain, the look, Mnot and the furniture round the game.
 | Game | Page | Folder | |
 |---|---|---|---|
 | The climb | `peak.html` | `peak/` (the shared modules live here too) | Live |
-| The downhill, on an office chair | `downhill.html` | [`peak/downhill/`](../peak/downhill/README.md) | A prototype, at `/downhill`, not linked yet |
+| The downhill, on an office chair | `downhill.html` | [`peak/downhill/`](../peak/downhill/README.md) | A prototype, at `/downhill`, linked from `/games` |
+
+Every game has its card and its shot on the page of all the games (`games.html`, at `/games`), its tab in the
+viewer (`index.html`, at `/viewer`) and its goals in Plausible as `<Game>: <goal>`; a new game adds all three (the
+`mini-game` skill, "The files").
 
 **Same style and vibe, another game.** Every mini game:
 
@@ -143,7 +147,7 @@ Every specialist runs the checks for its area. Before a commit, all of these pas
 | The whole climb | `bots.climb` in `peak.html?manual` reaches the summit ([peak/README.md](../peak/README.md#tuning-with-the-bots)) |
 | The whole downhill | `downhill.autopilot(true)` in `downhill.html?manual` reaches the finish ([peak/downhill/README.md](../peak/downhill/README.md#testing)) |
 | The score server | `python -m unittest discover server` |
-| The analytics events | `node --test tools/check_analytics.mjs` |
+| The analytics events | `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs` |
 | The replay motion | `node --test tools/check_replay_playback.mjs`: samples, strides, turns, clip blends and deterministic seeks |
 | The replay controls | `tools/check_replays.js` with `python tools/replay_test_server.py` on 5291: watch, ghost race, scrubbing and moving ledges |
 | The animation viewer | `tools/check_controls.js`, deterministic Playwright checks on `index.html` |

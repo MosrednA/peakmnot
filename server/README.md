@@ -134,7 +134,7 @@ A new game is:
    the timeline, the flags, the splits and the motion are there for any game; the game adds its own physics;
 2. a `Game` in `games.load()`, with its house records and any words of its own, and its name in `NAMES`;
 3. its page, `<game>.html`, which the server then serves at `/<game>` (and `tools/build.mjs` builds, one line in
-   `PAGES`);
+   `PAGES`), with its card on the page of all the games and its tab in the viewer (the `mini-game` skill);
 4. in the page, `createRun()` and `createBoard()` from `peak/scores/scores.js` for `apiBase(location, '<game>')`;
 5. tests: real recorded runs in `fixtures/<game>/`, and the cheats its checker turns down (`test_downhill.py`).
 
@@ -288,7 +288,10 @@ check on `/api/peak/health`), `docker-compose.yml` (the `peakmnot-data` volume, 
 for MosDeploy at <https://peakmnot.mosredna.eu>. The Dockerfile's first stage (node:24-bookworm-slim) runs
 `npm ci` and the production build, `tools/build.mjs`; so building the image needs the npm registry, and nothing
 else changes on the host. The image holds only what the build wrote, the games' pages (`peak.html`, `downhill.html`),
-the favicons, the web manifest, `models/mnot.glb` and `assets/`, and the server. The downhill is at `/downhill`. The server serves only those files (an allowlist), with a
+the page of all the games (`games.html`) and the viewer (`index.html`), the favicons, the web manifest,
+`models/mnot.glb` and `assets/`, and the server. The downhill is at `/downhill`, the page of all the games at
+`/games` and the viewer at `/viewer` (`PAGES` in `peak_scores.py`; a route names its file, so it needs no line in
+`STATIC`). The server serves only those files (an allowlist), with a
 Content-Security-Policy that hashes the page's inline scripts.
 
 In `assets/` every file is named after its content (`peak-HASH.js`, `three-HASH.js`, `fall-HASH.m4a`), so it is

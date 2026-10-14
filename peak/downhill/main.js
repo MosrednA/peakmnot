@@ -30,6 +30,7 @@ import { DownhillMusic } from './music.js';
 import { Party } from './party.js';
 import { createScores } from './scores.js';
 import { Title } from './title.js';
+import { hookAnalytics } from './analytics.js';
 
 const params = new URLSearchParams(location.search);
 const manual = params.has('manual');
@@ -368,6 +369,7 @@ function readPad(dt) {
 // controls above, so the key or tap that starts the run isn't also a steer or a jump.
 const title = new Title({ camera, chase, track, ride, rider, scene, dom: renderer.domElement });
 title.on('start', () => begin());
+hookAnalytics({ title, ride, pits: FEATURES.pits, manual });
 
 let steer = 0;
 function intent(dt) {

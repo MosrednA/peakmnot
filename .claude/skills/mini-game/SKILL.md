@@ -42,6 +42,12 @@ do what it does.
 | `peak/<game>/README.md` | The premise, the rules, the controls, the modules, who owns what, how to test. From [templates/README.md](templates/README.md) |
 | `audio/<game>/` | Its effects, WAV masters and AAC `.m4a` (Codex) |
 | `server/<game>.py`, `server/<game>.json` | Its high scores' checker and route (step 6) |
+| `peak/<game>/viewer.js` | Its tab in the animation viewer (`index.html`, live at `/viewer`): Mnot with what the game adds (the chair, the moves, the party), and a line in `GAMES` in `peak/viewer/tabs.js`. The downhill's is the example |
+| `peak/<game>/analytics.js` | Its Plausible goals, each named `<Game>: <goal>` so a game's goals stay together, the tracker in the page's head, and the goals added in Plausible by hand ([peak/README.md](../../../peak/README.md#analytics)). The downhill's is the example, `tools/check_downhill_analytics.mjs` its check |
+| `games.html`, `peak/games/<game>.jpg` | Its card on the page of all the games (`/games`), in place of the "?" card or before it, and its shot from about a quarter of the way in (800 x 500, a JPEG, never the title or the finish: no spoilers) in `THUMBS` in `peak/games/main.js` |
+
+**Every new game updates the page of all the games and the viewer**: a card and a shot on `games.html`, a tab in the
+viewer, so neither is left showing only the games before it.
 
 Also: one line in `PAGES` in `tools/build.mjs`, its own port in `.claude/launch.json` while it's being made (copy
 the `downhill` entry), a row in the table in `docs/agents.md` ("The mini games"), and in `peak/README.md` if it adds

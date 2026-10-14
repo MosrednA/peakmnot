@@ -71,8 +71,8 @@ npm run build
 SITE_DIR=dist python -X utf8 server/peak_scores.py --static --port 8080
 ```
 
-Then open <http://127.0.0.1:8080/>. [`tools/build.mjs`](tools/build.mjs) explains what it does, including the one
-line that adds a new page.
+Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/games` and `/viewer`.
+[`tools/build.mjs`](tools/build.mjs) explains what it does, including the one line that adds a new page.
 
 ## What's in here
 
@@ -82,7 +82,8 @@ line that adds a new page.
 | [`downhill.html`, `peak/downhill/`](peak/downhill/README.md) | The second mini game, a prototype in the same world: Mnot down the mountain on a very expensive office chair |
 | [`server/`](server/) | The high-score server: Python's standard library and SQLite, and it checks every climb before it counts |
 | [`models/`](models/README.md) | Mnot: the model, the rig and fourteen animation clips, built from code in Blender |
-| `index.html` | The animation viewer |
+| [`games.html`, `peak/games/`](peak/games/main.js) | The page of all the games, at `/games`: a card for each |
+| `index.html`, `peak/viewer/` | The animation viewer, at `/viewer`: Mnot, and a tab for each game ([models/README.md](models/README.md)) |
 | [`sounds.js`, `music.js`, `audio/`](audio/README.md) | Sound effects, and the music, "Pocket Altitude" |
 | `tools/` | The dev server, the production build, the Blender build script, browser checks and the sound scripts |
 | [`AGENTS.md`](AGENTS.md) | The house rules for the AI agents that work on this repository |

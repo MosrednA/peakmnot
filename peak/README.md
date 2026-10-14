@@ -106,31 +106,40 @@ replay's stored phase in Watch run and the new climb's clock in Race ghost. Raci
 
 ## Analytics
 
-The public game uses cookieless Plausible at `stats.mosredna.eu`. The tracker in `peak.html` counts pageviews;
-`analytics.js` listens to the title, game and player events for these custom goals:
+Every mini game uses cookieless Plausible at `stats.mosredna.eu`, all on one site, `peakmnot.mosredna.eu`. The
+tracker in each page's head (`peak.html`, `downhill.html`, `games.html`) counts pageviews, so **Top pages** splits
+them by game: `/`, `/downhill`, `/games`. Each game's goals carry its name in front, so they stay together in **Goal
+conversions** however many games there are: the climb's show as `Climb: …`, the downhill's are `Downhill: …`
+([peak/downhill/README.md](downhill/README.md#analytics)). A new game sends its goals as `<Game>: <goal>`.
 
-| Goal name (exact, including capitals) | When |
-|---|---|
-| `Start Climb` | The title hands over to the player, once per page |
-| `Checkpoint 1 Reached` | The first checkpoint is reached, once |
-| `Checkpoint 2 Reached` | The second checkpoint is reached, once |
-| `Checkpoint 3 Reached` | The third checkpoint is reached, once |
-| `Summit Reached` | The climb reaches the summit, once |
-| `Fall` | Mnot is lost into the abyss; each fall, without counting its respawn again |
-| `Flattened` | The fourth dent flattens the can; each time |
+The climb's `analytics.js` listens to the title, game and player events for these custom goals:
 
-The goals are configured under [Settings → Goals](https://stats.mosredna.eu/peakmnot.mosredna.eu/settings/goals),
-with **Show in dashboard** enabled. Conversion counts appear after a matching event is received. When adding a
-goal, create the matching **Custom event** in Plausible too: sending an event alone does not add a dashboard goal
-([Plausible's guide](https://plausible.io/docs/custom-event-goals)).
+| Event name (exact, including capitals) | Shown as | When |
+|---|---|---|
+| `Start Climb` | `Climb: Start` | The title hands over to the player, once per page |
+| `Checkpoint 1 Reached` | `Climb: Checkpoint 1` | The first checkpoint is reached, once |
+| `Checkpoint 2 Reached` | `Climb: Checkpoint 2` | The second checkpoint is reached, once |
+| `Checkpoint 3 Reached` | `Climb: Checkpoint 3` | The third checkpoint is reached, once |
+| `Summit Reached` | `Climb: Summit` | The climb reaches the summit, once |
+| `Fall` | `Climb: Fall` | Mnot is lost into the abyss; each fall, without counting its respawn again |
+| `Flattened` | `Climb: Flattened` | The fourth dent flattens the can; each time |
+
+The climb's events kept their names from before the prefix, so the history stays on the same goals; the prefix is
+their display name. The goals are configured under
+[Settings → Goals](https://stats.mosredna.eu/peakmnot.mosredna.eu/settings/goals), with **Show in dashboard** enabled.
+Conversion counts appear after a matching event is received. When adding a goal, create the matching **Custom
+event** in Plausible too, with the event name exactly as sent and the display name with its game in front: sending
+an event alone does not add a dashboard goal ([Plausible's guide](https://plausible.io/docs/custom-event-goals)).
+Plausible CE has no funnels, so a game's way through is read from its goals in order; a goal or a page filter shows
+one game on its own.
 
 Events before the climb or after the summit are ignored. Analytics sends no custom properties, names, player ids,
 replays or scores. Only `peakmnot.mosredna.eu` is tracked; localhost, other hosts, the animation viewer and `?manual`
 are excluded. Missing or blocked analytics does not stop the game. The production page's CSP allows only the
 Plausible host in addition to its existing script and connection sources; inline scripts still require hashes.
 
-Run `node --test tools/check_analytics.mjs` for the event checks and `python -m unittest discover server` for the
-production CSP check.
+Run `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs` for the event checks and
+`python -m unittest discover server` for the production CSP check.
 
 ## Modules
 

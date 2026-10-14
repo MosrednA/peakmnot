@@ -63,6 +63,25 @@ and paste the line it prints into the console of `http://127.0.0.1:5280/downhill
 physics in `ride.js` may need `server/downhill.py` to follow: `python -m unittest discover server` replays the
 recorded rides in `server/fixtures/downhill/`.
 
+## Analytics
+
+The climb's way ([peak/README.md](../README.md#analytics)): cookieless Plausible, on the public site only, the tracker
+in `downhill.html`'s head for the views of `/downhill`, and `analytics.js` for the goals. Each starts with
+`Downhill: `, so the downhill's goals stay together in the dashboard:
+
+| Goal (event and display name) | When |
+|---|---|
+| `Downhill: Start` | The title hands over to the rider, once per page |
+| `Downhill: Pit Stop 1` … `4` | Each pit stop, in a run that went through the gate; once per page each |
+| `Downhill: Finish` | The finish line, once per page |
+| `Downhill: Wrecked` | The chair is wrecked; each time, in a run |
+| `Downhill: Off-Piste` | Mnot is lost off the piste; each time, in a run |
+| `Downhill: Splash` | Mnot is lost in the river; each time, in a run |
+
+A run is on from the gate to the finish, again after R; the party after the finish counts nothing. No names, times or
+scores; localhost, other hosts and `?manual` send nothing. `node --test tools/check_downhill_analytics.mjs` checks
+them.
+
 ## Modules
 
 What it shares with the climb, imported and never copied: the backdrop and the post-processing (`look/scenery.js`,
@@ -91,6 +110,8 @@ game kit's (`peak/kit/`).
 | `bonus.js` | Time off the clock for the bowling and the ski jump |
 | `record.js`, `scores.js`, `routedata.js` | The high scores: the recorder, the server talk and the card, the route as data for the server |
 | `autopilot.js` | A test rider that rides the whole run through the same physics |
+| `analytics.js` | The Plausible goals of public rides (above); excludes development and manual tests |
+| `viewer.js` | The downhill's tab in the animation viewer (`index.html`, `/viewer`): Mnot on the chair, its moves and the party |
 | `sfx.js`, `music.js` | The chair's sounds and the downhill's variant of the climb's tune (Codex) |
 
 ## Testing
