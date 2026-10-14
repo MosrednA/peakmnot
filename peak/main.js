@@ -140,6 +140,27 @@ function step(dt) {
     return;                                 // spectator mode has no live input, physics, hazards, audio or score calls
   }
 
+  const pad = input.pollGamepad();
+  const ghostWaiting = replays?.mode === 'ghost' && !replays.ready;
+  if (!replayIsReadOnly && !ghostWaiting && pad.active) touch.enable(false);
+  const wasTitle = title.visible;
+  const panelOpen = !!document.querySelector('.sc-panel.open');
+  const typing = document.activeElement?.matches('input, textarea, select, [contenteditable="true"]');
+  if (!replayIsReadOnly && !ghostWaiting && !panelOpen && !typing) {
+    if (wasTitle && pad.start) title.start('gamepad');
+    if (!wasTitle && input.enabled) {
+      const padState = input.gamepad;
+      if (padState.look.x || padState.look.y) {
+        follow.look(padState.look.x * 260 * dt, padState.look.y * 260 * dt, { player, world });
+      }
+      if (padState.zoom) follow.zoomBy(Math.exp(padState.zoom * dt));
+    }
+  }
+  // The start button press must not also jump; panels and typing suppress controller actions.
+  if (wasTitle || panelOpen || typing) {
+    Object.assign(input.gamepad, { held: new Set(), careful: false, jump: false, mute: false });
+  }
+
   const forward = follow.forward();
   const ghostLoading = replays?.mode === 'ghost' && !replays.ready;
   const intent = ghostLoading ? { move: new THREE.Vector3(), held: new Set(), jump: false, mute: false, careful: false } :
