@@ -15,7 +15,7 @@ import { pineReach } from './obstacles.js';
 
 export const G = 15;
 export const FEEL = {
-  roll: { piste: 0.035, bank: 0.08, powder: 0.22, ice: 0.006 },    // rolling resistance, as a share of the weight
+  roll: { piste: 0.035, bank: 0.14, powder: 0.32, ice: 0.006 },    // rolling resistance, as a share of the weight
   steer: { piste: 7, bank: 5.5, powder: 4, ice: 1.2, air: 1.4 },   // m/s²: how hard the feet push sideways
   brake: { piste: 0.6, bank: 0.7, powder: 0.8, ice: 0.12 },        // feet down: the drag, as a share of the weight
   drag: 0.0085, tuck: 0.0055,     // air drag per metre (sitting up, tucked in)
@@ -46,6 +46,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3();
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _t = new THREE.Vector3();
 const _prev = new THREE.Vector3(), _old = new THREE.Vector3(), _steer = new THREE.Vector3(), _along = new THREE.Vector3();
+const _w = new THREE.Vector3();
 const frame = { pos: new THREE.Vector3(), tangent: new THREE.Vector3(), right: new THREE.Vector3() };
 
 export class Ride {
@@ -222,7 +223,8 @@ export class Ride {
     if (impact > FEEL.hard) this.loseWheel(_a.set(0, -1, 0), 'landing');
   }
 
-  // Something too steep to roll up (the crevasse's far wall, a cliff): back to where it was, bounced off it.
+  // Something too steep to roll up (the crevasse's far wall, a cliff, the gorge's rock): back to where it was, bounced
+  // off it, and the rock's friction takes speed along it too, as a tree's or a rock's does.
   hitWall(old) {
     this.emit('wall');                            // for the recorder: this step went nowhere (record.js)
     const n = _a.copy(this.under.normal);
@@ -232,7 +234,8 @@ export class Ride {
     this.pos.x = old.x; this.pos.z = old.z;
     const vn = this.vel.dot(n);
     if (vn < 0) {
-      this.vel.addScaledVector(n, -(1 + FEEL.restitution) * vn);
+      const J = -(1 + FEEL.restitution) * vn, t = _w.set(-n.z, 0, n.x), vt = this.vel.dot(t);
+      this.vel.addScaledVector(n, J).addScaledVector(t, -Math.sign(vt) * Math.min(FEEL.grip * J, Math.abs(vt)));
       if (-vn > FEEL.crash) this.loseWheel(n.clone().negate(), 'wall');
       if (-vn > 0.6) this.emit('crash', { impulse: -vn, kind: 'wall', at: this.pos.clone() });
     }
