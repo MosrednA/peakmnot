@@ -9,7 +9,8 @@ finish. The checks every game shares (the replay's shape, the timeline, the spli
 
 verify(route, replay, claim, splits) returns None for a good run, or a checks.Rejection. The tolerances are the
 rounding (mm, mm/s, ms) and the game's own steps, measured on honest runs at 30 to 144 frames a second, with room;
-see server/README.md ("The downhill").
+see server/README.md ("The downhill"). What the game does to a step by itself beyond its speeds (an obstacle's push,
+a landing's snap, the snow's own lift) is worked out for that step in downhill_give.py.
 """
 import collections
 import json
@@ -18,6 +19,7 @@ from pathlib import Path
 
 import checks
 from checks import Malformed, Rejection  # noqa: F401  (the API catches them from here too)
+from downhill_give import Give, Window
 
 ROUTE_FILE = Path(__file__).resolve().parent / "downhill.json"
 GROUND, AIR, OUT = 0, 1, 3
@@ -331,7 +333,7 @@ def dot(a, b):
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 
 
-class Checker(checks.Checker):
+class Checker(Give, checks.Checker):
     format = FORMAT
     checkpoint = "pit"
     out = OUT
@@ -413,7 +415,7 @@ class Checker(checks.Checker):
             self.fail("start", first, "no start at the beginning")
         if first.ms > START_MS or first.mode == OUT:
             self.fail("start", first, "the clock started late")
-        if not self.route.gate < g.s <= self.route.gate + START_SPEED * 1.5 * STEP + TOL["pit"]:
+        if not self.route.gate - 0.001 < g.s <= self.route.gate + START_SPEED * 1.5 * STEP + TOL["pit"]:
             self.fail("start", first, f"started at {g.s:.2f} m")
         self.over("start_speed", first.speed, START_SPEED, "start", first)
 
@@ -523,17 +525,19 @@ class Checker(checks.Checker):
             if x.mode == OUT:
                 continue
             pushed = self.flagged(x, "crash", "bump")
+            limit = TOL["pushed"] if pushed else TOL["ground"]
             if abs(g.d) > self.route.edge + OFF_PISTE:
                 self.fail("off_route", x, f"{g.d:.1f} m across")
+            # (the snow under anywhere x can have been: its position is rounded, and it may have just been pushed)
             if g.hole:
-                self.over("rim", (g.rim - 1.2) - x.y, TOL["pushed"] if pushed else TOL["ground"], "levitate", x,
-                          "below the rim, still riding")
+                below = self.lowest(x, lambda h: h.rim - 1.2 - x.y if h.hole else -math.inf, limit)
+                self.over("rim", below, limit, "levitate", x, "below the rim, still riding")
             if x.mode == GROUND:
-                limit = TOL["pushed"] if pushed else TOL["ground"]
-                self.over("ground_above", x.y - g.y, limit, "levitate", x, f"{x.y - g.y:.3f} m above the snow")
-                self.over("ground_below", g.y - x.y, limit, "edited", x, f"{g.y - x.y:.3f} m in the snow")
+                above, below = self.lowest(x, lambda h: x.y - h.y, limit), self.lowest(x, lambda h: h.y - x.y, limit)
+                self.over("ground_above", above, limit, "levitate", x, f"{above:.3f} m above the snow")
+                self.over("ground_below", below, limit, "edited", x, f"{below:.3f} m in the snow")
             else:
-                self.over("air_below", g.y - x.y, TOL["pushed"] if pushed else TOL["ground"], "edited", x)
+                self.over("air_below", self.lowest(x, lambda h: h.y - x.y, limit), limit, "edited", x)
             for o in self.route.near(g.s):
                 reach = self.route.reach(o, x.y)
                 if reach is not None:
@@ -545,7 +549,10 @@ class Checker(checks.Checker):
         return b.has("respawn")
 
     def give(self, a, b):
-        return TOL["pushed"] if self.flagged(b, "crash", "bump") else 0.0
+        give = TOL["pushed"] if self.flagged(b, "crash", "bump") else 0.0
+        if math.dist((a.x, a.y, a.z), (b.x, b.y, b.z)) > max(a.speed, b.speed) * (b.t - a.t) + REACH + give:
+            give += self.moved_by_game(a, b)        # (worked out only when it's needed)
+        return give
 
     def check_steps(self):
         """From one sample to the next, with nothing happening in between: the chair goes where its speeds at
@@ -558,7 +565,8 @@ class Checker(checks.Checker):
             # and a rock or a pine it leans on nudges it without a crash)
             if a.mode != AIR or b.mode != AIR or b.flags or dt <= 0 or self.touching(a) or self.touching(b):
                 continue
-            for p0, v0, v1, p1 in ((a.x, a.vx, b.vx, b.x), (a.y, a.vy, b.vy, b.y), (a.z, a.vz, b.vz, b.z)):
+            bx, bz = self.unpushed(a, b)
+            for p0, v0, v1, p1 in ((a.x, a.vx, b.vx, bx), (a.y, a.vy, b.vy, b.y), (a.z, a.vz, b.vz, bz)):
                 self.over("trapezoid", abs(p1 - p0 - (v0 + v1) / 2 * dt), TOL["trapezoid"], "teleport", b)
             vm = ((a.vx + b.vx) / 2, (a.vy + b.vy) / 2, (a.vz + b.vz) / 2)
             speed = math.sqrt(dot(vm, vm))
@@ -573,7 +581,10 @@ class Checker(checks.Checker):
             k = clamp(-(dv[0] * drag[0] + dv[2] * drag[2]) / across, k0, k1) if across > 0 else k0
             turn = math.hypot(dv[0] + k * drag[0], dv[2] + k * drag[2])
             self.over("gravity", fall, TOL["gravity"], "antigravity", b)
-            self.over("air_steer", turn, feel["steer"]["air"] * dt + TOL["air_steer"], "antigravity", b)
+            steer = feel["steer"]["air"] * dt + TOL["air_steer"]
+            if turn > steer:
+                steer += self.nudge(a, b)
+            self.over("air_steer", turn, steer, "antigravity", b)
 
     def check_energy(self):
         """Never more energy than the chair can have. From one sample to the next its energy per kilogram (the
@@ -583,7 +594,7 @@ class Checker(checks.Checker):
         G, feel, route = self.route.g, self.route.feel, self.route
         P, B = route.piste, route.bank
         ice = route.features["ice"]
-        window, total = collections.deque(), 0.0
+        window, total = Window(self, WINDOW, TOL["window"]), 0.0
         for a, b in zip(self.samples, self.samples[1:]):
             dt = b.t - a.t
             if a.mode == OUT or b.mode == OUT or b.has("respawn") or dt <= 0:
@@ -608,6 +619,8 @@ class Checker(checks.Checker):
                 steer *= 0.05
             ra, rb = route.right(ga.s), route.right(gb.s)
             lateral = max(abs(a.vx * ra[0] + a.vz * ra[1]), abs(b.vx * rb[0] + b.vz * rb[1])) + 0.5
+            if not in_air:      # (on the snow the feet push along it: across a bank, harder than its width says)
+                lateral /= min(self.tilt(ga, ra), self.tilt(gb, rb))
             gain = steer * lateral * dt
             if keys & PUSH and not in_air and min(va, vb) < feel["pushTop"] + 0.5:
                 gain += feel["push"] * feel["pushTop"] * dt
@@ -627,11 +640,12 @@ class Checker(checks.Checker):
             if self.at_rim(a) or self.at_rim(b):
                 slack += G * max(abs(a.vy), abs(b.vy)) * dt
             excess = rise - gain + loss - slack
+            # less what the game gave it by itself (downhill_give.py), worked out only where it makes a difference
+            owed = excess > 0
+            if owed and (excess > TOL["energy"] or self.stats is not None):
+                excess, owed = self.credited(a, b, excess), False
             self.over("energy", excess, TOL["energy"], "antigravity", b, f"{excess:.2f} J/kg too much")
-            window.append((b.t, excess))
-            total += excess
-            while window and window[0][0] < b.t - WINDOW:
-                total -= window.popleft()[1]
+            total = window.add(b.t, excess, (a, b) if owed else None)
             self.over("energy_window", total, TOL["window"], "antigravity", b, f"{total:.2f} J/kg too much")
 
     def lift(self, x):

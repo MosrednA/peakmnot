@@ -20,11 +20,12 @@ goals and the exclusions for development and manual tests.
 | `route.py`, `route.json` | The route as the game exported it (`peak/scores/routedata.js`), and the geometry questions about it |
 | `checks.py` | What every game's checker shares: the replay's shape and the checks that hold for any run |
 | `downhill.py`, `downhill.json` | The downhill's checker and its route (`peak/downhill/routedata.js`): the piste, the obstacles, the chair's feel |
+| `downhill_give.py` | What the chair's physics does to a step by itself (a push, a landing's snap, the snow's lift), for that checker |
 | `store.py`, `db.py` | The data: runs, players, the board, the Hall of Shame; the schema and its migrations |
 | `names.py`, `eggs.py` | The name filter, and what the server says to people poking at it |
 | `perf.py` | The perf runs that `peak.html?perf` sends, kept as JSON lines ([docs/performance.md](../docs/performance.md)) |
 | `export_route.py` | Refreshes `route.json` (or `downhill.json`) from the game (below) |
-| `test_peak_scores.py`, `test_peak_parts.py`, `test_downhill.py`, `fixtures/` | The tests, and real recorded climbs and rides they replay |
+| `test_peak_scores.py`, `test_peak_parts.py`, `test_downhill.py`, `test_downhill_give.py`, `fixtures/` | The tests, and real recorded climbs and rides they replay |
 | `browser_bot.js` | An end-to-end check: a bot that climbs in a real browser and submits like a player |
 
 ## Running it
@@ -173,6 +174,16 @@ game's own geometry (`track.js`, `obstacles.js`) and checks every step against `
   longest ski jump (from the lip, measured where it landed); the claim's clock is the last sample, the board time
   the clock less the bonus, and the spills and lost wheels match.
 
+What the game does to a step by itself, beyond what the speeds at either end say, is allowed on that step only,
+worked out from the route (`downhill_give.py`): a rock, a cabinet or a pine putting the chair back out of it, as far
+as it reaches at the heights the chair passed through (coming down past a rock's top, that is a shove sideways
+without a crash); a landing's snap onto the snow, up to the chair's `wall` above where it was (at a floe's or the
+gorge's edge that lifts it for free); the snow lifting a rolling chair where `track.js`'s normals lean (at the
+powder's step on top of a bank, far across a bend); the feet's push along a bank that leans across; and the
+rounding of a position (at a floe's edge the snow a millimetre away is the water). The energy check works these
+out only where they change its verdict, and a run's at most `WORK` calls to the route's ground (about 3 s), so a
+replay can't make the check slow.
+
 The least time of a stretch is its length at 45 m/s (`downhill.py`, `SEGMENT_FAST`): about 3.7, 2.8, 4.0, 6.0 and
 6.6 s between the gate, the pit stops and the finish; the recorded test ride took 18.7, 8.8, 17.2, 22.4 and 35.6.
 After changing the piste, the obstacles, the chair's feel or the bonus, export the route again:
@@ -279,6 +290,10 @@ the route moves on (one test then skips, saying the fixtures are older than `rou
 `test_downhill.py` does the same for the downhill with the rides in `fixtures/downhill/` (`ride`: 1:31.61 on the
 board, no spills; `spills`: two), the cheats its checker turns down, and the two games side by side: a board each,
 the house records, one player in both, a run that only its own game knows.
+`test_downhill_give.py` replays honest rides the checker once turned down, each with a copy of the route it was
+ridden on (`fixtures/downhill/honest-<route>.json.gz`: whole runs, and stretches of others), and checks that what
+lets them through still turns down a push further than the obstacle reaches, a sidestep with a landing's flag,
+a landing that pays for speed, a roll that's quicker where the snow lifts, and steering up a bank without the keys.
 
 To record a new fixture, climb for real with the browser bot against the dev servers: open
 `http://127.0.0.1:5280/peak.html?keep=manual` (any "manual" in the address stops the live reload; this one doesn't
