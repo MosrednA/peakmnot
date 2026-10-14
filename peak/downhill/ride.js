@@ -11,7 +11,7 @@
 import * as THREE from 'three';
 import { CHAIR } from './chair.js';
 import { FEATURES } from './track.js';
-import { pineReach } from './obstacles.js';
+import { pineReach, TRUNK } from './obstacles.js';
 
 export const G = 15;
 export const FEEL = {
@@ -36,6 +36,8 @@ export const FEEL = {
   bearing: 0.035, stiction: 0.012,   // the swivel: viscous and dry friction
   catch: 0.35,                    // the share of a crash's twist that the seat catches (legs, armrests)
   snowSpin: 0.12,                 // how much a snowman hitting the seat off-centre turns it
+  needles: 0.09,                  // drag per metre through a pine's branches (the air's, ten times over and more)
+  bough: 4,                       // 1/s: the branches bend the chair off the trunk, taking its speed towards it
   baseInertia: 0.15, scrub: 3,    // the star: its inertia, and how fast its casters scrub its turning out
   lift: { k: 420, c: 20, give: 0.12 },   // the gas spring
   rock: { k: 180, c: 12, lean: 0.25 },   // the seat rocking on its mechanism
@@ -100,6 +102,7 @@ export class Ride {
     this.outTime = 0;
     this.sunk = false;                            // the river: it sinks slowly
     this.flight = null;                           // off the ski jump, until it lands
+    this.pine = null;                             // the pine whose branches it's going through
     if (wheels) this.wheels.fill(true);
   }
 
@@ -181,7 +184,7 @@ export class Ride {
     const lip = FEATURES.jump.lip;
     if (wasGrounded && !this.grounded && this.s > lip - 6 && this.s < lip + 2) this.flight = { time: 0, top: pos.y };
     if (this.flight) { this.flight.time += dt; this.flight.top = Math.max(this.flight.top, pos.y); }
-    this.collide();
+    this.collide(dt);
     if (under.hole && pos.y < under.rim - 1.2) this.fallOut();
 
     // what the chair felt this step, for the seat
@@ -241,10 +244,13 @@ export class Ride {
     }
   }
 
-  // Rocks and trees are hard: the chair bounces off with friction along them, which twists the star and the seat.
-  // Snowmen are soft: they burst, slow the chair and, hit off-centre, send the seat spinning.
-  collide() {
+  // Rocks and a pine's trunk are hard: the chair bounces off with friction along them, which twists the star and the
+  // seat. A pine's branches are soft: the chair goes through them, slowed by the needles and bent off the trunk, and
+  // they rustle (a bird may fly out). Snowmen are soft: they burst, slow the chair and, hit off-centre, send the seat
+  // spinning.
+  collide(dt) {
     const pos = this.pos, vel = this.vel;
+    let pine = null;
     for (const o of this.obstacles.near(this.s)) {
       if (o.gone || pos.y > o.top - 0.05) continue;
       let r = o.r, body = CHAIR.radius;
@@ -253,10 +259,24 @@ export class Ride {
         if (Math.abs(dy) >= o.r) continue;
         r = Math.sqrt(o.r * o.r - dy * dy);
       } else if (o.kind === 'tree') {
-        // the branches at Mnot's height (from the seat to the top of the can) meet the can and the armrests; the
-        // trunk, the star of casters
-        const branches = pineReach(o, pos.y - o.y + 0.45, pos.y - o.y + 1.6);
-        r = Math.max(branches + BODY, pineReach(o, pos.y - o.y, pos.y - o.y + 0.45) + CHAIR.radius) - body;
+        // the branches at Mnot's height (from the seat to the top of the can) meet the can and the armrests, those
+        // lower down the star of casters: the needles drag on the chair as the air does, many times over. Only the
+        // trunk inside them is hard.
+        const y = pos.y - o.y, branches = Math.max(pineReach(o, y + 0.45, y + 1.6) + BODY, pineReach(o, y, y + 0.45)
+          + CHAIR.radius);
+        const dx = pos.x - o.x, dz = pos.z - o.z, dist = Math.hypot(dx, dz);
+        if (dist < branches) {
+          pine = o;
+          vel.multiplyScalar(1 / (1 + FEEL.needles * vel.length() * dt));
+          // and bend it off the trunk a little: they take some of its speed towards the trunk
+          const vn = dist > 1e-6 ? (vel.x * dx + vel.z * dz) / dist : 0;
+          if (vn < 0) {
+            const k = -vn * Math.min(1, FEEL.bough * dt) / dist;
+            vel.x += dx * k;
+            vel.z += dz * k;
+          }
+        }
+        r = TRUNK.radius * o.size;
       }
       const dx = pos.x - o.x, dz = pos.z - o.z, dist = Math.hypot(dx, dz), reach = r + body;
       if (dist >= reach || dist < 1e-6) continue;
@@ -288,6 +308,12 @@ export class Ride {
       // leaning on it (pushed into it by the slope) is no crash
       if (J > 0.6) this.emit('crash', { impulse: J, kind: o.kind, at: new THREE.Vector3(o.x, pos.y + 0.5, o.z) });
     }
+    // into a pine's branches (once a pine): needles and snow fly, and its bird if it has one
+    if (pine && pine !== this.pine) {
+      this.obstacles.rustle(pine, pos, vel);
+      this.emit('bump', { kind: 'tree', at: new THREE.Vector3(pine.x, pos.y + 0.8, pine.z) });
+    }
+    this.pine = pine;
   }
 
   // The caster closest to where the blow came from comes off.

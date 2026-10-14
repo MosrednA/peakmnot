@@ -308,7 +308,17 @@ export class Driver {
 
   // A bump into a soft prop: the nearest of its kind still standing, burst (knock) the way the chair came at it.
   bump(kind) {
-    const r = this.ride, o = this.soft(kind, r.pos, r.s);
+    const r = this.ride;
+    if (kind === 'tree') {                         // into a pine's branches: they rustle, and its bird may fly out
+      let o = null, gap = Infinity;
+      for (const p of r.obstacles.near(r.s)) {
+        const g = p.kind === 'tree' ? Math.hypot(r.pos.x - p.x, r.pos.z - p.z) : Infinity;
+        if (g < gap) { gap = g; o = p; }
+      }
+      if (o && this.knock) r.obstacles.rustle(o, r.pos, r.vel);
+      return { kind, at: o ? new THREE.Vector3(o.x, r.pos.y + 0.8, o.z) : r.pos.clone() };
+    }
+    const o = this.soft(kind, r.pos, r.s);
     if (o && this.knock) this.hit(o, r.pos, r.vel, false);
     return { kind, at: o ? new THREE.Vector3(o.x, o.y, o.z) : r.pos.clone() };
   }

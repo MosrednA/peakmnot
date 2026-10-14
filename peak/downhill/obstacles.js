@@ -1,10 +1,10 @@
-// What stands on the piste, and what flies off it. Rocks in a slalom, a stretch of pines right across the run, a
-// field of snowmen (soft: they burst), ten cheap chairs to bowl over (bowling.js), a snowman taking photos at the
-// ski jump, an office at the bottom (office.js: cabinets, desks and a printer are hard, water coolers, plants and
-// chairs soft), signs that explain nothing, banners for the start, the pit stops, the river and the finish, paint
-// on the snow (marks.js), and pines along the banks. ride.js asks near(s) for what it can hit; burst() pops a soft
-// one. The debris (snowballs, a carrot, a lost caster, a water bottle) are loose bodies that bounce and roll down
-// the snow on their own.
+// What stands on the piste, and what flies off it. Rocks in a slalom and here and there in the banks, a stretch of
+// pines right across the run, a field of snowmen (soft: they burst), ten cheap chairs to bowl over (bowling.js), a
+// snowman taking photos at the ski jump, an office at the bottom (office.js: cabinets, desks and a printer are hard,
+// water coolers, plants and chairs soft), signs that explain nothing, banners for the start, the pit stops, the river
+// and the finish, paint on the snow (marks.js), and pines along the banks. ride.js asks near(s) for what it can hit;
+// burst() pops a soft one. The debris (snowballs, a carrot, a lost caster, a water bottle) are loose bodies that
+// bounce and roll down the snow on their own.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { toon, RAMPS } from '../look/look.js';
@@ -16,6 +16,7 @@ import { FEATURES, PISTE, BANK, EDGE } from './track.js';
 import { Pins } from './bowling.js';
 import { knockoff, KNOCKOFF, cabinet, cooler, ficus, desk, printer } from './office.js';
 import { laneMarks, hillMarks } from './marks.js';
+import { Birds } from './birds.js';
 
 // [s, d, radius]: the slalom, each rock leaving a way round it
 const ROCKS = [[44, 2.5, 0.8], [54, -3, 1], [63, 1, 0.7], [71, 4, 1.1], [80, -1.5, 0.9], [89, 3, 0.8],
@@ -50,6 +51,7 @@ const OFFICE = [[952, -3, 'cabinet'], [956, 2.5, 'cooler'], [961, 0.5, 'desk'], 
 const MAKE = { cabinet, cooler, desk, ficus, printer, knockoff };
 const SOFT = new Set(['cooler', 'ficus', 'knockoff']);
 const WATER = new THREE.Color('#8ccbf5'), LEAF = new THREE.Color('#4f9a4a'), SOIL = new THREE.Color('#6b4a33');
+const NEEDLE = new THREE.Color('#2f6b45'), TWIG = new THREE.Color('#5a3d2a');
 
 const GRAVITY = 15;
 const _v = new THREE.Vector3(), _n = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion();
@@ -71,6 +73,7 @@ export class Obstacles {
       ground: (x, z) => { const g = track.ground(x, z, this.hint); this.hint = g.i; return { top: g.y }; } };
     this.puffs = bursts(this.world);
     this.debris = new Debris(track, this.group);
+    this.birds = new Birds(this.world);
     this.rocks();
     this.pines();
     this.snowmen();
@@ -84,6 +87,7 @@ export class Obstacles {
         size: 30, bottom: 1.2 });
     }
     for (const [s, text, color] of BANNERS) this.banner(s, text, color);
+    this.bankRocks();
   }
 
   add(o) {
@@ -108,38 +112,57 @@ export class Obstacles {
   }
 
   rocks() {
-    const material = toon('#ffffff', { vertexColors: true, outline: 'rock' });
-    const stone = new THREE.Color('#8f8aa8'), snow = new THREE.Color('#ffffff'), face = new THREE.Vector3();
-    for (const [s, d, r] of ROCKS) {
-      const at = this.track.point(s, d);
-      // a lumpy boulder, faceted, with snow lying on the faces that look up
-      const geometry = new THREE.IcosahedronGeometry(1, 1);
-      const p = geometry.attributes.position, jitter = new Map();
-      for (let i = 0; i < p.count; i++) {
-        _v.fromBufferAttribute(p, i);
-        const key = _v.toArray().map(v => v.toFixed(3)).join();
-        if (!jitter.has(key)) jitter.set(key, 0.82 + 0.3 * this.rand());
-        _v.multiplyScalar(jitter.get(key));
-        _v.y *= 0.85;
-        p.setXYZ(i, _v.x, _v.y, _v.z);
-      }
-      geometry.computeVertexNormals();
-      const colors = [], n = geometry.attributes.normal;
-      for (let i = 0; i < p.count; i += 3) {
-        face.fromBufferAttribute(n, i);
-        const c = face.y > 0.55 ? snow : stone;
-        for (let k = 0; k < 3; k++) colors.push(c.r, c.g, c.b);
-      }
-      geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-      const rock = new THREE.Mesh(geometry, material);
-      rock.scale.setScalar(r);
-      rock.rotation.y = this.rand() * 6;
-      const y = at.y + 0.3 * r;
-      rock.position.set(at.x, y, at.z);
-      rock.castShadow = rock.receiveShadow = true;
-      this.group.add(rock);
-      this.add({ kind: 'rock', x: at.x, y, z: at.z, r, top: y + r * 0.85, mesh: rock });
+    for (const [s, d, r] of ROCKS) this.boulder(s, d, r, this.rand);
+  }
+
+  // Rocks half buried in the banks, here and there, so the banks are no smooth way round what's on the piste. Not at
+  // the start, a pit stop, a sign or the finish, nor where the banks are something else: the crevasse, the forest
+  // across the run, the gorge, the bowling lane, the ski jump. Their own random, so nothing else moves.
+  bankRocks() {
+    const R = random(91), C = FEATURES.crevasse, W = FEATURES.river, L = FEATURES.lane, J = FEATURES.jump;
+    const clear = [[C.from - 14, C.to + 8], [234, 300], [W.from - 18, W.to + 12], [L.from - 4, FEATURES.pins + 14],
+      [J.lip - 56, J.lip + 90], [FEATURES.finish - 10, Infinity], ...FEATURES.pits.map(p => [p - 6, p + 6])];
+    let side = 1;
+    for (let s = 30; s < FEATURES.finish; s += 14 + R() * 12) {
+      if (R() < 0.7) side = -side;
+      const d = side * (PISTE + 1.6 + R() * 4), r = 0.8 + R() * 0.5;
+      if (clear.some(([a, b]) => s > a && s < b)) continue;
+      if (SIGNS.some(([at, by]) => by === side && Math.abs(at - s) < 5)) continue;
+      this.boulder(s, d, r, R);
     }
+  }
+
+  // A lumpy boulder at (s, d), faceted, with snow lying on the faces that look up; hard.
+  boulder(s, d, r, rand) {
+    this.rockMaterial ??= toon('#ffffff', { vertexColors: true, outline: 'rock' });
+    const stone = new THREE.Color('#8f8aa8'), snow = new THREE.Color('#ffffff'), face = new THREE.Vector3();
+    const at = this.track.point(s, d);
+    const geometry = new THREE.IcosahedronGeometry(1, 1);
+    const p = geometry.attributes.position, jitter = new Map();
+    for (let i = 0; i < p.count; i++) {
+      _v.fromBufferAttribute(p, i);
+      const key = _v.toArray().map(v => v.toFixed(3)).join();
+      if (!jitter.has(key)) jitter.set(key, 0.82 + 0.3 * rand());
+      _v.multiplyScalar(jitter.get(key));
+      _v.y *= 0.85;
+      p.setXYZ(i, _v.x, _v.y, _v.z);
+    }
+    geometry.computeVertexNormals();
+    const colors = [], n = geometry.attributes.normal;
+    for (let i = 0; i < p.count; i += 3) {
+      face.fromBufferAttribute(n, i);
+      const c = face.y > 0.55 ? snow : stone;
+      for (let k = 0; k < 3; k++) colors.push(c.r, c.g, c.b);
+    }
+    geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+    const rock = new THREE.Mesh(geometry, this.rockMaterial);
+    rock.scale.setScalar(r);
+    rock.rotation.y = rand() * 6;
+    const y = at.y + 0.3 * r;
+    rock.position.set(at.x, y, at.z);
+    rock.castShadow = rock.receiveShadow = true;
+    this.group.add(rock);
+    this.add({ kind: 'rock', x: at.x, y, z: at.z, r, top: y + r * 0.85, mesh: rock });
   }
 
   // Pines: one instanced mesh for all of them, those across the run and those lining the banks. Each one is hard.
@@ -162,9 +185,10 @@ export class Obstacles {
       _q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, R() * 6.3);
       const tall = size * (0.9 + R() * 0.3);
       mesh.setMatrixAt(i, _m.compose(at.clone().setY(at.y - 0.1), _q, _v.set(size, tall, size)));
-      // r: its widest branches, for the autopilot; ride.js asks pineReach() at the chair's height
+      // r: its widest branches, for the autopilot; ride.js asks pineReach() at the chair's height. One pine in three
+      // has a bird in it (rustle()).
       this.add({ kind: 'tree', x: at.x, y: at.y - 0.1, z: at.z, r: PINE_TIERS[0][0] * size, size, tall,
-        top: at.y - 0.1 + 3.75 * tall });
+        top: at.y - 0.1 + 3.75 * tall, nest: i % 3 === 1, flown: false });
     });
     mesh.castShadow = mesh.receiveShadow = true;
     this.group.add(mesh);
@@ -291,6 +315,28 @@ export class Obstacles {
     this.puffs.snow(at, { puffs: 5 * size, flakes: 4 * size, spread: 0.6 * size, size: 1.2, grit: 0 });
   }
 
+  // The chair going into a pine's branches (pos, vel: the chair's): needles, twigs and snow fly off them, and if
+  // the pine has a bird it bursts out, dazed, onto Mnot's head (birds.js). Once a pine, until the run starts over.
+  rustle(o, pos, vel) {
+    const R = this.rand, at = _v.set(o.x, pos.y + 0.9, o.z).lerp(pos, 0.4).setY(pos.y + 0.9);
+    // the needles fly on with the chair, nearly as fast, so they swirl round Mnot in sight; a few cling to it
+    for (let i = 0; i < 16; i++) {
+      const fly = _m2.copy(vel).multiplyScalar(0.6 + 0.3 * R())
+        .add(_w2.set(R() - 0.5, 0.4 + 1.2 * R(), R() - 0.5).multiplyScalar(3));
+      this.puffs.add('bit', { at, size: 0.025 + 0.025 * R(), life: 1 + R(), gravity: 2.5, drag: 1.2, bounce: 0,
+        spin: 10, color: R() < 0.85 ? NEEDLE : TWIG, vel: fly });
+    }
+    this.birds.cling(vel);
+    this.puffs.snow(_n.set(o.x, pos.y + 1.6, o.z).lerp(pos, 0.3),
+      { puffs: 4, flakes: 16, spread: 0.9, size: 0.75, grit: 0, up: 0.4 });
+    if (o.nest && !o.flown) {
+      o.flown = true;
+      const away = _m2.set(o.x - pos.x, 0, o.z - pos.z);
+      if (away.lengthSq() < 1e-4) away.set(vel.x, 0, vel.z);
+      this.birds.launch(_n.set(o.x, pos.y + 1.5, o.z), away.normalize(), vel);
+    }
+  }
+
   burst(o, vel, n, speed) {
     if (o.hit) return o.hit(o, vel, n, speed);
     o.gone = true;
@@ -323,11 +369,13 @@ export class Obstacles {
   // Back as they were, for a new try: every snowman, plant and water cooler stands again, and the pins are set up.
   reset() {
     for (const o of this.list) {
+      if (o.kind === 'tree') o.flown = false;
       if (!o.soft || o.hit) continue;
       o.gone = false;
       o.mesh.visible = true;
     }
     this.pins.reset();
+    this.birds.reset();
   }
 
   // s: where the chair is. What is far down the run (or well behind it) isn't drawn.

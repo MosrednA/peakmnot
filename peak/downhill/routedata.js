@@ -5,7 +5,7 @@
 // its copy is stale. To refresh server/downhill.json after changing the piste, the obstacles or the physics, run
 // `python -X utf8 server/export_route.py downhill` and paste the line it prints into the console of
 // downhill.html?manual (server/README.md, "The downhill").
-import { STEP, PISTE, BANK, BANK_HEIGHT, POWDER, EDGE, FEATURES, RIVER, FLOES } from './track.js';
+import { STEP, PISTE, BANK, BANK_HEIGHT, POWDER, EDGE, BUMPY, FEATURES, RIVER, FLOES } from './track.js';
 import { G, FEEL, BODY } from './ride.js';
 import { CHAIR } from './chair.js';
 import { PINE_TIERS, TRUNK } from './obstacles.js';
@@ -24,9 +24,9 @@ export function downhillRoute({ track, obstacles }) {
     g: G,
     feel: { roll: FEEL.roll, steer: FEEL.steer, drag: FEEL.drag, tuck: FEEL.tuck, push: FEEL.push,
       pushTop: FEEL.pushTop, jump: FEEL.jump, stick: FEEL.stick, wall: FEEL.wall, bounce: FEEL.bounce,
-      hard: FEEL.hard, restitution: FEEL.restitution, crash: FEEL.crash },
+      hard: FEEL.hard, restitution: FEEL.restitution, crash: FEEL.crash, needles: FEEL.needles },
     chair: { radius: CHAIR.radius, legs: CHAIR.legs, body: BODY },
-    piste: { step: STEP, piste: PISTE, bank: BANK, bankHeight: BANK_HEIGHT, powder: POWDER, edge: EDGE },
+    piste: { step: STEP, piste: PISTE, bank: BANK, bankHeight: BANK_HEIGHT, powder: POWDER, edge: EDGE, bumpy: BUMPY },
     features: FEATURES,
     river: RIVER,
     floes: FLOES,

@@ -53,6 +53,10 @@ export class Rider {
     this.sizes = null;     // the bones' lengths, measured on the first frame
     this.clip = 'Idle';
     mnot.animator.play('Idle', 0);
+    // where a bird out of a pine sits a moment, dazed: in the can's lid, which moves with the can (birds.js)
+    this.perch = new THREE.Object3D();
+    this.perch.position.set(0, 1.13, -0.02);
+    bone('body').add(this.perch);
   }
 
   land(impact) { this.squash.v -= Math.min(impact, 14) * 0.22; }

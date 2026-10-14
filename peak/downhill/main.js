@@ -74,6 +74,7 @@ const chair = new Chair();
 scene.add(chair.root);
 const mnot = await loadMnot();
 const rider = new Rider(mnot, chair);
+obstacles.birds.perch = rider.perch;     // a bird out of a pine lands on Mnot's head, so it rides along in sight
 const ride = new Ride(track, obstacles);
 const chase = new ChaseCamera(camera, track);
 const autopilot = new Autopilot(track, obstacles);

@@ -91,12 +91,14 @@ class Route:
         self.fingerprint = data["fingerprint"]
         self.g = float(data["g"])
         self.feel = data["feel"]
+        self.soft_pines = "needles" in self.feel        # a pine's branches slow the chair, only its trunk is hard
         f = self.features = data["features"]
         self.checkpoints = list(f["pits"])
         self.gate, self.finish, self.lip_s = f["gate"], f["finish"], f["jump"]["lip"]
         p = data["piste"]
         self.step, self.piste, self.bank, self.bank_height = p["step"], p["piste"], p["bank"], p["bankHeight"]
         self.edge = p["edge"]
+        self.bumpy = p.get("bumpy", self.piste)      # how far across the moguls and rollers reach (before: the piste)
         self.river, self.floes = data["river"], data["floes"]
         line = data["line"]
         self.px, self.py, self.pz = line["px"], line["py"], line["pz"]
@@ -210,14 +212,14 @@ class Route:
         if K["from"] < s <= K["to"]:
             t = (s - K["from"]) / (K["to"] - K["from"])
             h += K["height"] * t ** 1.6 * (1 - smooth(P + 0.2, P + 1.4, a))
-        if M["from"] < s < M["to"] and a < P + 0.5:
+        if M["from"] < s < M["to"] and a < self.bumpy:
             fade = smooth(M["from"], M["from"] + 5, s) * (1 - smooth(M["to"] - 5, M["to"], s)) * \
-                (1 - smooth(P - 1.5, P, a))
+                (1 - smooth(self.bumpy - 1.5, self.bumpy, a))
             h += M["height"] * fade * math.sin(0.8 * s + 0.6 * d) * math.sin(0.9 * d - 0.25 * s + 0.6)
         for B in f.get("rollers", ()):                 # (a route from before them has none)
-            if B["from"] < s < B["to"] and a < P + 0.5:
+            if B["from"] < s < B["to"] and a < self.bumpy:
                 fade = smooth(B["from"], B["from"] + 4, s) * (1 - smooth(B["to"] - 4, B["to"], s)) * \
-                    (1 - smooth(P - 1.5, P, a))
+                    (1 - smooth(self.bumpy - 1.5, self.bumpy, a))
                 h += B["height"] * fade * math.sin(2 * math.pi * (s - B["from"]) / B["length"] + 0.12 * d)
         rim = h
         hole = C["from"] < s < C["to"] and a < self.edge
@@ -295,7 +297,7 @@ class Route:
 
     def reach(self, o, y):
         """How close the chair's axis comes to o with its seat at height y before they touch (Ride.collide()), or
-        None if it passes over or under."""
+        None if it passes over or under. A pine's trunk, where its branches are soft (soft_pines)."""
         if y > o.top - 0.05:
             return None
         body, r = self.chair["radius"], o.r
@@ -305,9 +307,16 @@ class Route:
                 return None
             r = math.sqrt(o.r * o.r - dy * dy)
         elif o.kind == "tree":
-            branches = self.pine_reach(o, y - o.y + 0.45, y - o.y + 1.6)
-            r = max(branches + self.chair["body"], self.pine_reach(o, y - o.y, y - o.y + 0.45) + body) - body
+            if self.soft_pines:
+                return self.pine["trunk"]["radius"] * o.size + body
+            return self.branches(o, y)
         return r + body
+
+    def branches(self, o, y):
+        """How close the chair's axis comes to a pine's branches with its seat at height y: those at Mnot's height
+        meet the can and the armrests, those lower down the star of casters."""
+        return max(self.pine_reach(o, y - o.y + 0.45, y - o.y + 1.6) + self.chair["body"],
+                   self.pine_reach(o, y - o.y, y - o.y + 0.45) + self.chair["radius"])
 
     def flight_bonus(self, metres):
         """Seconds off for a ski jump (bonus.js jumpBonus())."""
@@ -509,7 +518,7 @@ class Checker(checks.Checker):
 
     def check_ground(self):
         """On the snow, at its height; in the air, above it; nowhere in play below a hole's rim (it would have
-        fallen), never far past the edge, and never inside a rock or a pine."""
+        fallen), never far past the edge, and never inside a rock or a pine (its trunk, where the branches are soft)."""
         for x, g in zip(self.samples, self.where):
             if x.mode == OUT:
                 continue
@@ -647,9 +656,12 @@ class Checker(checks.Checker):
                    for ds, dd in ((0.5, 0), (-0.5, 0), (0, 0.5), (0, -0.5)))
 
     def touching(self, x):
-        """Whether x is up against a rock or a pine (or nearly), which pushes it about without a crash."""
+        """Whether x is up against a rock or a pine (or nearly), which pushes it about without a crash, or in a pine's
+        branches (or nearly), which slow it."""
         for o in self.route.near(self.where[x.i].s):
             reach = self.route.reach(o, x.y)
+            if o.kind == "tree" and reach is not None:
+                reach = self.route.branches(o, x.y)
             if reach is not None and math.hypot(x.x - o.x, x.z - o.z) < reach + 0.3:
                 return True
         return False

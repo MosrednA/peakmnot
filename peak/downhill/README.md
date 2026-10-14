@@ -5,7 +5,10 @@ mountain, from just below the summit to a finish above the clouds. The chair rol
 scripted: gravity, the snow and Mnot's heels do the steering, and the gas lift is the jump. On the way down: a
 slalom through rocks, a kicker over a crevasse, ice in a bend, moguls, rollers that throw a fast chair into hops (after
 the pit stop at 488 m and after the river), a river in a gorge with ice floes to hop, a bowling lane with ten knock-off
-chairs as pins, a ski jump with a K line, and an office at the bottom. It's a prototype. The production build has it
+chairs as pins, a ski jump with a K line, and an office at the bottom. The moguls and rollers reach over the banks and
+rocks lie in the banks here and there, so the banks are no smooth way round. Pines line the run, and the forest stands
+right across it: their branches only slow the chair and bend it off the trunk, needles fly and a few cling to Mnot,
+and a pine's bird may land in the can's lid, dazed, before it flies off. It's a prototype. The production build has it
 (`tools/build.mjs`), and the score server serves it at `/downhill`, next to the climb at `/`.
 
 Play: `python tools/dev_server.py`, then open <http://127.0.0.1:5280/downhill.html>. The `downhill` entry in
@@ -31,9 +34,9 @@ It rumbles at a hard landing or knock, a lost wheel, a fall and the finish.
 
 - The clock starts at the gate (12 m down) and runs to the finish line at 1055 m, also while the chair is out after
   a fall, so a spill costs its time.
-- Five casters. A hard hit (a rock, a tree, a pole, the office furniture, a wall of the gorge) or a hard landing takes
-  one; with none left the chair is wrecked. The pit stops (at 178, 306, 488 and 760 m) put fresh casters on, and a fall or a wreck starts again at the
-  last one passed.
+- Five casters. A hard hit (a rock, a pine's trunk, a pole, the office furniture, a wall of the gorge) or a hard
+  landing takes one; with none left the chair is wrecked. The pit stops (at 178, 306, 488 and 760 m) put fresh
+  casters on, and a fall or a wreck starts again at the last one passed.
 - Time off the clock (`bonus.js`): a strike takes 5 s off, a spare (7, 8 or 9 pins down) 1.5, 2 or 3 s, and the ski
   jump 0.2 s a metre past 20 m, twice that past the K line at 50 m. A run counts its best bowl and its longest jump
   once.
@@ -117,6 +120,7 @@ game kit's (`peak/kit/`).
 | `chair.js` | The office chair's model and its pose (the base, the casters, the gas lift, the seat); at a pit stop the fresh casters fly in and pop on |
 | `rider.js` | Mnot on the chair: the sitting pose on top of the clips, flopping legs, braking heels, flailing arms |
 | `obstacles.js` | What stands on the piste (rocks, pines, snowmen, poles, signs, banners) and the debris that flies off it |
+| `birds.js` | A pine's bird: out of the branches onto Mnot's head (the perch in `rider.js`), dazed, then off ahead of the chair; and the needles that cling to Mnot a moment |
 | `office.js` | Office furniture: the knock-off chairs, cabinets, desks, the printer, water coolers and plants |
 | `bowling.js` | The ten knock-off chairs as bowling pins, knocking each other over, and the score |
 | `marks.js` | Paint on the snow: the bowling lane and the ski jump's distance lines (`K_LINE`) |

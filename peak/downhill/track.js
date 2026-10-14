@@ -14,6 +14,7 @@ export const PISTE = 6.5;                      // half the groomed width
 export const BANK = 7, BANK_HEIGHT = 4.2;      // the banks beyond the piste: how wide, how high
 export const POWDER = 7;                       // the deep snow on top of the banks
 export const EDGE = PISTE + BANK + POWDER;     // past this the mountain drops away
+export const BUMPY = PISTE + BANK;             // the moguls and rollers reach this far: no smooth way round them
 
 // The centreline: x, y, z, from the summit (a flat start) down long S-bends, then straight where the river, the
 // bowling lane and the ski jump need it (the jump's drop is added on top, see JUMP), to the finish and a runout.
@@ -34,7 +35,7 @@ export const FEATURES = {
   kicker: { from: 213, to: 221, height: 1.3 },      // a ramp up to the lip of...
   crevasse: { from: 221, to: 226.5, depth: 9 },     // ...a crevasse right across, banks and all
   ice: { from: 322, to: 354 },
-  moguls: { from: 416, to: 452, height: 0.32 },
+  moguls: { from: 416, to: 452, height: 0.32 },     // over the piste and the banks (BUMPY), like the rollers
   // waves right across the piste, a little askew, that throw a fast chair into hops: after the pit, after the river
   rollers: [{ from: 494, to: 548, height: 0.3, length: 8 }, { from: 660, to: 684, height: 0.27, length: 7 }],
   river: { from: 574, to: 647 },                    // a gorge with a meltwater river: hop the floes (FLOES)
@@ -196,13 +197,13 @@ export class Track {
       const t = (s - K.from) / (K.to - K.from);
       h += K.height * t ** 1.6 * (1 - smooth(PISTE + 0.2, PISTE + 1.4, a));
     }
-    if (s > M.from && s < M.to && a < PISTE + 0.5) {
-      const fade = smooth(M.from, M.from + 5, s) * (1 - smooth(M.to - 5, M.to, s)) * (1 - smooth(PISTE - 1.5, PISTE, a));
+    if (s > M.from && s < M.to && a < BUMPY) {
+      const fade = smooth(M.from, M.from + 5, s) * (1 - smooth(M.to - 5, M.to, s)) * (1 - smooth(BUMPY - 1.5, BUMPY, a));
       h += M.height * fade * Math.sin(0.8 * s + 0.6 * d) * Math.sin(0.9 * d - 0.25 * s + 0.6);
     }
     for (const B of FEATURES.rollers) {
-      if (s > B.from && s < B.to && a < PISTE + 0.5) {
-        const fade = smooth(B.from, B.from + 4, s) * (1 - smooth(B.to - 4, B.to, s)) * (1 - smooth(PISTE - 1.5, PISTE, a));
+      if (s > B.from && s < B.to && a < BUMPY) {
+        const fade = smooth(B.from, B.from + 4, s) * (1 - smooth(B.to - 4, B.to, s)) * (1 - smooth(BUMPY - 1.5, BUMPY, a));
         h += B.height * fade * Math.sin(2 * Math.PI * (s - B.from) / B.length + 0.12 * d);
       }
     }

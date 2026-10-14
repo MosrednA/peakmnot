@@ -159,7 +159,7 @@ game's own geometry (`track.js`, `obstacles.js`) and checks every step against `
 - the ride starts at the gate, slowly, and ends past the finish line; it passes each pit stop in order, on the
   sample its flag is on, and the splits say the same;
 - on the ground the chair is on the snow (to a centimetre), in the air never below it, never inside a rock or a
-  pine, and never off the piste;
+  pine's trunk (its branches only slow the chair), and never off the piste;
 - in the air it moves as its speed says, falls with gravity less no more air drag than a tucked rider has, and
   steers no more than the chair can there;
 - step by step and over every two seconds, it never has more energy than the slope gave it, less the least
