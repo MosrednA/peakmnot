@@ -151,7 +151,7 @@ ride.on('bump', ({ kind }) => {
   if (kind === 'knockoff') once('knockoff', 'Sorry, Gary.', 'Your chair is on a mountain now.', 'oops');
 });
 ride.on('pit', () => {
-  chair.fix();
+  chair.fix(true);
   sfx.cue({ type: 'pit' });
   // a quiet pit stop if something else is being said
   if (toast.left < 1) toast('Pit stop', 'Fresh casters, on the house.', 'checkpoint');

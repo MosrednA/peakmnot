@@ -17,6 +17,9 @@ export const CHAIR = {
   radius: 0.38,                  // for collisions: the star with its casters
 };
 export const PRICE = '€1,649';
+// The pit stop's fresh casters (fix(true)): one after the other (stagger s apart), each flies in from out past the end
+// of its leg (out m, up m), spinning and faster and faster (fly s), and pops on, a moment bigger (pop s, squash).
+const REFIT = { stagger: 0.05, out: 0.55, up: 0.4, fly: 0.2, pop: 0.16, squash: 0.35 };
 
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _r = new THREE.Quaternion();
 
@@ -86,7 +89,7 @@ export class Chair {
     }
     swivel.add(stem, hood, wheel);
     this.base.add(swivel);
-    return { swivel, wheel, yaw: 0, spin: 0, angle, gone: false };
+    return { swivel, wheel, home: swivel.position.clone(), yaw: 0, spin: 0, angle, gone: false, fly: null };
   }
 
   buildSeat(graphite, dark, polished) {
@@ -146,7 +149,7 @@ export class Chair {
     // each caster swivels to trail its wheels behind the way its stem moves, the sooner the further it rolls
     _q.copy(ride.tiltQ).multiply(_r.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, ride.baseYaw)).invert();
     for (const c of this.casters) {
-      c.swivel.visible = !c.gone;
+      c.swivel.visible = !c.gone && !(c.fly < 0);       // a fresh one waiting for its turn isn't there yet
       if (c.gone) continue;
       // the stem's speed in the star's frame: the chair's own, plus its turning
       _v.copy(ride.vel).applyQuaternion(_q);
@@ -162,6 +165,7 @@ export class Chair {
       }
       c.swivel.rotation.y = c.yaw;                      // the wheels sit behind the stem (−z)
       c.wheel.rotation.x = c.spin;
+      if (c.fly !== null) this.refit(c, dt);
     }
     this.lift.position.y = CHAIR.lift + ride.lift;
     this.seat.rotation.y = ride.seatYaw;
@@ -197,8 +201,32 @@ export class Chair {
     return copy;
   }
 
-  fix() {
-    for (const c of this.casters) c.gone = false;
+  // A fresh caster for every missing one. fly: they fly in and pop on one after the other (the pit stop); otherwise
+  // they're simply there (back at the pit after a wreck, a new run).
+  fix(fly = false) {
+    let n = 0;
+    for (const c of this.casters) {
+      c.fly = fly && c.gone ? -REFIT.stagger * n++ : null;
+      c.gone = false;
+      c.swivel.position.copy(c.home);
+      c.swivel.scale.setScalar(1);
+    }
+  }
+
+  // A fresh caster on its way in: from out past its leg, spinning, faster and faster, then the pop as it snaps on.
+  refit(c, dt) {
+    c.fly += dt;
+    const t = THREE.MathUtils.clamp(c.fly / REFIT.fly, 0, 1), away = 1 - t * t;
+    const pop = THREE.MathUtils.clamp((c.fly - REFIT.fly) / REFIT.pop, 0, 1);
+    c.swivel.position.copy(c.home).add(_w.set(Math.sin(c.angle) * REFIT.out, REFIT.up, Math.cos(c.angle) * REFIT.out)
+      .multiplyScalar(away));
+    c.swivel.rotation.y += away * 5;
+    c.wheel.rotation.x += away * 9;
+    c.swivel.scale.setScalar((1 - away * 0.5) * (1 + REFIT.squash * Math.sin(Math.PI * pop) * (1 - pop)));
+    if (pop < 1) return;
+    c.fly = null;
+    c.swivel.position.copy(c.home);
+    c.swivel.scale.setScalar(1);
   }
 }
 

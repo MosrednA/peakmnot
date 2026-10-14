@@ -75,7 +75,7 @@ game kit's (`peak/kit/`).
 | `main.js` | The page: the stage (`kit/stage.js`), the HUD, the controls, the events and the frame loop (physics at 120 Hz) |
 | `track.js` | The piste: a centreline sampled every half metre, the cross-section (dish, banks, powder, the drop), the features, and `ground(x, z)`, which the physics and the snow mesh both use |
 | `ride.js` | The chair's physics: rolling, steering, braking, the jump, flights, the seat's swivel, crashes, lost wheels and falls; its events drive everything else |
-| `chair.js` | The office chair's model and its pose (the base, the casters, the gas lift, the seat) |
+| `chair.js` | The office chair's model and its pose (the base, the casters, the gas lift, the seat); at a pit stop the fresh casters fly in and pop on |
 | `rider.js` | Mnot on the chair: the sitting pose on top of the clips, flopping legs, braking heels, flailing arms |
 | `obstacles.js` | What stands on the piste (rocks, pines, snowmen, poles, signs, banners) and the debris that flies off it |
 | `office.js` | Office furniture: the knock-off chairs, cabinets, desks, the printer, water coolers and plants |
