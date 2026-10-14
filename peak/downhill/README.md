@@ -38,7 +38,7 @@ It rumbles at a hard landing or knock, a lost wheel, a fall and the finish.
   landing takes one; with none left the chair is wrecked. The pit stops (at 178, 306, 488 and 760 m) put fresh
   casters on, and a fall or a wreck starts again at the last one passed.
 - Time off the clock (`bonus.js`): a strike takes 5 s off, a spare (7, 8 or 9 pins down) 1.5, 2 or 3 s, and the ski
-  jump 0.2 s a metre past 20 m, twice that past the K line at 50 m. A run counts its best bowl and its longest jump
+  jump 0.1 s a metre past 20 m, twice that past the K line at 50 m. A run counts its best bowl and its longest jump
   once.
 - The board time is the clock less the bonus. Spills and lost wheels are counted and shown, like the climb's falls and
   dents.

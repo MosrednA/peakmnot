@@ -4,7 +4,7 @@
 // way from the replay (server/downhill.py), so these numbers go into the route it checks against (routedata.js).
 import { K_LINE } from './marks.js';
 
-export const BONUS = { pins: { 7: 1.5, 8: 2, 9: 3, 10: 5 }, from: 20, metre: 0.2, kLine: K_LINE };
+export const BONUS = { pins: { 7: 1.5, 8: 2, 9: 3, 10: 5 }, from: 20, metre: 0.1, kLine: K_LINE };
 
 // seconds off for a jump of d metres, to a tenth
 export const jumpBonus = d => Math.round(10 * BONUS.metre * (Math.max(0, d - BONUS.from) + Math.max(0, d - K_LINE))) / 10;
