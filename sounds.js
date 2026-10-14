@@ -29,7 +29,10 @@ export function unpadLoop(context, padded) {
 }
 
 export class MnotSounds {
-  constructor() {
+  /** @param {{effects?: ReadonlyArray<SoundId>}} [options] the effects to load: all for the climb, only the ones
+   * it plays for another game (the downhill has its own and plays only the wave) */
+  constructor({ effects = IDS } = {}) {
+    this.ids = effects;
     this.enabled = localStorage.getItem('mnot.sound') !== 'off';
     this.ready = false;
     this.paused = false;
@@ -58,7 +61,7 @@ export class MnotSounds {
     this.pending = [];
     /** @type {Promise<void>|null} */
     this.loading = null;
-    this.files = Promise.all(IDS.map(async id => {
+    this.files = Promise.all(this.ids.map(async id => {
       const response = await fetch(new URL(`audio/${id}.m4a`, import.meta.url));
       if (!response.ok) throw new Error(`Cannot load ${id}: HTTP ${response.status}`);
       return { id, data: await response.arrayBuffer() };
@@ -80,7 +83,7 @@ export class MnotSounds {
           const buffer = await context.decodeAudioData(data);
           this.buffers.set(id, id === 'fall' ? unpadLoop(context, buffer) : buffer);
         }));
-        this.ready = this.buffers.size === IDS.length;
+        this.ready = this.buffers.size === this.ids.length;
         const pending = this.pending.splice(0);
         for (const event of pending) if (performance.now() - event.time < 250) this.play(event.id);
         if (this.wantsFall) this.startFall();

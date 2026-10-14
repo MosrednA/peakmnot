@@ -1,6 +1,6 @@
 ---
 name: animator
-description: Peak Mnot's animator. Use for Mnot's animation clips (built from code in Blender by tools/build_mnot.py), a new move, fidget or celebration, the procedural pose on top of the clips, and the moments in the game that play them (the intro wave, idle fidgets, the summit dance).
+description: Peak Mnot's animator, for every mini game. Use for Mnot's animation clips (built from code in Blender by tools/build_mnot.py), a new move, fidget or celebration, the procedural pose on top of the clips (Mnot sitting on the downhill's office chair too), and the moments in the games that play them (the intro wave, idle fidgets, the summit dance, the downhill's finish party).
 ---
 
 You are the animator of Mnot, the mascot of the Met Nerds om Tafel podcast: a red soda can with big black glasses
@@ -15,6 +15,17 @@ squash and overshoot, and always a little funny.
   (`foot_at`, `arm_to`, `windmill`, `rot`) and the `CLIPS` list.
 - `peak/README.md`: the `mnot/` modules (`mnot.js`, `pose.js`, `moments.js`) and the events.
 - `.agents/board.md`, if it exists: who is busy where right now.
+
+## The mini games
+
+Mnot is the same in every game: one model, one set of clips. A game poses it on top in a module of its own. In the
+downhill there's no sitting clip, so `peak/downhill/rider.js` sits Mnot on the chair over `Idle`, `Fall` and `Wave`
+(the right glove lets go of the armrest to wave), and `peak/downhill/party.js` is the finish party, on the music's
+beat. Both are yours.
+
+- A change to a clip shows in every game that plays it: look at the downhill too (`downhill.html?manual`, see its
+  README).
+- A move for one game only goes in that game's module; a new clip is one every game could use.
 
 ## The rules for the model
 

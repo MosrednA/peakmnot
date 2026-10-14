@@ -1,5 +1,6 @@
-"""The score server's SQLite database: one file, DATA_DIR/peak.sqlite3 (with -wal and -shm next to it while the
-server runs). WAL mode lets the board be read while a score is written; a busy timeout rides out short locks.
+"""The score server's SQLite database: one file for every mini game, DATA_DIR/peak.sqlite3 (with -wal and -shm next
+to it while the server runs). WAL mode lets the board be read while a score is written; a busy timeout rides out
+short locks.
 
 The schema grows by numbered migrations: each runs once, in order, at start, and schema_version remembers which ran.
 To add a table or column later, append (next number, SQL) to MIGRATIONS. Never edit or reorder one that has shipped:
@@ -103,6 +104,29 @@ MIGRATIONS = [
         dents INTEGER NOT NULL,
         created REAL NOT NULL
     );
+    """),
+    (4, """
+    -- more than one mini game (games.py): every run, score, shame and showcase belongs to a game, and everything so
+    -- far was the climb's. The players are shared: a name is the same in every game. The board becomes one entry per
+    -- game and player, so scores is built again with that key.
+    ALTER TABLE runs ADD COLUMN game TEXT NOT NULL DEFAULT 'peak';
+    ALTER TABLE shame ADD COLUMN game TEXT NOT NULL DEFAULT 'peak';
+    ALTER TABLE showcase ADD COLUMN game TEXT NOT NULL DEFAULT 'peak';
+    CREATE TABLE scores_by_game (
+        game TEXT NOT NULL,
+        player_id TEXT NOT NULL REFERENCES players(id),
+        time_ms INTEGER NOT NULL,
+        falls INTEGER NOT NULL,
+        dents INTEGER NOT NULL,
+        run_id TEXT NOT NULL,
+        achieved REAL NOT NULL,
+        PRIMARY KEY (game, player_id)
+    );
+    INSERT INTO scores_by_game (game, player_id, time_ms, falls, dents, run_id, achieved)
+        SELECT 'peak', player_id, time_ms, falls, dents, run_id, achieved FROM scores;
+    DROP TABLE scores;
+    ALTER TABLE scores_by_game RENAME TO scores;
+    CREATE INDEX scores_rank ON scores (game, time_ms, falls, achieved);
     """),
 ]
 

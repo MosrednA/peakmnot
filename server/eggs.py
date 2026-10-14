@@ -6,9 +6,12 @@ Two kinds of answer:
 - loud: the request itself is impossible (a forged signature, a reused nonce, a split from the future, a body the
   size of a fridge). An HTTP error with a joke.
 - shadow: the request is well-formed but the climb in it isn't physically possible. The answer looks like a
-  triumph (rank #1!), the board stays clean, and the run goes to the Hall of Shame (GET /api/peak/shame).
+  triumph (rank #1!), the board stays clean, and the run goes to the Hall of Shame (GET /api/<game>/shame).
+
+The words are the climb's; another game (games.py) can say any of them its own way, by code.
 """
 import random
+import re
 
 CAN = 0.122                          # metres: a 330 ml can, the unit of choice
 
@@ -51,6 +54,8 @@ SHADOW = {
     "summit": "Celebrating at the summit while standing somewhere else? Bold strategy.",
     "skipped": "A checkpoint went missing from your replay. Mnot likes a flag.",
     "timeline": "The clock in this replay runs sideways. Mnot's runs forwards.",
+    "finish": "Celebrating at the finish while standing somewhere else? Bold strategy.",
+    "bonus": "That's more time off the clock than the run earned. The judges checked.",
 }
 
 SAYINGS = [
@@ -81,6 +86,12 @@ WELL_KNOWN = {
 
 PROBES = ("/.env", "/admin", "/wp-admin", "/wp-login.php", "/phpmyadmin", "/.git", "/config", "/server-status",
           "/api/peak/admin", "/api/peak/debug", "/api/peak/scores", "/api/peak/cheat", "/xmlrpc.php", "/.aws")
+API_PROBES = re.compile(r"^/api/[a-z]+/(admin.*|debug|scores|cheat)$")      # the same in any game's API
+
+
+def probe(path):
+    path = path.rstrip("/").lower()
+    return path in PROBES or bool(API_PROBES.match(path))
 
 
 def saying():
@@ -91,13 +102,14 @@ def speed_words(metres_per_second, legs=2.083):
     return {"can_ps": metres_per_second / CAN, "legs": legs / CAN}
 
 
-def loud(code, **numbers):
+def loud(code, words=None, **numbers):
     status, message = LOUD[code]
+    message = (words or {}).get(code, message)
     return status, message.format(**numbers) if numbers else message
 
 
-def shadow(reason, **numbers):
-    message = SHADOW.get(reason, SHADOW["edited"])
+def shadow(reason, words=None, **numbers):
+    message = (words or {}).get(reason) or SHADOW.get(reason, SHADOW["edited"])
     try:
         return message.format(**numbers)
     except (KeyError, IndexError, ValueError):

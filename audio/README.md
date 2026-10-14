@@ -3,6 +3,9 @@
 Peak Mnot also has an original alpine music theme, with climb/camp loops and a summit sting;
 see [music/README.md](music/README.md) for the files, playback and loop verification.
 
+The office-chair downhill has its own [foley palette and runtime API](downhill/README.md), with rolling, wind,
+braking, swivel/damage loops and material/event cues. It shares the game's AudioContext and Sound preference.
+
 Ten ElevenLabs `eleven_text_to_sound_v2` effects: three walking steps, two running steps, Jump, a soft landing,
 a deeper cushioned landing, Wave bubbles and a seamless Fall balancing loop. The revised palette uses padded rubber
 footfalls, a short rubber spring for Jump, warm low impacts and rounded bubbles. Prompts exclude metallic rattles,

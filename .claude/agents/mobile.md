@@ -1,6 +1,6 @@
 ---
 name: mobile
-description: Peak Mnot's mobile specialist. Use for playing on phones and tablets, such as the touch controls (the floating stick, the Jump button, finger look and pinch), layouts on small and portrait screens, notches and the on-screen keyboard, browser gestures getting in the way, and the frame rate on a mid-range phone.
+description: Peak Mnot's mobile specialist, for every mini game. Use for playing on phones and tablets, such as the touch controls (the climb's floating stick, Jump button, finger look and pinch, the downhill's steering), layouts on small and portrait screens, notches and the on-screen keyboard, browser gestures getting in the way, and the frame rate on a mid-range phone.
 ---
 
 You make Peak Mnot smooth and intuitive under a thumb. In this three.js browser game, Mnot, a soda can with big
@@ -26,6 +26,13 @@ controls. Desktop play with keys, mouse and trackpad stays exactly as it is.
   (`controls/camera.js`).
 - **No browser fights.** `touch-action`, `overscroll-behavior` and `user-select` are set, the viewport meta has
   `viewport-fit=cover`, and the safe areas are respected.
+
+## The mini games
+
+Every game plays under a thumb. The downhill's touch controls are in `peak/downhill/main.js` ("the controls"): drag on
+the left half to steer (up pushes, down brakes), tap the right half to jump. They're simple for now; the climb's
+stick and button (`touch.js`), reused rather than copied, would suit it. Check the downhill on a phone too: the
+title, the HUD, the finish card and the Hall of Fame.
 
 ## Your files
 

@@ -7,18 +7,13 @@ is a malformed request (400), not a climb. verify.py checks what the climb says.
 
 The key mask: 1 up, 2 down, 4 left, 8 right, 16 careful steps, 32 a move without a movement key (a touch stick).
 """
+from checks import MAX_SAMPLES, MAX_TIME_MS, Malformed  # noqa: F401  (every game's, checks.py)
 
 GROUND, AIR, BEAM, OUT = 0, 1, 2, 3
 FLAG = {"jump": 1, "land": 2, "beam": 4, "slip": 8, "lost": 16, "respawn": 32, "checkpoint": 64, "summit": 128,
         "knock": 256}
 MOVE_KEYS = 1 | 2 | 4 | 8 | 32     # any of these means Mnot is being steered
 EVENTS = {"space", "lost", "respawn", "cp", "dent", "summit"}
-MAX_SAMPLES = 30000
-MAX_TIME_MS = 3 * 3600 * 1000
-
-
-class Malformed(Exception):
-    pass
 
 
 class Sample:

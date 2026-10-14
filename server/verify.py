@@ -9,6 +9,7 @@ tolerances are rounding (the replay is in mm, mm/s and ms) plus a little; see se
 """
 import math
 
+from checks import Rejection
 from replayformat import (AIR, BEAM, FLAG, GROUND, MAX_TIME_MS, MOVE_KEYS, OUT, Malformed, Sample,  # noqa: F401
                           parse)
 
@@ -29,12 +30,6 @@ MAX_GAP = 0.25                  # seconds between samples while Mnot is in play 
 CORRIDOR = 8.0                  # metres from the walking line
 WINDOW = 1.0                    # seconds: the speed check also adds up the steps over this long, so the rounding
                                 # allowance per step (3 cm) can't be stacked into a faster climb
-
-
-class Rejection(Exception):
-    def __init__(self, reason, detail="", at=None, **numbers):
-        super().__init__(f"{reason}: {detail}")
-        self.reason, self.detail, self.at, self.numbers = reason, detail, at, numbers
 
 
 class Checker:

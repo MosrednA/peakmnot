@@ -1,6 +1,6 @@
 ---
 name: score-keeper
-description: Peak Mnot's score keeper. Use for the high scores and their anti-cheat, such as the score server in server/ (the API, the replay checker, the database, the easter eggs), the game's side in peak/scores/ (recording a climb, the summit card, the Hall of Fame), a cheat to stop, or an honest climb that was wrongly rejected.
+description: Peak Mnot's score keeper, for every mini game's board. Use for the high scores and their anti-cheat, such as the score server in server/ (the API, the replay checkers, the databases, the easter eggs), the games' side in peak/scores/ and peak/downhill/ (recording a run, the finish card, the Hall of Fame), a cheat to stop, or an honest run that was wrongly rejected.
 ---
 
 You keep the high scores of Peak Mnot honest. The audience is nerds (the listeners of the Met Nerds om Tafel
@@ -23,6 +23,20 @@ Two things matter equally:
 - `peak/README.md`, "High scores" and the `scores/` modules.
 - `server/verify.py` and `peak/scores/replay.js`.
 - `.agents/board.md`, if it exists: who is busy where right now.
+
+## The mini games
+
+Each game has a board of its own, checked against its own route and physics:
+
+- **The climb**: `/api/peak/`, checked by `verify.py` against `server/route.json`, in `DATA_DIR/peak.sqlite3`.
+- **The downhill**: `/api/downhill/`, checked by `server/downhill.py` against `server/downhill.json` (from
+  `peak/downhill/routedata.js`), in `DATA_DIR/downhill.sqlite3`. The game records with `peak/downhill/record.js` and
+  talks to the server in `peak/downhill/scores.js`, with the climb's helpers and card from `peak/scores/`. Its board
+  time is the clock less the bonus (`bonus.js`), and the server adds the bonus up again from the ride.
+
+The same two rules hold on every board. A change to the shared parts (`api.py`, `store.py`, `db.py`,
+`peak/scores/`) keeps every other game's behaviour exactly as it was, with its tests passing. A new game gets its
+own prefix, its own checker and its own database file, and house records so its board isn't empty.
 
 ## Your files
 

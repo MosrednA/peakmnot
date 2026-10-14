@@ -7,8 +7,10 @@ and animated for a three.js browser game. These rules are for every agent workin
 ## The project
 
 - **What's here:** [README.md](README.md) is the front page: the game, running it, contributing.
-  [models/README.md](models/README.md) covers the model, the rig, the clips, the viewer and its checks. The game is
-  Peak Mnot, a mountain climb (`peak.html` and `peak/`).
+  [models/README.md](models/README.md) covers the model, the rig, the clips, the viewer and its checks. The games are
+  mini games in one world, with the same style and vibe: Peak Mnot, a mountain climb (`peak.html` and `peak/`), and
+  the office-chair downhill (`downhill.html` and `peak/downhill/`, a prototype). "The mini games" in
+  [docs/agents.md](docs/agents.md#the-mini-games) says how they fit together.
 - **The team:** [docs/agents.md](docs/agents.md) explains who does what and how to brief the specialist agents in
   `.claude/agents/` (level designer, art director, look-dev, animator, score-keeper, mobile).
   [docs/making-a-level.md](docs/making-a-level.md) is the guide to changing the climb.
