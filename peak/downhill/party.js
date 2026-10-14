@@ -5,8 +5,9 @@
 // It poses on top of the ride: main.js puts the seat's yaw, the lift and the chair's hop where this says, after the
 // physics, and the rider (rider.js) does the arms and legs. It dances on the music's beat (music.js loopTime(), the
 // run's tune playing on through the finish): the first beat lands on one of the tune's, and the dance is eased back
-// onto them if it drifts; while the music is off, it keeps its own time.
+// onto them if it drifts; while the music is off, it keeps its own time (the kit's Beat, peak/kit/party.js).
 import * as THREE from 'three';
+import { Beat } from '../kit/party.js';
 
 const BEAT = 0.5;                 // s: 120 BPM, the run's tune
 const LOOP = 8;                   // beats
@@ -18,8 +19,7 @@ export class Party {
 
   reset() {
     this.t = -1;                  // seconds since the party began, -1 before
-    this.b = 0;                   // beats into the dance, negative while it swings round to the camera
-    this.lead = 1;                // the beats that swing took
+    this.clock = new Beat(BEAT);  // beats into the dance (b), negative while it swings round to the camera
     this.from = 0;                // the seat's yaw when it began, and the one facing the camera
     this.face = 0;
     this.beat = -1;
@@ -31,7 +31,6 @@ export class Party {
 
   // The pose for this frame, or null while there's no party (yet). clock: seconds into the music's loop, or null.
   update(dt, ride, camera, clock = null) {
-    const tune = clock === null ? null : clock / BEAT;
     if (!this.on) {
       if (!ride.done || ride.out || !ride.grounded || ride.speed > 0.3) return null;
       this.t = 0;
@@ -40,24 +39,20 @@ export class Party {
       const face = Math.atan2(camera.position.x - ride.pos.x, camera.position.z - ride.pos.z);
       this.face = this.from + Math.atan2(Math.sin(face - this.from), Math.cos(face - this.from));
       // the swing round ends on the tune's next beat after TURN
-      this.b = tune === null ? -TURN / BEAT : -(Math.ceil(tune + TURN / BEAT) - tune);
-      this.lead = -this.b;
-    } else {
-      this.b += dt / BEAT;
-      // back onto the beat, gently (never so hard it runs backwards)
-      if (tune !== null) { const off = tune - this.b; this.b += (off - Math.round(off)) * Math.min(1, 3 * dt); }
-    }
+      this.clock.start(clock, TURN);
+    } else this.clock.update(dt, clock);
     this.t += dt;
     const p = this.pose, yaw = p.yaw;
     p.paper = false;
     p.landed = 0;
     Object.assign(p, { lift: 0, hop: 0, roof: 0, pump: 0, out: 0, legs: 0 });
-    if (this.b < 0) {
-      p.yaw = this.from + (this.face - this.from) * ease(Math.min(1, (1 - -this.b / this.lead) * this.lead * BEAT / TURN));
+    const { b, lead } = this.clock;
+    if (b < 0) {
+      p.yaw = this.from + (this.face - this.from) * ease(Math.min(1, (1 - -b / lead) * lead * BEAT / TURN));
       p.spin = 0;
       return p;
     }
-    const b = this.b, at = b % LOOP, k = Math.floor(at), u = at - k;
+    const at = b % LOOP, k = Math.floor(at), u = at - k;
     const beat = Math.floor(b);
     const fresh = beat !== this.beat;
     this.beat = beat;

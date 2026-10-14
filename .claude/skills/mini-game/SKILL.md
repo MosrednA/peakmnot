@@ -1,0 +1,161 @@
+---
+name: mini-game
+description: The recipe for a new Peak Mnot mini game, or a big change to one - the premise and the vibe, the page and its folder, the shared kit (stage, loop, HUD, title screen, finish party), effects, sound and music, high scores, the production build, performance, phones, tests and checks, and who does what. Use when making a new mini game, or when adding a title screen, finish party, HUD, sound, scores or a page to one.
+---
+
+# A new mini game
+
+Peak Mnot is a handful of mini games in one world: the climb (`peak.html`, `peak/`) and the office-chair downhill
+(`downhill.html`, `peak/downhill/`), and more to come. They share the mountain, the look, Mnot, the HUD and the
+score server, so each new one feels like family and is built from the same base. This is the recipe. Read
+[docs/agents.md](../../../docs/agents.md#the-mini-games) first (the rules for every game, the team) and
+[peak/kit/README.md](../../../peak/kit/README.md) (the shared base). The downhill is the worked example: when in doubt,
+do what it does.
+
+## 1. The premise and the vibe
+
+- **One premise, lived all the way.** The climb is the nerds digging far too deep into a detail; the downhill is a
+  €1,649 ergonomic office chair on a mountain, so knock-off chairs are the bowling pins and an office waits at the
+  bottom. Every prop, sign, toast, tip and finish line comes out of the premise. Write it down in one sentence in the
+  game's README before anything else, with the game's name and a tagline for the title.
+- **The same world:** the range above the sea of clouds, the late-morning light, painted rock and snow, toon shading
+  with ink outlines (`peak/look/`). A new place on the mountain, never a new style.
+- **The same Mnot:** the model and clips from `models/mnot.glb` (`peak/mnot/mnot.js`), with the game's own poses on
+  top in its own module (the downhill's `rider.js`). The glasses are the face: keep them in view.
+- **The jokes:** short, dry, nerdy, true to the podcast; never grim. A fall is a pratfall. Signs and toasts talk
+  about the premise ("Ergonomically certified for 0 km/h.").
+- **The palette:** ink `#2b3352`, cream `#fff7e8`, red `#e23b2e`, teal `#22a98f`, gold `#ffc23d`, sky `#4aa8f0`,
+  coral `#ff6a55`; the Fredoka font. They're CSS variables in `peak/kit/kit.css`.
+- **Every shot is charming, in style, motivated by the story and clean**: nothing overlapping, clipping, floating or
+  hiding Mnot (`.claude/agents/art-director.md`). The title shows the start, never the rest of the game: no spoilers.
+
+## 2. The files
+
+| File | What |
+|---|---|
+| `<game>.html` | The page: the stylesheets, `#preload`, `#hud`, `#title-screen`, `#finish`, the import map, the dev reload. From [templates/page.html](templates/page.html) |
+| `peak/<game>/main.js` | The game: the stage, the world, the player, the camera, the HUD, the controls, the events and the loop. From [templates/main.js](templates/main.js) |
+| `peak/<game>/title.js` | The title's shot and act, on the kit's `TitleScreen`. From [templates/title.js](templates/title.js) |
+| `peak/<game>/party.js` | The finish party, on the kit's `Beat` (the downhill's is the example) |
+| `peak/<game>/autopilot.js` | A test bot that plays the whole game through the same rules a player does |
+| `peak/<game>/sfx.js`, `music.js` | The game's sounds and its variant of the climb's tune (Codex) |
+| `peak/<game>/README.md` | The premise, the rules, the controls, the modules, who owns what, how to test. From [templates/README.md](templates/README.md) |
+| `audio/<game>/` | Its effects, WAV masters and AAC `.m4a` (Codex) |
+| `server/<game>.py`, `server/<game>.json` | Its high scores' checker and route (step 6) |
+
+Also: one line in `PAGES` in `tools/build.mjs`, its own port in `.claude/launch.json` while it's being made (copy
+the `downhill` entry), a row in the table in `docs/agents.md` ("The mini games"), and in `peak/README.md` if it adds
+a shared module. A shared module that has to do more gets an option or an export, never a change in what the other
+games see.
+
+## 3. The base: the kit
+
+`peak/kit/` is what every game has, so a new game never copies it from another one:
+
+- `createStage()` for the renderer, scene, camera, ink, post-processing and light; `stage.aimSun(player)` each frame.
+- `warmUp(scene, render)` once everything is in the scene, then `startLoop()`; `expose('<game>', …)` for the tests.
+- `toaster()`, `pop()`, `soundSwitch()` for the HUD; `kit.css` for its look.
+- `TitleScreen` for the title; `Beat` and `confetti()` for the finish party.
+
+Change the kit only with an option whose default keeps every game as it is, and check every game (its README says
+how).
+
+## 4. The title screen and the finish party
+
+- **The title** opens the game (never in `?manual`): the logo spelled in bobbing letters, a tagline card, one slow
+  shot of Mnot at the start with something to watch (an act every few seconds: `PushGlasses`, `Wave`), the menu
+  (Start, Hall of Fame, How to play, Sound), tips going round (premise jokes, each a real tip), "Press any key". Any
+  key or tap starts; a movement key moves on that same frame. The camera glides into the game's camera. The HUD stays
+  hidden until then (`title-up`). The title shows only the start: no spoilers of what's further on.
+- **The finish** stops the clock, pops the finish card (`#finish`: the time, the game's own numbers, a verdict in the
+  premise's words, how to go again) with confetti (`confetti(puffs, at)`) and the climb's wave sound, and starts a
+  party: Mnot turns to the camera and dances on the music's beat (`Beat`, from `music.loopTime()`), in a loop of two
+  bars that fits the premise (the downhill's lowrider hops, swivel spins and paper). The animator makes it.
+- **Toasts** for the moments: the start, a checkpoint (`'checkpoint'`, mint), a mishap (`'oops'`, coral). A thing
+  that happens often says its joke once (`toast.once`). Never two toasts over each other: check `toast.left`.
+
+## 5. Effects, props and sound
+
+- **Effects:** puffs, snow, chips, bits and debris from `peak/look/bursts.js` (pooled; the downhill's
+  `obstacles.puffs`). Everything that flies comes down and goes away.
+- **Props:** toon materials and ramps (`peak/look/look.js` `toon`, `RAMPS`), painted signs and labels
+  (`peak/props/paint.js` `painted`, `letter`; `peak/props/signs.js`), ink outlines on (off for flat prints). Signs
+  stand beside the way, face the player and say one joke.
+- **Sound** is Codex's: brief it on the board and by message with the game's events (`ride.on('jump')` …) and what
+  each should sound like. The game loads only its own sounds: `new MnotSounds({ effects: [...] })` picks which of the
+  climb's effects it wants, `sfx.js` loads the game's own from `audio/<game>/` with `new URL('…', import.meta.url)`,
+  AAC `.m4a` made by `tools/compress_audio.py`. The music is a variant of "Pocket Altitude" with a finish version;
+  it waits for the first frame and the sound's unlock. The Sound button and the unlock are the kit's
+  (`soundSwitch`).
+
+## 6. High scores
+
+A board of its own on the one score server (`server/README.md`, "Several games"):
+
+1. the route as data (`peak/<game>/routedata.js`), exported by `server/export_route.py` (an entry in `GAMES`), and a
+   checker `server/<game>.py` on `server/checks.py` that replays the run against the route and the game's physics;
+2. a `Game` in `server/games.py` `load()`, with house records (so a fresh board isn't empty) and its words, and its
+   name in `NAMES`;
+3. the page, which the server then serves at `/<game>`;
+4. in the game, `createRun()` and `createBoard()` from `peak/scores/scores.js` for `apiBase(location, '<game>')`, a
+   recorder of the inputs, and the finish card's form; the Hall of Fame button on the title (`#hall-of-fame`);
+5. tests: real recorded runs in `server/fixtures/<game>/` and the cheats the checker turns down.
+
+The score-keeper does this. `?manual` sends nothing unless `&scores`.
+
+## 7. The build
+
+Development needs no build: the page loads the modules as they are, three.js from the import map. The live site is
+`npm run build` (`tools/build.mjs`): one line in `PAGES` gives the page its own bundle, shared chunks and its CSS in
+one file. Load every file from code with `new URL('…', import.meta.url)` so the build finds, hashes and copies it;
+a file the page links by name goes in `FILES`. Check the built page: serve `dist/` with
+`SITE_DIR=dist python server/peak_scores.py --static --port <free port>` and open `/<game>`.
+
+## 8. Performance
+
+What made the climb and the downhill smooth (`docs/performance.md`) comes with the kit; keep it that way:
+
+- every shader built behind the preloader (`warmUp`): a thing that's hidden or not set up yet is in the scene for
+  the warm-up; no new light in play;
+- the adaptive post (`createStage`), so a slow GPU draws fewer pixels; never in `?manual`, for the tests;
+- one material per look, shared; instanced meshes for the many (trees, rocks); pooled effects;
+- nothing far ahead drawn when it's not needed (hide it by distance, as `obstacles.update` does);
+- small AAC sounds, music after the first frame, the game's own assets only.
+
+Time it on the desktop GPU in `?manual` with the bot playing, and on a phone. A speed-up that changes the picture is
+the art director's call. Compare shots pixel for pixel before and after.
+
+## 9. Phones
+
+The mobile agent's (`.claude/agents/mobile.md`): touch controls that need no buttons to learn (the downhill: drag on
+the left half to steer, tap the right half to jump), `viewport-fit=cover` and the safe areas, the title's "Tap
+anywhere", a portrait layout (the 560 px media queries), no browser gesture in the way (`touch-action: none` on the
+canvas), and the audio unlocked by a real tap (`soundSwitch` listens to pointerup and touchend too).
+
+## 10. Testing and checks
+
+- `?manual`: no title, no loop; `window.<game>.step(seconds, dt)` moves it the same way every time; `render()` draws.
+  A test bot (`<game>.autopilot(true)`) plays it through.
+- Deterministic shots: open `?manual`, seed `Math.random` before the page's scripts run, step to fixed spots,
+  screenshot, and compare before and after a change that shouldn't change the picture.
+- No errors in the console, on the title and while playing.
+- Before a commit, every check in [docs/agents.md](../../../docs/agents.md#checks-before-handing-over) passes, in
+  every game the change touches, and the game's README says what changed.
+
+## 11. Who does what
+
+The specialists in `.claude/agents/` work on every game; a brief names the game (docs/agents.md, "A brief that
+works"):
+
+| Agent | In a new game |
+|---|---|
+| `level-designer` | The course or arena, its mechanics and physics, the test bot, the route export |
+| `art-director` | Every shot: props, signs, the camera, the title's shot; checks the vibe |
+| `look-dev` | The scene and light, materials, the page's CSS, the frame rate |
+| `animator` | Mnot's poses and clips for the game, the title's acts, the finish party |
+| `score-keeper` | The recorder, the server's checker and board, the finish card's scores |
+| `mobile` | Touch controls, small screens, phones |
+| Codex | Sounds and music |
+
+Follow AGENTS.md: look first, patch in place, commit only your own files by name, keep line endings, and say on the
+board what you're touching. Only the coordinator or the user pushes; a push to `main` deploys.

@@ -1,16 +1,19 @@
-// Peak Mnot, downhill (a prototype): Mnot on a very expensive office chair, down the mountain. Sets up the
-// renderer and the scene like the climb does, wires the piste, the chair, its physics, Mnot and the camera together,
-// and runs the HUD, the controls and the frame loop. The physics steps at a fixed 120 Hz.
+// Peak Mnot, downhill (a prototype): Mnot on a very expensive office chair, down the mountain. Sets up the stage,
+// the frame loop and the HUD's moving parts with the mini game kit (peak/kit/), wires the piste, the chair, its
+// physics, Mnot and the camera together, and runs the HUD and the controls. The physics steps at a fixed 120 Hz.
 // Open downhill.html?manual to stop the loop and step it from the console (window.downhill.step), for tests;
 // downhill.autopilot(true) lets a bot ride.
 import * as THREE from 'three';
-import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { MnotSounds } from '../../sounds.js';
-import { buildScenery, HORIZON, SUN_DIR } from '../look/scenery.js';
-import { createPost } from '../look/post.js';
+import { buildScenery } from '../look/scenery.js';
 import { time as shaderTime } from '../look/materials.js';
 import { loadMnot } from '../mnot/mnot.js';
 import { Input } from '../controls/input.js';
+import { createStage } from '../kit/stage.js';
+import { warmUp } from '../kit/warmup.js';
+import { startLoop, expose } from '../kit/loop.js';
+import { toaster, pop, soundSwitch } from '../kit/hud.js';
+import { confetti } from '../kit/party.js';
 import { Track, FEATURES, RIVER } from './track.js';
 import { Chair, CHAIR } from './chair.js';
 import { Ride } from './ride.js';
@@ -30,32 +33,11 @@ const params = new URLSearchParams(location.search);
 const manual = params.has('manual');
 const STEP = 1 / 120;
 
-const renderer = new THREE.WebGLRenderer({ antialias: false });
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
-document.body.prepend(renderer.domElement);
-const outline = new OutlineEffect(renderer, { defaultThickness: 0.004, defaultColor: [0.16, 0.2, 0.3] });
-
-const scene = new THREE.Scene();
-scene.background = HORIZON.clone();
-scene.fog = new THREE.Fog(HORIZON, 70, 460);
-const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.1, 2500);
-const post = createPost(renderer, scene, camera, outline, { adaptive: !manual });
-
-scene.add(new THREE.HemisphereLight('#c3d8ff', '#a9a6c4', 1.2));
-const sun = new THREE.DirectionalLight('#fff2e0', 2.7);
-sun.castShadow = true;
-sun.shadow.mapSize.setScalar(post.shadowSize(2048));
-sun.shadow.radius = 2.2;
-// The shadows reach from just behind the camera to about 50 m down the run (SHADOW, in step()), so a tree's comes in
-// far off, not as the chair gets to it; the bias is the same 5 cm as over the old, shorter range.
-const SHADOW = { half: 28, ahead: 18, back: 50 };
-Object.assign(sun.shadow.camera, { left: -SHADOW.half, right: SHADOW.half, top: SHADOW.half, bottom: -SHADOW.half,
-  near: 1, far: 110 });
-sun.shadow.bias = -0.00048;
-sun.shadow.normalBias = 0.03;
-scene.add(sun, sun.target);
+// The shadows reach from just behind the camera to about 50 m down the run (stage.aimSun, in step()), so a tree's
+// comes in far off, not as the chair gets to it; the bias is the same 5 cm as over the old, shorter range.
+const stage = createStage({ manual, fov: 52, fog: [70, 460],
+  shadow: { half: 28, near: 1, far: 110, bias: -0.00048, ahead: 18, back: 50 } });
+const { renderer, scene, camera, post, render } = stage;
 
 // the range round the climb stands too close for a run this long: spread it out (and up a little), about the run's
 // middle, so no peak stands in the way; the cloud sea spreads with it
@@ -91,25 +73,8 @@ const $ = id => document.getElementById(id);
 const hud = { time: $('time'), speed: $('speed'), wheels: [...document.querySelectorAll('#wheels i')], toast: $('toast'),
   finish: $('finish'), sound: $('sound'), flash: $('flash'), photo: $('photo'), bonus: $('bonus') };
 const clock = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
-let toastTimer = 0;
-function toast(big, small = '', kind = '') {
-  hud.toast.className = '';
-  void hud.toast.offsetWidth;                     // restart the pop
-  hud.toast.className = `show ${kind}`;
-  hud.toast.querySelector('b').textContent = big;
-  const line = hud.toast.querySelector('small');
-  line.textContent = small;
-  line.hidden = !small;
-  toastTimer = 2.4;
-}
-const said = new Set();
-const once = (key, ...args) => { if (!said.has(key)) { said.add(key); toast(...args); } };
-
-const syncSound = () => hud.sound.setAttribute('aria-pressed', String(sounds.enabled));
-syncSound();
-hud.sound.addEventListener('click', () => { sounds.setEnabled(!sounds.enabled); syncSound(); hud.sound.blur(); });
-addEventListener('pointerdown', e => { if (e.isTrusted) void sounds.unlock(); }, { capture: true });
-addEventListener('keydown', e => { if (e.isTrusted) void sounds.unlock(); }, { capture: true });
+const toast = toaster(hud.toast), once = toast.once;
+soundSwitch(sounds, hud.sound);
 
 // ------------------------------------------------------------------ the ride's events
 
@@ -144,8 +109,8 @@ ride.on('wheel', ({ index, cause, left }) => {
   obstacles.debris.add(caster, { vel: ride.vel.clone().multiplyScalar(0.85).add(kick), radius: 0.075, life: 12,
     bounce: 0.45 });
   if (left > 0) toast(`${left} wheel${left === 1 ? '' : 's'} left`,
-    said.has('warranty') ? '' : 'That wheel had a warranty.', 'oops');
-  said.add('warranty');
+    toast.said.has('warranty') ? '' : 'That wheel had a warranty.', 'oops');
+  toast.said.add('warranty');
 });
 ride.on('wrecked', () => {
   sfx.cue({ type: 'wrecked' });
@@ -189,7 +154,7 @@ ride.on('pit', () => {
   chair.fix();
   sfx.cue({ type: 'pit' });
   // a quiet pit stop if something else is being said
-  if (toastTimer < 1) toast('Pit stop', 'Fresh casters, on the house.', 'checkpoint');
+  if (toast.left < 1) toast('Pit stop', 'Fresh casters, on the house.', 'checkpoint');
 });
 
 // the bowling, the ski jump and its photo: what this run did, for the finish card
@@ -203,9 +168,7 @@ function bonus(seconds, what) {
   sfx.cue({ type: 'bonus', seconds });
   hud.bonus.querySelector('b').textContent = `−${seconds.toFixed(1)} s`;
   hud.bonus.querySelector('small').textContent = what;
-  hud.bonus.hidden = true;
-  void hud.bonus.offsetWidth;                     // restart the pop
-  hud.bonus.hidden = false;
+  pop(hud.bonus);
   bonusTimer = 2.8;
 }
 
@@ -239,9 +202,6 @@ const shot = document.createElement('canvas');
 shot.width = 480;
 shot.height = 360;
 const _look = new THREE.Vector3();
-// the sun's view: its axes, to move the shadows' box in whole texels so their edges don't crawl as it follows
-const _sunX = new THREE.Vector3(), _sunY = new THREE.Vector3(), _sunZ = new THREE.Vector3(), _shade = new THREE.Vector3();
-new THREE.Matrix4().lookAt(SUN_DIR, new THREE.Vector3(), THREE.Object3D.DEFAULT_UP).extractBasis(_sunX, _sunY, _sunZ);
 function snap() {
   run.snapAt = false;
   if (run.photo || obstacles.cameraman.gone) return;
@@ -288,12 +248,7 @@ ride.on('finish', ({ time: t }) => {
   if (run.photo) picture.querySelector('img').src = run.photo;
   hud.photo.hidden = true;
   hud.finish.hidden = false;
-  for (let i = 0; i < 90; i++) {
-    const color = new THREE.Color().setHSL(Math.random(), 0.8, 0.6);
-    puffs.add('bit', { at: ride.pos.clone().setY(ride.pos.y + 2.5), color, gravity: 4, drag: 1.5, spin: 6,
-      vel: new THREE.Vector3((Math.random() - 0.5) * 7, 3 + Math.random() * 5, (Math.random() - 0.5) * 7),
-      size: 0.05, life: 3 + Math.random() * 2, bounce: 0 });
-  }
+  confetti(puffs, ride.pos);
 });
 
 // The finish party's spin: a sheaf of paper and sticky notes thrown up over the chair, fluttering down.
@@ -454,18 +409,12 @@ function step(dt) {
   obstacles.update(dt, ride.s);
   chase.update(dt, ride);
   title.place(dt);
-  camera.getWorldDirection(_shade).setY(0).normalize();
-  _shade.multiplyScalar(SHADOW.ahead).add(ride.pos);
-  const texel = 2 * SHADOW.half / sun.shadow.mapSize.x, snap = v => Math.round(v / texel) * texel;
-  const sx = snap(_shade.dot(_sunX)), sy = snap(_shade.dot(_sunY)), sz = _shade.dot(_sunZ);
-  sun.target.position.set(0, 0, 0).addScaledVector(_sunX, sx).addScaledVector(_sunY, sy).addScaledVector(_sunZ, sz);
-  sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, SHADOW.back);
+  stage.aimSun(ride.pos);
   scenery.update(camera, time);
   // the photographer: as the chair flies past, or where a short hop came down
   if (!run.photo && (run.snapAt || ride.flight && ride.s > FEATURES.jump.lip + 11)) snap();
   // the HUD
-  toastTimer -= dt;
-  if (toastTimer <= 0 && hud.toast.classList.contains('show')) hud.toast.className = '';
+  toast.update(dt);
   photoTimer -= dt;
   if (photoTimer <= 0 && !hud.photo.hidden) hud.photo.hidden = true;
   bonusTimer -= dt;
@@ -475,72 +424,18 @@ function step(dt) {
   hud.wheels.forEach((w, i) => w.classList.toggle('gone', !ride.wheels[i]));
 }
 
-function render() {
-  post.render();
-}
-
 ride.reset(FEATURES.pits[0], { wheels: true });
 chase.snap(ride);
 if (!manual) { title.show(); music.start(); }     // the tune plays under the title once the sound is unlocked
 step(1 / 60);
 
-// Every shader built now, behind the preloader (peak/ui/preload.css), not on the way down where each one is a hitch:
-// one frame with nothing culled, so all of the run is drawn once, with its shadows and ink (the climb's main.js too).
-// Nothing hidden either: the obstacles far down the run (obstacles.update) and the ones not set up yet would each
-// build a shader of their own, or a shadow's, the first time they show (docs/performance.md, "The downhill").
-// The painted things that cast a shadow (the banners, the signs) get a depth material of their own: three.js draws
-// every other shadow with one, and builds its shader again only when the kind of mesh changes (Mnot's skinned can,
-// the instanced ones), from the first mesh after the change. A painted one there built a shader more, down the run.
-const PAINTED_SHADOW = new THREE.MeshDepthMaterial();
-function warmUp() {
-  const culled = [], hidden = [];
-  scene.traverse(o => {
-    if (o.frustumCulled) { culled.push(o); o.frustumCulled = false; }
-    if (!o.visible && !o.isLight) { hidden.push(o); o.visible = true; }    // a light more would build every shader anew
-    if (o.castShadow && o.isMesh && !o.isSkinnedMesh && !o.isInstancedMesh && !o.customDepthMaterial
-      && [].concat(o.material).some(m => m.map && !(m.alphaTest > 0))) o.customDepthMaterial = PAINTED_SHADOW;
-  });
-  render();
-  for (const o of culled) o.frustumCulled = true;
-  for (const o of hidden) o.visible = false;
-}
-warmUp();
+// Every shader built now, behind the preloader, not on the way down where each one is a hitch (kit/warmup.js): the
+// obstacles far down the run (obstacles.update) and the ones not set up yet too (docs/performance.md, "The downhill").
+warmUp(scene, render);
 render();
+startLoop({ manual, post, step, render });
 
-// the preloader stays up until the first frame is on screen
-let revealed = false;
-function reveal() {
-  if (revealed) return;
-  revealed = true;
-  document.body.classList.remove('preloading');
-  const cover = document.getElementById('preload');
-  if (manual) cover?.remove();
-  else { cover?.classList.add('done'); setTimeout(() => cover?.remove(), 600); }
-}
-
-const timer = new THREE.Timer();
-timer.connect(document);
-function frame(timestamp) {
-  timer.update(timestamp);
-  post.adapt(timer.getDelta());
-  step(Math.min(timer.getDelta(), 0.05));
-  render();
-  requestAnimationFrame(frame);
-  if (!revealed) requestAnimationFrame(reveal);
-}
-if (!manual) requestAnimationFrame(frame);
-else reveal();
-
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  post.setSize(innerWidth, innerHeight);
-  if (manual) render();
-});
-
-// for debugging and tests
-window.downhill = { THREE, renderer, scene, camera, post, track, obstacles, chair, ride, rider, chase, mnot, sounds, sfx,
-  music, party, scores, input, title,
-  step(seconds = 1 / 60, dt = 1 / 60) { for (let t = 0; t < seconds - 1e-9; t += dt) step(dt); render(); },
-  render, restart, respawn, get intent() { return last; },
-  autopilot(on = true) { autopilot.on = on; begin(); return autopilot; } };
+// for debugging and tests: window.downhill, with step(seconds, dt) and render() (kit/loop.js)
+expose('downhill', { THREE, renderer, scene, camera, post, stage, track, obstacles, chair, ride, rider, chase, mnot,
+  sounds, sfx, music, party, scores, input, title, restart, respawn, get intent() { return last; },
+  autopilot(on = true) { autopilot.on = on; begin(); return autopilot; } }, { step, render });

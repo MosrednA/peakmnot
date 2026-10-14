@@ -44,7 +44,7 @@ share the mountain, the look, Mnot and the furniture round the game.
 | Game | Page | Folder | |
 |---|---|---|---|
 | The climb | `peak.html` | `peak/` (the shared modules live here too) | Live |
-| The downhill, on an office chair | `downhill.html` | [`peak/downhill/`](../peak/downhill/README.md) | A prototype, local only |
+| The downhill, on an office chair | `downhill.html` | [`peak/downhill/`](../peak/downhill/README.md) | A prototype, at `/downhill`, not linked yet |
 
 **Same style and vibe, another game.** Every mini game:
 
@@ -80,7 +80,10 @@ checks must still pass. Say so on the board.
 **A new mini game** gets a page next to `peak.html`, a folder `peak/<game>/` with a README like the downhill's (the
 rules, the modules, who owns what, how to test), a `?manual` mode that steps the game from the console, a test bot
 that plays it through, and its own port in `.claude/launch.json` while it's being made. Its high scores get a board
-of their own on the score server, under `/api/<game>/`.
+of their own on the score server, under `/api/<game>/`. It's built on the shared kit in
+[`peak/kit/`](../peak/kit/README.md) (the stage and light, the loop and preloader, the HUD, the title screen, the finish
+party's beat), and the `mini-game` skill ([.claude/skills/mini-game/](../.claude/skills/mini-game/SKILL.md)) is the
+recipe, step by step, with templates for the page, `main.js`, `title.js` and the README.
 
 A brief for a specialist names the game. Without one, they ask, or check every game the change touches.
 

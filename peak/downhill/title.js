@@ -1,19 +1,19 @@
-// The title screen, the climb's way (peak/ui/title.js, styled by the same peak/ui/title.css): MNOT DOWNHILL over one
-// slow shot at the start. The chair stands with its back to the camera and swivels round, like a villain's, to Mnot,
-// who pushes its glasses up now and then and waves; the camera creeps in, then sways gently from side to side, and
-// the seat turns to keep facing it. Round the chair lies what it came in: the open box, the receipt, and the office
-// plant and the water cooler, which came along to watch (props(), there for the whole game, beside the chair where
-// it never goes). Nothing further down the mountain is shown: that's for the run. A key, a tap on the scene or Start
-// rolls off, a movement key on the very frame it's read (main.js reads it as the run begins), and the camera glides
-// into the chase camera. The HUD waits until the run starts (title.css hides it while body has the class
-// `title-up`). The menu, the tips and How to play are downhill.html's #title-screen.
-// main.js calls update(dt) before the chair is posed (it turns the seat and picks Mnot's act) and place(dt) after the
-// chase camera has placed itself. Events: on('start', { how }). ?manual never shows it.
+// The title screen (peak/kit/title.js, styled by peak/ui/title.css): MNOT DOWNHILL over one slow shot at the start.
+// The chair stands with its back to the camera and swivels round, like a villain's, to Mnot, who pushes its glasses
+// up now and then and waves; the camera creeps in, then sways gently from side to side, and the seat turns to keep
+// facing it. Round the chair lies what it came in: the open box, the receipt, and the office plant and the water
+// cooler, which came along to watch (props(), there for the whole game, beside the chair where it never goes).
+// Nothing further down the mountain is shown: that's for the run. A key, a tap on the scene or Start rolls off, a
+// movement key on the very frame it's read (main.js reads it as the run begins), and the camera glides into the
+// chase camera; a key or Start has Mnot wave goodbye. The menu, the tips and How to play are downhill.html's
+// #title-screen. main.js calls update(dt) before the chair is posed (it turns the seat and picks Mnot's act) and
+// place(dt) after the chase camera has placed itself. Events: on('start', { how }). ?manual never shows it.
 import * as THREE from 'three';
 import { FEATURES } from './track.js';
 import { cooler, ficus } from './office.js';
 import { toon, RAMPS } from '../look/look.js';
 import { painted, letter } from '../props/paint.js';
+import { TitleScreen } from '../kit/title.js';
 
 const TIPS = [
   'Tip: the chair cost €1,649. The mountain was free.',
@@ -28,7 +28,6 @@ const TIPS = [
   'Tip: smile on the way down. Someone might be taking pictures.',
   'Tip: a fall costs its time on the clock. The chair rolls back to the last pit stop, sulking.',
 ];
-const TIP_TIME = 6.5;
 
 // The shot, in the piste's metres from the chair: back up the slope (dist), swung to the right by an angle (radians),
 // up from the snow (h), looking at Mnot. It creeps in over the first seconds, then sways and breathes, slowly.
@@ -38,147 +37,36 @@ const SWIVEL = [0.7, 1.7];        // the seat's swing round to the camera: from,
 // Mnot's acts, again every CYCLE seconds: [at, clip, seconds] (a one-shot plays its whole length)
 const ACTS = [[2.7, 'PushGlasses'], [7.4, 'Wave', 2.4]];
 const CYCLE = 14;
-const MOVES = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space',
-  'ShiftLeft', 'ShiftRight']);
-// keys that never start the run: focus, closing a panel, modifiers
-const QUIET = new Set(['Tab', 'Escape', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight',
-  'CapsLock', 'ContextMenu']);
-const GLIDE = 1.5;                // seconds from the title shot into the chase camera
-const GLIDE_LOOK = 0.6;           // ... of which the look point takes this part, to find the chair early
+const MOVES = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft',
+  'ShiftRight'];
 const BYE = 1.3;                  // seconds of waving goodbye after Start or a key
 
 const TAU = Math.PI * 2;
 const ease = k => THREE.MathUtils.smootherstep(k, 0, 1);
 // a swivel that swings a little past and settles back (an ease-out-back)
 const swing = k => k >= 1 ? 1 : 1 + 2.70158 * (k - 1) ** 3 + 1.70158 * (k - 1) ** 2;
-const _a = new THREE.Vector3(), _b = new THREE.Vector3();
 
-export class Title {
+export class Title extends TitleScreen {
   constructor({ camera, chase, track, ride, rider, scene, dom }) {
-    Object.assign(this, { camera, chase, track, ride, rider });
+    super({ camera, dom, tips: TIPS, moves: MOVES, anchor: () => ride.pos, follow: () => chase });
+    Object.assign(this, { chase, track, ride, rider });
     scene.add(props(track));
-    this.visible = false;
-    this.time = 0;
-    this.pos = new THREE.Vector3();
-    this.look = new THREE.Vector3();
-    this.glide = null;
+    this.fov = SHOT.fov;
     this.bye = 0;
-    this.tip = { index: 0, clock: 0 };
-    this.listeners = new Map();
-    this.el = document.getElementById('title-screen');
-    if (!this.el) return;
-    const $ = id => document.getElementById(id);
-    this.tipEl = $('title-tip');
-    this.howto = $('title-howto');
-    this.help = $('title-help');
-    this.sound = $('title-sound');
-    this.spell(this.el.querySelector('.ts-logo'));
-    $('title-start')?.addEventListener('click', () => this.start('button'));
-    this.help?.addEventListener('click', () => this.showHelp(this.howto.hidden));
-    this.sound?.addEventListener('click', () => document.getElementById('sound')?.click());
-    // buttons keep the focus away, so the keys keep going to the game
-    for (const b of this.el.querySelectorAll('button')) b.addEventListener('mousedown', e => e.preventDefault());
-    dom.addEventListener('pointerdown', () => this.start('pointer'));
-    addEventListener('keydown', e => this.key(e));
   }
 
-  on(name, fn) { (this.listeners.get(name) ?? this.listeners.set(name, []).get(name)).push(fn); }
-  emit(name, data) { for (const fn of this.listeners.get(name) ?? []) fn(data); }
-
-  // The logo's letters, each bobbing on its own with a snow cap (title.css), word by word: the second word's letters
-  // step down like a slope (--j, downhill.html).
-  spell(logo) {
-    if (!logo) return;
-    const words = logo.textContent.trim().toUpperCase().split(/\s+/);
-    logo.setAttribute('aria-label', logo.textContent.trim());
-    logo.textContent = '';
-    let i = 0;
-    for (const word of words) {
-      const w = document.createElement('span');
-      w.className = 'w';
-      w.setAttribute('aria-hidden', 'true');
-      [...word].forEach((ch, j) => {
-        const span = Object.assign(document.createElement('span'), { className: 'l', textContent: ch });
-        span.dataset.l = ch;
-        span.style.setProperty('--i', i++);
-        span.style.setProperty('--j', j);
-        w.append(span);
-      });
-      logo.append(w);
-    }
-  }
-
-  show() {
-    if (this.visible || !this.el) return;
-    this.visible = true;
-    this.time = 0;
-    this.tip = { index: 0, clock: 0 };
-    if (this.tipEl) this.tipEl.textContent = TIPS[0];
-    this.syncSound();
-    document.body.classList.add('title-up');
-    this.el.hidden = false;
-    this.el.classList.remove('leaving');
-    this.frame();
-  }
-
-  // how: 'move' (a movement key, read this frame), 'pointer', 'key' or 'button'.
-  start(how = 'key') {
-    if (!this.visible) return;
-    this.visible = false;
-    this.showHelp(false);
-    if (this.el.contains(document.activeElement)) document.activeElement.blur();
-    document.body.classList.remove('title-up');
-    document.body.classList.add('title-out');       // the HUD fades in (title.css)
-    this.el.classList.add('leaving');
-    setTimeout(() => {
-      document.body.classList.remove('title-out');
-      if (!this.visible) this.el.hidden = true;
-    }, 700);
-    // the shot rides along with the chair into the chase camera
-    const at = this.ride.pos;
-    this.glide = { t: 0, from: this.pos.clone().sub(at), look: this.look.clone().sub(at), fov: this.camera.fov };
+  // a key or Start: Mnot waves goodbye as the chair rolls off
+  leaving(how) {
     this.bye = how === 'key' || how === 'button' ? BYE : 0;
     this.rider.act = this.bye > 0 ? 'Wave' : null;
     this.ride.seatL = 0;
-    this.emit('start', { how });
   }
 
-  // Once a frame, before the chair is posed: the shot for this moment, the seat's turn and Mnot's act.
+  // Once a frame, before the chair is posed: the shot for this moment, the seat's turn and Mnot's act, then the wave.
   update(dt) {
-    if (this.visible) {
-      this.time += dt;
-      this.frame();
-      this.rotateTips(dt);
-      this.syncSound();
-      return;
-    }
+    if (super.update(dt)) return true;
     if (this.bye > 0 && (this.bye -= dt) <= 0) { this.bye = 0; this.rider.act = null; }
-  }
-
-  // Once a frame, after the chase camera has placed itself: the title's shot, or the glide out of it.
-  place(dt) {
-    const cam = this.camera;
-    if (this.visible) {
-      cam.position.copy(this.pos);
-      cam.lookAt(this.look);
-      this.lens(SHOT.fov);
-      return;
-    }
-    const g = this.glide;
-    if (!g) return;
-    // from the title shot, riding along with the chair, into wherever the chase camera has put itself this frame
-    const u = Math.min(1, (g.t += dt) / GLIDE), k = ease(u), at = this.ride.pos;
-    const look = _a.copy(g.look).add(at).lerp(this.chase.look, ease(Math.min(1, u / GLIDE_LOOK)));
-    cam.position.lerpVectors(_b.copy(g.from).add(at), cam.position, k);
-    cam.lookAt(look);
-    this.lens(g.fov + (this.chase.fov - g.fov) * k);
-    if (u >= 1) this.glide = null;
-  }
-
-  lens(fov) {
-    if (Math.abs(this.camera.fov - fov) < 0.01) return;
-    this.camera.fov = fov;
-    this.camera.updateProjectionMatrix();
+    return false;
   }
 
   // The shot at this moment, the seat turned to it and Mnot's act. On a narrow screen the camera stands further
@@ -207,43 +95,6 @@ export class Title {
       if (t >= at && t < at + length && anim.has(name)) clip = name;
     }
     this.rider.act = clip;
-  }
-
-  rotateTips(dt) {
-    const tip = this.tip;
-    if (!this.tipEl || (tip.clock += dt) < TIP_TIME) return;
-    if (!this.tipEl.classList.contains('swap')) this.tipEl.classList.add('swap');
-    if (tip.clock < TIP_TIME + 0.4) return;
-    tip.index = (tip.index + 1) % TIPS.length;
-    tip.clock = 0;
-    this.tipEl.textContent = TIPS[tip.index];
-    this.tipEl.classList.remove('swap');
-  }
-
-  showHelp(open) {
-    if (!this.howto) return;
-    this.howto.hidden = !open;
-    this.help?.setAttribute('aria-expanded', String(open));
-  }
-
-  // the title's sound button mirrors the HUD's
-  syncSound() {
-    const hud = document.getElementById('sound');
-    if (!this.sound || !hud) return;
-    const on = hud.getAttribute('aria-pressed') !== 'false', text = on ? 'Sound on' : 'Sound off';
-    if (this.sound.textContent !== text) this.sound.textContent = text;
-    if (this.sound.getAttribute('aria-pressed') !== String(on)) this.sound.setAttribute('aria-pressed', String(on));
-  }
-
-  // Any key starts the run, except the quiet ones; a movement key also steers on that same frame (main.js reads the
-  // keys as the run begins). Enter on a focused title button clicks it instead.
-  key(e) {
-    if (!this.visible || e.ctrlKey || e.metaKey || e.altKey || QUIET.has(e.code)) return;
-    if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
-    if (document.querySelector('.sc-panel.open')) return;            // the keyboard stays in the Hall of Fame
-    if ((e.code === 'Enter' || e.code === 'NumpadEnter') && e.target.closest?.('button')) return;
-    if (!MOVES.has(e.code)) e.preventDefault();
-    this.start(MOVES.has(e.code) ? 'move' : 'key');
   }
 }
 

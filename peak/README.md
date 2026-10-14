@@ -219,6 +219,22 @@ each with its CSS next to it.
 | `leaderboard.js` | The Hall of Fame panel (the HUD trophy and the title's button), replay actions for eligible rows, and the board on the summit card; names go in as text only |
 | `routedata.js` | The route as plain data for the server (`server/route.json`) and its fingerprint |
 
+### `kit/`: the base every mini game is built on
+
+The other mini games (the downhill so far) build on it; the climb has its own copies of the same things in `main.js`
+and `ui/`. Its README ([kit/README.md](kit/README.md)) has the API, and the `mini-game` skill
+(`.claude/skills/mini-game/`) the recipe for a new game.
+
+| File | What |
+|---|---|
+| `stage.js` | The renderer, the scene, the camera, the ink, the post-processing and the light; the sun's shadow box follows the player |
+| `warmup.js` | Every shader built behind the preloader |
+| `loop.js` | The frame loop, the preloader lifted after the first frame, and `window.<game>` with `step()` for the tests |
+| `hud.js` | The toast, a card popping in, the Sound button and the audio unlock |
+| `title.js` | The title screen: the menu, the tips, any key or tap starts, the glide into the game's camera |
+| `party.js` | The finish party's beat on the music, and confetti |
+| `kit.css` | The HUD's look |
+
 ### `dev/`: for tuning and tests
 
 | File | What |

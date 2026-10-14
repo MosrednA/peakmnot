@@ -66,11 +66,13 @@ What it shares with the climb, imported and never copied: the backdrop and the p
 the keys (`controls/input.js`), the sound switch and its unlock (`sounds.js`, which loads only Mnot's wave of
 the climb's effects here), and the high-score helpers, the summit card and the Hall of Fame (`scores/scores.js`,
 `scores/leaderboard.js`, `scores/scores.css`, in the downhill's own words). A shared module that has to do more gets
-an option, and the climb behaves exactly as before.
+an option, and the climb behaves exactly as before. The stage and its light, the frame loop and the preloader, the
+toast, the Sound button, the title screen's base, the party's beat and the confetti, and the HUD's CSS are the mini
+game kit's (`peak/kit/`).
 
 | Module | What |
 |---|---|
-| `main.js` | The page: the renderer and the scene, the HUD, the controls, the events and the frame loop (physics at 120 Hz) |
+| `main.js` | The page: the stage (`kit/stage.js`), the HUD, the controls, the events and the frame loop (physics at 120 Hz) |
 | `track.js` | The piste: a centreline sampled every half metre, the cross-section (dish, banks, powder, the drop), the features, and `ground(x, z)`, which the physics and the snow mesh both use |
 | `ride.js` | The chair's physics: rolling, steering, braking, the jump, flights, the seat's swivel, crashes, lost wheels and falls; its events drive everything else |
 | `chair.js` | The office chair's model and its pose (the base, the casters, the gas lift, the seat) |
@@ -79,9 +81,9 @@ an option, and the climb behaves exactly as before.
 | `office.js` | Office furniture: the knock-off chairs, cabinets, desks, the printer, water coolers and plants |
 | `bowling.js` | The ten knock-off chairs as bowling pins, knocking each other over, and the score |
 | `marks.js` | Paint on the snow: the bowling lane and the ski jump's distance lines (`K_LINE`) |
-| `title.js` | The title screen, the climb's (`peak/ui/title.css`): one slow shot of the chair at the top, the seat swivelling round to Mnot, and the props round the start (the box, the receipt, a plant, a water cooler) |
+| `title.js` | The title screen, on the kit's `TitleScreen` (`peak/ui/title.css`): one slow shot of the chair at the top, the seat swivelling round to Mnot, and the props round the start (the box, the receipt, a plant, a water cooler) |
 | `camera.js` | The chase camera, the river's higher shot, the finish framing |
-| `party.js` | The finish party, on the music's beat |
+| `party.js` | The finish party, on the music's beat (the kit's `Beat`) |
 | `bonus.js` | Time off the clock for the bowling and the ski jump |
 | `record.js`, `scores.js`, `routedata.js` | The high scores: the recorder, the server talk and the card, the route as data for the server |
 | `autopilot.js` | A test rider that rides the whole run through the same physics |
