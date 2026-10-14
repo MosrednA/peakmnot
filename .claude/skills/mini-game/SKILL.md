@@ -1,6 +1,6 @@
 ---
 name: mini-game
-description: The recipe for a new Peak Mnot mini game, or a big change to one - the premise and the vibe, the page and its folder, the shared kit (stage, loop, HUD, title screen, finish party, controller, stats), effects, sound and music, high scores, stats and their Plausible goals, the production build, performance, phones and controllers, tests and checks, and who does what. Use when making a new mini game, or when adding a title screen, finish party, HUD, sound, scores, controller support, stats or a page to one.
+description: The recipe for a new Peak Mnot mini game, or a big change to one - the premise and the vibe, the page and its folder, the shared kit (stage, loop, HUD, title screen, finish party, controller, stats, levels), effects, sound and music, high scores with the Hall of Fame's ghost and replay, stats and their Plausible goals, the production build, performance, phones and controllers, tests and checks, and who does what. Use when making a new mini game, or when adding a title screen, finish party, HUD, sound, scores, controller support, stats or a page to one.
 ---
 
 # A new mini game
@@ -41,7 +41,8 @@ do what it does.
 | `peak/<game>/sfx.js`, `music.js` | The game's sounds and its variant of the climb's tune (Codex) |
 | `peak/<game>/README.md` | The premise, the rules, the controls, the modules, who owns what, how to test. From [templates/README.md](templates/README.md) |
 | `audio/<game>/` | Its effects, WAV masters and AAC `.m4a` (Codex) |
-| `server/<game>.py`, `server/<game>.json` | Its high scores' checker and route (step 6) |
+| `server/<game>.py`, `server/<game>.json` | Its high scores' checker and route (step 6); another level's route is `server/<game>-<level>.json` |
+| `peak/<game>/playback.js` | Its replays for the Hall of Fame: a recorded run checked, watched on the game's own player and raced as a see-through ghost (step 6). The downhill's is the example |
 | `peak/<game>/viewer.js` | Its tab in the animation viewer (`index.html`, live at `/viewer`): Mnot with what the game adds (the chair, the moves, the party), and a line in `GAMES` in `peak/viewer/tabs.js`. The downhill's is the example |
 | `peak/<game>/analytics.js` | Its Plausible goals on the kit's `goals()`, each sent as `<Game>: <goal>` so a game's goals stay together. From [templates/analytics.js](templates/analytics.js), its check `tools/check_<game>_analytics.mjs` from [templates/check_analytics.mjs](templates/check_analytics.mjs) (step 6, "Stats") |
 | `share-<game>.jpg` | Its link preview (Slack, Discord, WhatsApp): the title screen at 1200 x 630, a JPEG, with the logo, Mnot clear of it, and the tagline in place of the menu, linked from the page's `og:` and `twitter:` tags (the template has them), in `FILES` in `tools/build.mjs` and in the server test's list of plain files. The climb's `share.jpg` and the downhill's are the examples |
@@ -108,9 +109,23 @@ A board of its own on the one score server (`server/README.md`, "Several games")
 3. the page, which the server then serves at `/<game>`;
 4. in the game, `createRun()` and `createBoard()` from `peak/scores/scores.js` for `apiBase(location, '<game>')`, a
    recorder of the inputs, and the finish card's form; the Hall of Fame button on the title (`#hall-of-fame`);
-5. tests: real recorded runs in `server/fixtures/<game>/` and the cheats the checker turns down.
+5. tests: real recorded runs in `server/fixtures/<game>/` and the cheats the checker turns down;
+6. **the Hall of Fame's ghost and replay**, from the start: `replays: true` in the board's words, so every run on it
+   gets **Race ghost** and **Watch run**, and the climb's controls (`peak/replays/controller.js`) with the game's own
+   player in `peak/<game>/playback.js`: `validate(replay, fingerprint)`, an actor that seeks to any moment of the
+   run (`createActor`), and the page wired for `?ghost=ID` (a see-through copy of the player at the player's clock;
+   no start until it has loaded) and `?replay=ID` (the page's own player on the recording, its events told again
+   through the live handlers, so the sounds, toasts and finish card are the game's; nothing recorded or posted).
+   The server's `Game.replay` lists the fields the replay endpoint gives (the inputs too, if they pose the player).
+   A check routes the board and the replay API to a run its test bot rode (`tools/check_downhill_replays.js`);
+7. **levels**, from the start, even with one: `const LEVELS = ['']` and `pickLevel(LEVELS)` (`peak/kit/levels.js`) in
+   `main.js`, the level passed to the scores (`apiBase(location, '<game>', level)`) and to the replays, and the world
+   built for it. On the server the first level is the game's own board, `/api/<game>/`, and each other one has its
+   own, `/api/<game>-<level>/`, with its own route file (`export_route.py <game> <level>`) and its id in `LEVELS` in
+   `server/games.py`. Links to a level, its Hall of Fame, a ghost or a replay keep its `?level=`, so a run is
+   always raced and watched on the level it was ridden on.
 
-The score-keeper does this. `?manual` sends nothing unless `&scores`.
+The score-keeper does this. `?manual` sends nothing unless `&scores`; watching a run never does.
 
 ### Stats
 
@@ -202,7 +217,7 @@ are the examples, `peak/main.js` and `peak/downhill/main.js`, both `readPad`):
   A test bot (`<game>.autopilot(true)`) plays it through.
 - Deterministic shots: open `?manual`, seed `Math.random` before the page's scripts run, step to fixed spots,
   screenshot, and compare before and after a change that shouldn't change the picture.
-- No errors in the console, on the title and while playing.
+- No errors in the console, on the title and while playing, nor while racing a ghost and watching a run.
 - Before a commit, every check in [docs/agents.md](../../../docs/agents.md#checks-before-handing-over) passes, in
   every game the change touches, and the game's README says what changed.
 
@@ -223,3 +238,18 @@ works"):
 
 Follow AGENTS.md: look first, patch in place, commit only your own files by name, keep line endings, and say on the
 board what you're touching. Only the coordinator or the user pushes; a push to `main` deploys.
+
+## 13. An AI player
+
+A neural network can learn the game too, in `ai/` ([ai/README.md](../../../ai/README.md); not in the build, not on
+the site): it plays the game's own modules in Node, hundreds at once. It needs what a well-made game has anyway:
+
+- the world, the physics, the rules and the recorder in modules without the DOM, stepped at a fixed physics step, so
+  a run in Node is the run in the browser;
+- the test bot (`autopilot.js`): its run through the headless game passes the server's check, and that proves the
+  copy is faithful;
+- the server's checker (step 6), which judges the AI's runs as it judges a player's.
+
+Copy `ai/games/_template/` to `ai/games/<game>/`, fill in its TODOs, check it (`node sim/check_env.mjs --game
+<game>`) and train (`train.py --game <game>`). The AI never goes on the board; the climb's best is shown by link only
+(`--showcase`, `server/README.md`).

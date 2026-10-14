@@ -24,6 +24,8 @@ What counts, what costs, how a run ends, what the clock does.
 ## High scores
 
 The board at `/api/<game>/`: what's recorded, what the checker (`server/<game>.py`) checks, the house records.
+The Hall of Fame's Race ghost (`?ghost=ID`) and Watch run (`?replay=ID`): what the ghost is and what watching shows.
+The levels (`LEVELS` in `main.js`, `?level=`): one for now, each other one with its board `/api/<game>-<level>/`.
 
 ## Modules
 
@@ -37,6 +39,7 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`), the sound switch (`sou
 | `title.js` | The title screen: the shot at the start and Mnot's act |
 | `party.js` | The finish party, on the music's beat |
 | `autopilot.js` | A test bot that plays the whole game through the same rules |
+| `playback.js` | The Hall of Fame's replays: a recorded run checked, watched and raced as a ghost |
 | `sfx.js`, `music.js` | The game's sounds and its variant of the climb's tune (Codex) |
 
 ## Who owns what
@@ -57,4 +60,6 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`), the sound switch (`sou
   `<game>.step(seconds, dt)` steps it (pass `dt`: a hidden tab has none of its own) and draws a frame;
   `<game>.render()` draws one.
 - `<game>.autopilot(true)` lets the test bot play it through.
+- `<game>.html?manual&replay=ID` watches a run step by step, `?ghost=ID` races one; `tools/check_<game>_replays.js`
+  checks both on a run the test bot rode.
 - Check the console for errors after every reload, and look at the title, the start, a mishap and the finish party.

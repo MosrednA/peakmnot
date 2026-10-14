@@ -56,6 +56,24 @@ shared; runs and rankings belong to their game's board. The browser uses `create
 `peak/scores/scores.js`. Each game records its own run and exports its own route for its checker. See
 [the server reference](../server/README.md#several-games) for registration and verification.
 
+Every run on a board can be raced and watched from its Hall of Fame. `peak/replays/controller.js` is shared: it
+loads `GET /api/<game>/replay/ID`, checks it with the game's `validate()`, and gives the page the controls (play,
+pause, speed, the timeline, Back to Hall, Hide ghost). The player on the recording is the game's own: the climb's
+`peak/replays/playback.js`, the downhill's `peak/downhill/playback.js` (passed as `createActor`). `?ghost=ID` races a
+see-through copy at the player's clock; `?replay=ID` watches the run on the page's own player, and never records or
+posts anything.
+
+## Levels
+
+Every game is made for more than one level, even while it has one. A level is a short id (`a-z`, `0-9`; `''` is the
+first). The page keeps its ids in `LEVELS` in its `main.js` and picks one from `?level=` with `pickLevel()`
+(`peak/kit/levels.js`); an id it doesn't have opens the first. On the server each level is a board of its own, with
+its runs, replays and route: the first is the game itself (`/api/<game>/`, `server/<game>.json`, the climb's
+`server/route.json`), so a game keeps its board when it grows a second level, and each other one is
+`/api/<game>-<level>/`, checked against `server/<game>-<level>.json` and listed in `LEVELS` in `server/games.py`.
+Links to a level, its Hall of Fame, a ghost or a replay keep its `?level=`, so a run is always raced and watched
+on the level it was made on. Both games have one level for now.
+
 Plausible counts pageviews on the same site and groups goals by game: `Climb: …`, `Downhill: …` and navigation
 goals `Games: …`. New games use `goals('<Game>', { manual })` from `peak/kit/analytics.js`; the climb keeps its
 original event names with prefixed display names to preserve history. Local and manual tests send no goals. See
@@ -72,7 +90,8 @@ Follow [the mini-game skill](../.claude/skills/mini-game/SKILL.md) and its templ
 1. `<game>.html` and `peak/<game>/`, with its own README, kit-based entry, world, player, camera, title and finish.
 2. Keyboard, touch and controller support, sound hooks and a music variant, plus `?manual`, deterministic stepping
    and an autopilot that completes the course.
-3. A route export, server checker, registration in `server/games.py`, board integration and recorded test fixtures.
+3. A route export, server checker, registration in `server/games.py`, board integration and recorded test fixtures,
+   the Hall of Fame's ghost and replay (`peak/<game>/playback.js`), and `LEVELS` with `pickLevel()` from the start.
 4. A page entry in the production build, a local preview entry in `.claude/launch.json`, and assets referenced in
    the form the build supports.
 5. A card in `games.html`, its screenshot in `peak/games/` and `THUMBS`, and its navigation goal in Plausible.

@@ -19,10 +19,15 @@ import { toaster, soundSwitch } from '../kit/hud.js';
 import { confetti } from '../kit/party.js';
 import { GamepadInput, BUTTON } from '../kit/gamepad.js';
 import { PadMenu } from '../kit/padmenu.js';
+import { pickLevel } from '../kit/levels.js';
 import { Title } from './title.js';
 import { hookAnalytics } from './analytics.js';
 
 const manual = new URLSearchParams(location.search).has('manual');
+// Made for more than one level from the start (kit/levels.js): '' is the first. ?level= picks one; the world is
+// built for it, and the high scores and the Hall of Fame's ghost and replay go to its board (SKILL.md, step 6).
+const LEVELS = [''];
+const level = pickLevel(LEVELS);
 const GOAL = new THREE.Vector3(0, 0, 14);       // the flag, 14 m ahead
 const SPEED = 2;                                // m/s
 
@@ -178,4 +183,4 @@ startLoop({ manual, post, step, render });
 
 // for debugging and tests
 expose('mygame', { THREE, renderer, scene, camera, post, stage, mnot, player, sounds, input, title, restart, pad,
-  padMenu, autopilot(on = true) { autopilot = on; begin(); } }, { step, render });
+  padMenu, level, autopilot(on = true) { autopilot = on; begin(); } }, { step, render });

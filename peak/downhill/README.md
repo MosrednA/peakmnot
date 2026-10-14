@@ -52,6 +52,21 @@ the board time, the spills and the lost wheels; the server adds the bonus up aga
 step against the piste and the chair's physics (`server/downhill.py`). The Hall of Fame starts with ten slow, silly
 house records (`DOWNHILL_HOUSE` in `server/games.py`).
 
+Every run on the board can be raced or watched from the Hall of Fame, as on the climb (the controls are
+`peak/replays/controller.js`, shared): **Race ghost** (`downhill.html?ghost=ID`) rolls a see-through chair with Mnot
+on it down the recorded run, at the player's own clock from the gate, and no start until it has loaded; **Watch run**
+(`?replay=ID`) moves the page's own chair along it, with play, pause, half and double speed and a timeline. The
+watched run is the live game's, told again: its sounds, puffs, toasts, lost casters, knocked-over props, bowling
+score and finish card come from the same handlers, and past the finish the physics roll the chair out, heels down,
+for the party. `playback.js` does the playing: `validate()` turns away a replay of another version or another piste,
+`Recording` answers where the chair was at any moment (on the curve through each pair of samples' positions and
+velocities, never across a put-back), `Driver` puts a ride there and tells its events in the order the physics do,
+and `Ghost` is the see-through chair. Watching never records or posts a run; a ghost race is a run like any other.
+
+The downhill has one level for now, and is ready for more (the kit's `levels.js`): `LEVELS` in `main.js` lists them,
+the page picks one from `?level=`, and each other level has its own board, replays and route on the server
+(`/api/downhill-<level>/`, `server/downhill-<level>.json`). The first level keeps `/api/downhill/`.
+
 After changing the piste, its obstacles, the chair's feel or the bonus, export the route again, or the server
 answers "route changed" and the game hides the scores:
 
@@ -59,7 +74,8 @@ answers "route changed" and the game hides the scores:
 python -X utf8 server/export_route.py downhill
 ```
 
-and paste the line it prints into the console of `http://127.0.0.1:5280/downhill.html?manual`. A change to the
+and paste the line it prints into the console of `http://127.0.0.1:5280/downhill.html?manual` (another level:
+`export_route.py downhill <level>`, which names the page with its `?level=`). A change to the
 physics in `ride.js` may need `server/downhill.py` to follow: `python -m unittest discover server` replays the
 recorded rides in `server/fixtures/downhill/`.
 
@@ -109,6 +125,7 @@ game kit's (`peak/kit/`).
 | `party.js` | The finish party, on the music's beat (the kit's `Beat`) |
 | `bonus.js` | Time off the clock for the bowling and the ski jump |
 | `record.js`, `scores.js`, `routedata.js` | The high scores: the recorder, the server talk and the card, the route as data for the server |
+| `playback.js` | The Hall of Fame's replays: a recorded run checked, played back on the page's own chair (Watch run) or on a see-through one (Race ghost) |
 | `autopilot.js` | A test rider that rides the whole run through the same physics |
 | `analytics.js` | The Plausible goals of public rides (above); excludes development and manual tests |
 | `viewer.js` | The downhill's tab in the animation viewer (`index.html`, `/viewer`): Mnot on the chair, its moves and the party |
@@ -122,6 +139,11 @@ game kit's (`peak/kit/`).
   fall or two. `downhill.autopilot(false)` after the finish lets the party start.
 - `downhill.html?manual&scores` records and talks to the score server while you step it: step in real time
   (the server's clock bounds a run), say `downhill.step(0.1, 1 / 60)` every 100 ms.
+- `downhill.html?manual&replay=ID` watches a run step by step (`downhill.replays` is the controls, `downhill.watch`
+  the recording and its driver); `?ghost=ID` races one (`downhill.ghost`). `tools/check_downhill_replays.js` checks
+  both with the dev server on 5280 and no score server: the autopilot rides a run, and the Hall of Fame and the
+  replay API are routed to it (the chair on the recording, every event told once, jumps in time, pause and speed,
+  the finish, a link that can't play, the ghost on the player's clock).
 - `downhill.restart()` is a new run from the top; `downhill.ride`, `downhill.track` and `downhill.chase` are there
   to look at.
 - Check the console for errors after every reload, and look at the start, a fall, the river, the ski jump and the

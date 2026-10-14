@@ -17,7 +17,18 @@ repository root. For the games, see the [front page](../README.md), [the climb](
 | [`audio/README.md`](../audio/README.md) | ElevenLabs sound palette, source metadata, processing and regeneration. |
 | `tools/check_sounds.js` | Real-time Playwright checks for audio loading, event timing, muting and focus cleanup. |
 | `tools/dev_server.py` | Local server with cache disabled and automatic browser reload when code, GLB or sounds change. |
-| [`peak/README.md`](../peak/README.md) | Peak Mnot, the game: a mountain climb in `peak.html` and `peak/`. Open <http://127.0.0.1:5280/peak.html>. |
+| [`peak/README.md`](../peak/README.md) | Peak Mnot, the climb, in `peak.html` and `peak/`. Open <http://127.0.0.1:5280/peak.html>. |
+| [`peak/downhill/README.md`](../peak/downhill/README.md) | Mnot Downhill, on the office chair, in `downhill.html` and `peak/downhill/`. Open <http://127.0.0.1:5280/downhill.html>. |
+
+**One Mnot in every game.** Each mini game loads this same GLB (`loadMnot()` in `peak/mnot/mnot.js`) and plays its
+clips, with the game's own pose on top in its own module, so a new clip or a fix here reaches every game. The climb
+walks, runs, jumps and teeters on them (`peak/mnot/pose.js` adds the feet pinched in on a plank or rope, the
+tightrope walker's arms, and the flapping on ice and in a fall). The downhill has no sitting clip:
+`peak/downhill/rider.js` sits Mnot on the chair on top of `Idle`, `Fall` in the air and `Wave` at the finish, with a
+wave and `PushGlasses` on the title, and moves the legs, heels and arms from what the chair feels; its finish party
+is posed the same way. The Hall of Fame's ghosts and replays use the same model and clips too. A move that
+one game needs and others could use goes into `tools/build_mnot.py` as a clip; a pose that only makes sense in one
+game stays in that game's module. The viewer's tabs show both: Mnot's clips first, then what each game adds.
 
 View it: `python tools/dev_server.py`, then open <http://127.0.0.1:5280/>.
 The browser checks for source changes every 750 ms and reloads automatically. The version hash watches

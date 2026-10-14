@@ -98,9 +98,11 @@ if it's further down), `GET /api/peak/shame` (the Hall of Shame) and `GET /api/p
 `replayId` only when the row is a player's current claimed best and its verified replay is retained; house and shadow
 entries, and rows without a retained replay, have `replayId: null`.
 
-`GET /api/peak/replay/RUN_ID` returns `{id, name, time, falls, dents, replay}` for that current best. The public
-replay contains only `v`, `route`, `phase`, `samples` and `events`; it omits the raw inputs and the rest of the run
-record. The route fingerprint lets the game check that a stored v1 replay matches its current route before playback.
+`GET /api/peak/replay/RUN_ID` returns `{id, name, time, falls, dents, replay}` for that current best, for the Hall
+of Fame's Race ghost and Watch run (`peak/replays/`). The public replay holds only the fields its game's `Game.replay`
+lists (`games.py`): for the climb `v`, `route`, `phase`, `samples` and `events`, without the raw inputs and the rest
+of the run record; the downhill adds its `inputs`, which pose the rider (heels down to brake, tucked in). The route
+fingerprint lets the game check that a stored v1 replay matches its current route before playback.
 Missing, unclaimed, shadow, house, and replaced best runs all return 404; a showcased climb (above) returns 200
 without a board entry. This endpoint uses the same read rate limit as the board.
 
@@ -127,6 +129,15 @@ way) and the numbers its finish sends. A run belongs to the game it was started 
 it. Players are shared: one player, with one secret and one name, in every game, and a new name in one game is the
 name in all of them (`peakmnot.player` in the browser).
 
+Every game is made for more than one level, even while it has one. A level is a board of its own, with its runs,
+its replays and its route: `/api/<game>-<level>/` (`board_name()` in `games.py`; a level id is `a-z` and `0-9`, at
+most 16), checked by the game's checker against `<game>-<level>.json`. The first level is the game itself,
+`/api/<game>/` and `<game>.json` (the climb's `route.json`), so a game keeps its board when it grows a second level.
+The levels after the first are in `LEVELS` in `games.py`, in the order the game offers them; the page picks one from
+`?level=` (`peak/kit/levels.js`) and sends its runs to that level's board. A new level is: its id in `LEVELS` and in
+the page's own list, and its route exported, `python -X utf8 server/export_route.py <game> <level>` (the page is then
+opened with `?level=<level>&manual`). `--reverify` and `--fixture` take a level as `--game <game>-<level>`.
+
 A new game is:
 
 1. its route as data, exported from the game like the climb's (`export_route.py`, with the game's entry in
@@ -136,7 +147,8 @@ A new game is:
 3. its page, `<game>.html`, which the server then serves at `/<game>` (and `tools/build.mjs` builds, one line in
    `PAGES`), with its card on the page of all the games and its tab in the viewer (the `mini-game` skill);
 4. in the page, `createRun()` and `createBoard()` from `peak/scores/scores.js` for `apiBase(location, '<game>')`;
-5. tests: real recorded runs in `fixtures/<game>/`, and the cheats its checker turns down (`test_downhill.py`).
+5. tests: real recorded runs in `fixtures/<game>/`, and the cheats its checker turns down (`test_downhill.py`);
+6. what its replay endpoint gives (`Game.replay`), so the page can race and watch its runs (`peak/replays/`).
 
 ## The downhill
 

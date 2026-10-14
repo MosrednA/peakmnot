@@ -31,8 +31,7 @@ chair, moves and finish party in its own tab.
 
 ## How to play
 
-These are the climb's controls. The [downhill's controls](peak/downhill/README.md) use the same keyboard, touch and
-controller inputs for steering, braking and the chair's gas lift.
+These are the climb's controls; the downhill's are [below](#on-the-office-chair).
 
 | Key | |
 |---|---|
@@ -56,6 +55,21 @@ start it.
 Loose ledges crumble shortly after you land on them, so don't stop there. On ice Mnot keeps sliding: small taps steer
 best. Wind gaps blow on a steady beat, and the windsock tells you when. The full rules are in
 [peak/README.md](peak/README.md).
+
+### On the office chair
+
+| Key | |
+|---|---|
+| A / D, arrows | Steer with the feet |
+| W | Push off, then tuck in: faster, but less steering |
+| S, Shift | Heels in the snow: brake |
+| Space | Pull the height lever: the gas lift jumps |
+| R | A new run from the top |
+
+On a touch screen, drag on the left half to steer (up pushes, down brakes) and tap the right half to jump. With a
+controller, the left stick or the D-pad steers, RT pushes off and tucks in, LT brakes, A pulls the lever and Y is a
+new run. A hard hit or landing costs a caster, the pit stops put fresh ones on, and the bowling lane and the ski jump
+take time off the clock. The full rules are in [peak/downhill/README.md](peak/downhill/README.md).
 
 ## Run it yourself
 
@@ -109,7 +123,7 @@ Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/games
 
 | Path | What |
 |---|---|
-| [`peak.html`, `peak/`](peak/README.md) | The climb, plus the shared modules that came from it: the look, Mnot, props, input and scores |
+| [`peak.html`, `peak/`](peak/README.md) | The climb, plus the shared modules that came from it: the look, Mnot, props, input, scores and replays |
 | [`peak/kit/`](peak/kit/README.md) | The base for new games: stage, loop, preloader, HUD, title, finish party, controller and analytics |
 | [`downhill.html`, `peak/downhill/`](peak/downhill/README.md) | The second mini game, a prototype in the same world: Mnot down the mountain on a very expensive office chair |
 | [`server/`](server/README.md) | One high-score server and SQLite database; each game's checker verifies runs for its own board |
@@ -131,8 +145,9 @@ Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/games
   Blender (5.2, in the background). Nobody edits the `.glb` by hand: change the script and rebuild.
 - **Small files.** Every module stays under about 400 lines and does one thing, and each folder documents its own.
 - **Test bots.** `peak.html?manual` stops the clock, and `peak/dev/bots.js` has test players that balance on beams,
-  survey the jumps and climb the whole route. `tools/check_controls.js` runs deterministic browser checks on the
-  viewer.
+  survey the jumps and climb the whole route; in `downhill.html?manual`, `downhill.autopilot(true)` rides the whole
+  piste. `tools/check_controls.js` runs deterministic browser checks on the viewer, and `tools/check_replays.js` and
+  `tools/check_downhill_replays.js` race and watch recorded runs in both games.
 - **AI agents.** Most of it was written by AI coding agents (Claude Code and Codex) working side by side in this
   folder, steered by a human with opinions. [AGENTS.md](AGENTS.md) is how they keep out of each other's way, and
   [docs/agents.md](docs/agents.md) introduces the team. The specialists (a level designer, an art director and
@@ -148,6 +163,14 @@ every step against the route and Mnot's physics: standing on rock that is there,
 ice, the wind and the gondola) allow, flying on real parabolas, and reaching every checkpoint. Only then does the
 time go on the board. The downhill's checker verifies the piste, chair physics, pit stops and bonus before its time
 counts. See [server/README.md](server/README.md#several-games).
+
+Every run on a Hall of Fame can be raced or watched back, in both games: **Race ghost** puts a see-through Mnot on
+the recorded run beside yours, at your own clock, and **Watch run** plays it again with pause, half and double speed
+and a timeline. Watching never posts a score; a ghost race is a run like any other.
+
+Every game is made for more than one level, even while it has one: `?level=` picks it, and each level after the
+first gets its own board, replays and route on the server (`/api/<game>-<level>/`). The first level keeps the game's
+own board, so nothing moves when a second one arrives. See [the multi-game guide](docs/multi-game.md#levels).
 
 Yes, you can read the anti-cheat; that's the point. If you find a hole in it, please open an issue rather than
 posting 0:01. The server has a few surprises for people who try anyway.
@@ -165,12 +188,15 @@ Ideas, bugs and pull requests are welcome.
   ```
 
 - **Changing the route or making a level:** start with [docs/making-a-level.md](docs/making-a-level.md). The score
-  server checks climbs against an export of the route, so re-export `server/route.json` after a change.
+  server checks climbs against an export of the route, so re-export `server/route.json` after a change (the
+  downhill's is `server/downhill.json`, and another level of a game gets a file of its own:
+  `python -X utf8 server/export_route.py <game> <level>`).
 - **Adding a mini game:** start with [the multi-game guide](docs/multi-game.md) and follow the
   [mini-game skill and templates](.claude/skills/mini-game/SKILL.md). Build on the shared kit, then register the
   page, card, viewer tab, score checker, analytics and link preview together.
 - **Before a pull request:** climb the route with `bots.climb` in `peak.html?manual` (see
-  [peak/README.md](peak/README.md#testing-by-hand)), and run the score server's tests:
+  [peak/README.md](peak/README.md#testing-by-hand)), ride the piste with `downhill.autopilot(true)` in
+  `downhill.html?manual` if the downhill or shared code changed, and run the score server's tests:
 
   ```bash
   python -m unittest discover server

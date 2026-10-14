@@ -108,6 +108,11 @@ drops and regrowth from the recorded support indices. V1 does not record the ori
 or ice pratfall poses, and the viewer does not recreate the snow and grit particle bursts. The gondola follows the
 replay's stored phase in Watch run and the new climb's clock in Race ghost. Racing keeps the normal live ledge physics.
 
+The climb has one level for now, and is ready for more, like every game (`kit/levels.js`): `LEVELS` in `main.js`
+lists them and `?level=` picks one. Each level after the first has its own board, replays and route on the server
+(`/api/peak-<level>/`, `server/peak-<level>.json`, exported with `export_route.py peak <level>`); the first keeps
+`/api/peak/` and `route.json`. The Hall's links keep the `?level=`, so a ghost or a replay plays on its own level.
+
 ## Analytics
 
 Every mini game uses cookieless Plausible at `stats.mosredna.eu`, all on one site, `peakmnot.mosredna.eu`. The
@@ -164,7 +169,7 @@ each with its CSS next to it.
 | `game.js` | The rules: dents, checkpoints, respawns, the summit, a tip the first time each trick shows up |
 | `audio.js` | Ties `sounds.js` (Codex) to game events |
 | `analytics.js` | Plausible goals for public climbs; excludes development and manual tests |
-| `replays/controller.js` | Loads a Hall replay and provides ghost-race or spectator controls; watched runs do not score |
+| `replays/controller.js` | Loads a Hall replay and provides ghost-race or spectator controls; watched runs do not score. Shared: another game passes its own player (`createActor`, the downhill's `playback.js`) |
 | `replays/playback.js` | Validates and samples a recorded run, then creates its animated replay actor |
 | `replays/motion.js` | Continuous stride phase, eased headings and deterministic clip blends for existing v1 runs |
 | `replays/loose-ledges.js` | Reconstructs replay contacts with crumbling ledges from recorded support indices |

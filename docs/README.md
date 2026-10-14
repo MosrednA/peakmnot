@@ -4,7 +4,7 @@
 
 | Reference | Covers |
 |---|---|
-| [Multi-game setup](multi-game.md) | Pages and routes, shared modules, game-specific code and adding a game |
+| [Multi-game setup](multi-game.md) | Pages and routes, shared modules, game-specific code, replays, levels and adding a game |
 | [The team](agents.md) | Specialist ownership, shared-worktree coordination and checks before handing over |
 | [Making a level](making-a-level.md) | The climb's route, mechanics, test bots and score route export |
 | [Performance](performance.md) | Measurement tools, findings and remaining work for the climb and downhill |

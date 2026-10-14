@@ -59,7 +59,10 @@ viewer (`index.html`, at `/viewer`) and its goals in Plausible as `<Game>: <goal
   module. The glasses are the face.
 - **Wears the same HUD**: cream cards with an ink outline, the Fredoka font, the palette, toasts that pop. It has a
   title screen, a finish card and a Hall of Fame (`peak/scores/leaderboard.js`, in the game's own words), with house
-  records so a fresh board isn't empty.
+  records so a fresh board isn't empty, and every run on it can be raced as a ghost and watched back
+  (`peak/replays/`).
+- **Is made for more than one level**, even while it has one: `?level=` picks it (`peak/kit/levels.js`), and each
+  level has its own board, replays and route on the server.
 - **Sounds like family**: the same sound switch, and music that is a variant of "Pocket Altitude".
 - **Has one premise and lives it.** The climb is the nerds digging far too deep into a detail. The downhill is a
   €1,649 ergonomic office chair on a mountain, so knock-off chairs are the bowling pins, the signs talk chair
@@ -151,6 +154,7 @@ Every specialist runs the checks for its area. Before a commit, all of these pas
 | The analytics events | `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs tools/check_games_analytics.mjs` |
 | The replay motion | `node --test tools/check_replay_playback.mjs`: samples, strides, turns, clip blends and deterministic seeks |
 | The replay controls | `tools/check_replays.js` with `python tools/replay_test_server.py` on 5291: watch, ghost race, scrubbing and moving ledges |
+| The downhill's replays | `tools/check_downhill_replays.js` on 5280, no score server: the autopilot's run raced and watched, events, jumps in time, the finish, the Hall's buttons |
 | The animation viewer | `tools/check_controls.js`, deterministic Playwright checks on `index.html` |
 | The gondola | `tools/check_gondola.js`: carried at the pallet's own speed, whatever the frame times |
 | The controller | `tools/check_gamepad.js`: a fake controller plays the climb and the downhill (moving, jumping, the camera, the card, the title's buttons, focus, several controllers, unplugging) |

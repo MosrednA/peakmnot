@@ -2,9 +2,9 @@
 
 What every mini game is built on, so a new one starts from the same base as the others: the stage and its light,
 the frame loop and the preloader, the handle for tests, the HUD's moving parts, the title screen, the finish
-party's beat and confetti, the controller and the stats' goals. The downhill (`peak/downhill/`) is built on it. The climb
-(`peak/main.js`) came first and still has its own copies of the same things (it uses the kit's controller); it can
-move onto the kit later.
+party's beat and confetti, the controller, the stats' goals and the levels. The downhill (`peak/downhill/`) is built
+on it. The climb (`peak/main.js`) came first and still has its own copies of the same things (it uses the kit's
+controller and levels); it can move onto the kit later.
 
 The recipe for a whole new game (its page, its folder, the premise, sound, scores, the build and the checks) is the
 `mini-game` skill in [.claude/skills/mini-game/](../../.claude/skills/mini-game/SKILL.md), with templates. A new
@@ -12,6 +12,11 @@ game also updates the page of all the games (`games.html`, at `/games`: its card
 `peak/games/main.js`) and the viewer (`index.html`, at `/viewer`: its tab, `peak/<game>/viewer.js`, in `GAMES` in
 `peak/viewer/tabs.js`), and sends its Plausible goals as `<Game>: <goal>` (`peak/README.md`, "Analytics"), so all
 three keep up with the games.
+
+Every game is made for more than one level from the start, even while it has one (`levels.js`, below): its scores,
+its Hall of Fame and its replays go to the board of the level being played, and a link to a level, a ghost or a
+replay keeps its `?level=`. Every game's Hall of Fame races and watches its runs, on the climb's replay controls
+(`peak/replays/controller.js`, which takes a game's own player, as the downhill's `playback.js` is).
 
 | File | What |
 |---|---|
@@ -25,6 +30,7 @@ three keep up with the games.
 | `padmenu.js` | `class PadMenu`: the controller on the screen. Its chip in the corner, the card behind it (the buttons, Camera, Look speed and Rumble; the Menu button or a click), and the page's hints in the controller's buttons while it's in use (the help line, "Press A to …", How to play). `update(dt)` after `poll()` presses the title's buttons, the Hall of Fame's and the finish card's, and says (true) when the controller went to the page. `glyphs(names)` draws buttons |
 | `pad.css` | The chip, the card and the button glyphs (A, ✕ or B, by the controller's maker); `body.pad` swaps the keyboard's hints (`key-only`) for the controller's (`pad-only`). A page links it after `kit.css` |
 | `analytics.js` | `goals(game, { manual })`: the game's Plausible goals, a `send(name)` that counts `<game>: <name>` on the public site only (null on localhost, staging and `?manual`, so the game doesn't listen there); a blocked tracker never interrupts. The tracker itself is in the page's head. The downhill, `/games` and the template use it |
+| `levels.js` | `pickLevel(levels)`: the level the page is asked for with `?level=`, one of the game's ids (`''` is the first, the one the page opens on), else its first. `boardName(game, level)`: that level's board on the score server, the game's own name for the first and `<game>-<level>` for the others (`server/games.py`). `levelUrl(level)`: a link to a level of this page. A game keeps `LEVELS` in its `main.js`, passes the level to `apiBase(location, '<game>', level)` for its scores and replays, and exports each level's route with `export_route.py <game> <level>` |
 | `kit.css` | The HUD's look: the palette as CSS variables, the cards, the time, the Sound button, the help line, the toast and its pop, the panel and the finish card. A page links it after `peak/ui/title.css` and adds its own parts inline |
 
 ## How a game uses it
@@ -39,6 +45,8 @@ const title = new Title({ camera, dom: renderer.domElement, … });   // extends
 const pad = new GamepadInput();
 const padMenu = new PadMenu(pad, { sounds, controls: [['move dpad', 'walk'], ['a', 'jump']], help: [['move', 'walk']] });
 const track = goals('My Game', { manual });     // in peak/<game>/analytics.js: track?.('Start'), track?.('Finish')
+const LEVELS = [''];                            // one level for now; another is its id here and in server/games.py
+const level = pickLevel(LEVELS);                // ?level=, for the world, the scores and the replays
 
 function step(dt) {
   pad.poll();
