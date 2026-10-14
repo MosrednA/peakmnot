@@ -38,10 +38,12 @@ import verify                       # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 SITE = Path(os.environ.get("SITE_DIR") or ROOT).resolve()     # what --static serves: the repository, or a build
 STATIC = re.compile(r"^/((" + "|".join(games.NAMES) + r")\.html|sounds\.js|music\.js|favicon\.(png|ico)|share\.jpg|"
-                    r"manifest\.webmanifest|peak/([a-z]+/)?[a-z0-9_-]+\.(js|css)|models/mnot\.glb|"
+                    r"manifest\.webmanifest|peak/([a-z]+/)?[a-z0-9_-]+\.(js|css|jpg)|models/mnot\.glb|"
                     r"audio/([a-z]+/)?[a-z0-9_-]+\.(wav|mp3|m4a)|audio/music/[a-z0-9_-]+\.mp3)$")
-# the pages: the first game's at /, every other game's at /<game> too
-PAGES = {"/": f"/{games.NAMES[0]}.html", **{f"/{name}": f"/{name}.html" for name in games.NAMES[1:]}}
+# the pages: the first game's at /, every other game's at /<game> too, the page of all the games at /games and the
+# viewer (index.html, the model and every game's moves) at /viewer; a route names its file, which needs no STATIC
+PAGES = {"/": f"/{games.NAMES[0]}.html", **{f"/{name}": f"/{name}.html" for name in games.NAMES[1:]},
+         "/games": "/games.html", "/viewer": "/index.html"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".glb": "model/gltf-binary", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".png": "image/png",
          ".m4a": "audio/mp4", ".jpg": "image/jpeg", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json"}
@@ -65,7 +67,7 @@ PAGE_CODE = re.compile(rb'((?:src|href)=")(peak/)')
 BUILD_FILES = ("*.js", "peak/**/*", "audio/**/*")    # what loads through v/BUILD/: the modules and, by music.js, music
 # A built site (tools/build.mjs, dist/) has its code, styles and sounds in assets/, each named by its content, so
 # each is kept for good; its page links them by those names.
-HASHED = re.compile(r"^/assets/[a-z0-9_-]+-[A-Z2-7]{8}\.(js|css|m4a|mp3|wav)$")
+HASHED = re.compile(r"^/assets/[a-z0-9_-]+-[A-Z2-7]{8}\.(js|css|m4a|mp3|wav|jpg)$")
 
 
 def page_csp(html):
@@ -160,9 +162,10 @@ class Handler(BaseHTTPRequestHandler):
         path = url.path
         if method in ("GET", "HEAD") and app.static:
             versioned = VERSIONED.match(path)
-            file = PAGES.get(path) or (versioned.group(2) if versioned else path)
+            routed = PAGES.get(path)
+            file = routed or (versioned.group(2) if versioned else path)
             current = bool(versioned) and versioned.group(1) == app.build
-            if self.static(file, method == "HEAD", current):
+            if self.static(file, method == "HEAD", current, routed=bool(routed)):
                 return
         body = b""
         if method == "POST":
@@ -208,11 +211,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(data)
 
-    def static(self, path, head, current=False):
+    def static(self, path, head, current=False, routed=False):
         """A file of the game; current when asked for through this build's v/BUILD/, or named by its content
-        (HASHED), so it can be kept for good."""
+        (HASHED), so it can be kept for good; routed when a page's route (PAGES) named it."""
         hashed = bool(HASHED.match(path))
-        if not (STATIC.match(path) or hashed):
+        if not (routed or STATIC.match(path) or hashed):
             return False
         file = (SITE / path.lstrip("/")).resolve()
         if SITE not in file.parents or not file.is_file():

@@ -24,15 +24,18 @@ import { gzipSync } from 'node:zlib';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const OUT = path.join(ROOT, 'dist');
 // The games, one page each: a new game is one more line here (and its page in STATIC in server/peak_scores.py).
+// Then the page of all the games and the viewer, at /games and /viewer (PAGES in server/peak_scores.py).
 // A page's name (without .html) names its code: peak.html loads assets/peak-HASH.js.
 const PAGES = [
   'peak.html',
   'downhill.html',
+  'games.html',
+  'index.html',
 ];
 // Linked from the pages by name, copied as they are
 const FILES = ['favicon.png', 'favicon.ico', 'share.jpg', 'manifest.webmanifest', 'models/mnot.glb'];
 // What the score server serves from assets/ (HASHED in server/peak_scores.py): a name, esbuild's hash, a type
-const TYPES = ['js', 'css', 'm4a', 'mp3', 'wav'];
+const TYPES = ['js', 'css', 'm4a', 'mp3', 'wav', 'jpg'];
 const SERVED = new RegExp(`^assets/[a-z0-9_-]+-[A-Z2-7]{8}\\.(${TYPES.join('|')})$`);
 
 const posix = file => file.split(path.sep).join('/');

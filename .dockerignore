@@ -10,7 +10,6 @@ tools/*
 !tools/build.mjs
 node_modules
 dist
-index.html
 **/__pycache__
 **/*.md
 models/*

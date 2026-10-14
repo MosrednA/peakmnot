@@ -130,6 +130,21 @@ class StaticFiles(unittest.TestCase):
                      "/server/browser_bot.js", "/.mosdeploy.yml", "/docs/", "/models/README.md", "/favicon.svg"):
             self.assertIn(self.server.request("GET", path).status, (404, 418), path)
 
+    def test_every_page_has_its_route(self):
+        for path, file in (("/downhill", "downhill.html"), ("/games", "games.html"), ("/viewer", "index.html")):
+            r = self.server.request("GET", path)
+            self.assertEqual((r.status, r.headers["Content-Type"]), (200, "text/html; charset=utf-8"), path)
+            self.assertIn(b"<title>", r.data)
+            self.assertIn("'sha256-", r.headers["Content-Security-Policy"])
+            page = re.sub(rb'v/[0-9a-f]{12}/peak/', b"peak/", r.data)     # the page itself, its code by the build
+            self.assertEqual(page, (peak_scores.ROOT / file).read_bytes(), path)
+        for path in ("/games.html", "/games/", "/viewer/x", "/peak/games/nothing.jpg", "/peak/games/climb.png"):
+            self.assertIn(self.server.request("GET", path).status, (404, 418), path)
+        build = re.search(rb'src="v/([0-9a-f]{12})/peak/games/main\.js"', self.server.request("GET", "/games").data)
+        for path in ("/peak/games/climb.jpg", f"/v/{build.group(1).decode()}/peak/games/downhill.jpg"):
+            r = self.server.request("GET", path)
+            self.assertEqual((r.status, r.headers["Content-Type"]), (200, "image/jpeg"), path)
+
     def test_the_policy_hashes_each_inline_script(self):
         html = b"<script>a()</script><script type=module src=x.js></script><script type=importmap>{}</script>"
         self.assertEqual(len(re.findall(r"'sha256-", page_csp(html))), 2)
@@ -150,8 +165,10 @@ class BuiltSite(unittest.TestCase):
         site = Path(self.site.name)
         (site / "assets").mkdir()
         (site / "models").mkdir()
-        (site / "peak.html").write_bytes(self.PAGE)
-        for name in ("peak-ABCD2345.js", "peak-ABCDEFGH.css", "fall-WXYZ2345.m4a", "camp-WXYZ2345.mp3", "loose.js"):
+        for page in ("peak.html", "downhill.html", "games.html", "index.html"):
+            (site / page).write_bytes(self.PAGE.replace(b"peak-", page.split(".")[0].encode() + b"-"))
+        for name in ("peak-ABCD2345.js", "peak-ABCDEFGH.css", "fall-WXYZ2345.m4a", "camp-WXYZ2345.mp3", "loose.js",
+                     "climb-WXYZ2345.jpg"):
             (site / "assets" / name).write_bytes(b"x")
         (site / "models" / "mnot.glb").write_bytes(b"glTF")
         patch = unittest.mock.patch.object(peak_scores, "SITE", site.resolve())
@@ -169,10 +186,16 @@ class BuiltSite(unittest.TestCase):
         self.assertNotIn("jsdelivr", r.headers["Content-Security-Policy"])  # three.js comes with the code
         self.assertIn("'sha256-", r.headers["Content-Security-Policy"])
         self.assertEqual(self.server.request("GET", "/models/mnot.glb").headers["Cache-Control"], "no-cache")
+        for path, name in (("/downhill", b"downhill"), ("/games", b"games"), ("/viewer", b"index")):
+            r = self.server.request("GET", path)
+            self.assertEqual((r.status, r.data), (200, self.PAGE.replace(b"peak-", name + b"-")), path)
+        for path in ("/games.html", "/index.html"):
+            self.assertIn(self.server.request("GET", path).status, (404, 418), path)
 
     def test_the_hashed_files_are_kept_for_good(self):
         for path, kind in (("/assets/peak-ABCD2345.js", "text/javascript; charset=utf-8"),
                            ("/assets/peak-ABCDEFGH.css", "text/css; charset=utf-8"),
+                           ("/assets/climb-WXYZ2345.jpg", "image/jpeg"),
                            ("/assets/fall-WXYZ2345.m4a", "audio/mp4"), ("/assets/camp-WXYZ2345.mp3", "audio/mpeg")):
             r = self.server.request("GET", path)
             self.assertEqual((r.status, r.headers["Content-Type"], r.headers["Cache-Control"]),
