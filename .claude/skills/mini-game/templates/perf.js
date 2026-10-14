@@ -1,32 +1,29 @@
 // TEMPLATE for peak/<game>/perf.js: the game's side of the perf probe (peak/kit/perf.js), for mygame.html?perf;
-// main.js loads it instead of starting the game. The bot walks to the flag, and the probe watches it stretch by
-// stretch, each held still as Mnot gets to it; then, held still at the slowest, the frame's parts and what each thing
-// in the scene costs. Here are the stretches, the things and the thank-you card's words; under the card, Mnot dances
-// at the flag. The downhill's peak/downhill/perf.js is the full example; the climb's peak/dev/perf.js puts Mnot at
-// each spot instead ({ label, go() }, no until()).
+// main.js loads it instead of starting the game. The probe puts Mnot at each spot in turn and watches a few seconds
+// there, Mnot standing still; then, held still at the slowest, the frame's parts and what each thing in the scene
+// costs. Pick a handful of spots, where the game is dearest to draw (the most in view, the effects): five or so keep
+// the run to about a minute. Here are the spots, the things and the thank-you card's words; under the card, Mnot
+// dances at the flag. The climb's peak/dev/perf.js and the downhill's peak/downhill/perf.js are the full examples.
 import { probe as measure } from '../kit/perf.js';
 import { confetti } from '../kit/party.js';
 
-// where each stretch starts, metres towards the flag
-const STRETCHES = [['the start', 0], ['halfway', 7]];
+// where each spot is, metres towards the flag
+const SPOTS = [['the start', 0], ['halfway', 7], ['the flag', 12]];
 
 export function probe(game) {
-  const { player } = game;
-  const spots = STRETCHES.map(([label, z], i) => ({ label, go: () => put(game, z),
-    until: i < STRETCHES.length - 1 ? () => player.pos.z >= STRETCHES[i + 1][1] : () => player.done }));
+  const spots = SPOTS.map(([label, z]) => ({ label, go: () => put(game, z) }));
   return measure(game, { name: 'My Game', what: 'the walk to the flag', long: 'about half a minute',
     board: 'mygame', spots, things: () => things(game), frame: dt => game.step(dt, dt),
-    settle: () => { game.restart(); game.autopilot(true); },
+    settle: () => game.restart(),
     card: {
       pictures: 'a soda can walking to a flag', way: 'to the flag', wobble: 'Mnot on the snow', play: 'Play My Game',
       jokes: ['Mnot walked to the same flag thirty times in a row, to be sure. Not obsessive: statistics.'],
-      dance: () => dance(game), more: () => confetti(game.puffs, player.pos, { count: 50 }),
+      dance: () => dance(game), more: () => confetti(game.puffs, game.player.pos, { count: 50 }),
     } });
 }
 
-// Back at z, standing still, for the frame's parts.
+// Mnot standing at z.
 function put(game, z) {
-  game.autopilot(false);
   game.restart();
   game.player.pos.set(0, 0, z);
   game.step(1 / 60, 1 / 60);

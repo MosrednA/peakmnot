@@ -131,7 +131,7 @@ game kit's (`peak/kit/`).
 | `record.js`, `scores.js`, `routedata.js` | The high scores: the recorder, the server talk and the card, the route as data for the server |
 | `playback.js` | The Hall of Fame's replays: a recorded run checked, played back on the page's own chair (Watch run) or on a see-through one (Race ghost) |
 | `autopilot.js` | A test rider that rides the whole run through the same physics |
-| `perf.js` | The downhill's side of the perf probe (`kit/perf.js`) for `downhill.html?perf`: the autopilot rides the run, timed stretch by stretch; what's in the scene, the thank-you card's words, and the finish party under the card ([docs/performance.md](../../docs/performance.md)) |
+| `perf.js` | The downhill's side of the perf probe (`kit/perf.js`) for `downhill.html?perf`: its spots (the start, the ice, the river, the ski jump, the finish), the chair parked at each; what's in the scene, the thank-you card's words, and the finish party under the card ([docs/performance.md](../../docs/performance.md)) |
 | `analytics.js` | The Plausible goals of public rides (above); excludes development and manual tests |
 | `viewer.js` | The downhill's tab in the animation viewer (`index.html`, `/viewer`): Mnot on the chair, its moves and the party |
 | `sfx.js`, `music.js` | The chair's sounds and the downhill's variant of the climb's tune (Codex) |
@@ -149,8 +149,8 @@ game kit's (`peak/kit/`).
   both with the dev server on 5280 and no score server: the autopilot rides a run, and the Hall of Fame and the
   replay API are routed to it (the chair on the recording, every event told once, jumps in time, pause and speed,
   the finish, a link that can't play, the ghost on the player's clock).
-- `downhill.html?perf` times how this computer draws the ride (about two minutes) and sends it to the server, as
-  the climb's `?perf` does; `node tools/perf.mjs --game downhill` runs it headless and prints the table
+- `downhill.html?perf` times how this computer draws the run at five spots (about a minute) and sends it to the
+  server, as the climb's `?perf` does; `node tools/perf.mjs --game downhill` runs it headless and prints the table
   ([docs/performance.md](../../docs/performance.md)).
 - `downhill.restart()` is a new run from the top; `downhill.ride`, `downhill.track` and `downhill.chase` are there
   to look at.

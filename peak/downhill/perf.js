@@ -1,52 +1,51 @@
 // The downhill's side of the perf probe (peak/kit/perf.js), for downhill.html?perf: main.js loads it instead of
-// starting the game. The autopilot rides the whole run from the start, and the probe watches it stretch by stretch,
-// each held still as the chair gets to it: the start, the crevasse, the ice, the moguls, the rollers, the river, the
-// bowling lane, the ski jump, the office and the finish, where the autopilot lets go and the chair brakes to a stop
-// for the party. Here are those stretches, what's in the downhill's scene and the thank-you card's words; under the
-// card, Mnot's finish party plays on past the line, with confetti every few seconds.
+// starting the game. As on the climb, the probe puts the chair at a handful of spots and watches each a few seconds,
+// the chair parked and Mnot idling on it (main.js): the start, the ice (where the most is in view), the river (the
+// dearest on an integrated GPU), the ski jump and past the finish line, where the party plays. Here are those spots,
+// what's in the downhill's scene and the thank-you card's words; under the card, Mnot's finish party plays on, with
+// confetti every few seconds.
 import { FEATURES } from './track.js';
 import { probe as measure } from '../kit/perf.js';
 import { confetti } from '../kit/party.js';
 
-// where each stretch starts, metres down the run
-const STRETCHES = [['the start', FEATURES.pits[0]], ['the crevasse', FEATURES.kicker.from],
-  ['the ice', FEATURES.ice.from], ['the moguls', FEATURES.moguls.from], ['the rollers', FEATURES.rollers[0].from],
-  ['the river', FEATURES.river.from], ['the bowling lane', FEATURES.lane.from], ['the ski jump', FEATURES.pits[4]],
-  ['the office', FEATURES.office.from], ['the finish', FEATURES.finish]];
-const PARTY = 3;                // seconds of the party watched at the finish
+// where each spot is, metres down the run: the river's on its first floe, in the gorge (past its banner, which would
+// hide it all), and the ski jump's on the in-run, the landing hill below
+const SPOTS = [['the start', FEATURES.pits[0]], ['the ice', FEATURES.ice.from], ['the river', FEATURES.river.from + 6],
+  ['the ski jump', FEATURES.jump.lip - 16]];
+const PAST = FEATURES.finish + 12;     // where the party is
 
 export function probe(downhill) {
-  const { ride, party } = downhill;
-  let pilot = null;
-  const spots = STRETCHES.map(([label, s], i) => ({ label, go: () => put(downhill, s),
-    until: i < STRETCHES.length - 2 ? () => ride.s >= STRETCHES[i + 1][1]
-      : i === STRETCHES.length - 2 ? () => ride.done
-        : () => { pilot.on = false; return party.on && party.t > PARTY; } }));   // the finish: heels down, the party
-  return measure(downhill, { name: 'Mnot Downhill', what: 'the ride down', long: 'about two minutes',
-    board: 'downhill', spots, things: () => things(downhill), frame: dt => downhill.step(dt, dt),
-    settle: () => { downhill.restart(); pilot = downhill.autopilot(true); downhill.step(1 / 60, 1 / 60); },
+  const spots = [...SPOTS.map(([label, s]) => ({ label, go: () => put(downhill, s) })),
+    { label: 'the finish', go: () => celebrate(downhill) }];
+  return measure(downhill, { name: 'Mnot Downhill', what: 'the run', board: 'downhill', spots,
+    things: () => things(downhill), frame: dt => downhill.step(dt, dt), settle: () => downhill.restart(),
     card: {
       pictures: 'a soda can on a very expensive office chair', way: 'down', wobble: 'the chair on the moguls',
       play: 'Ride Mnot Downhill',
       jokes: [
-        'Mnot rode the whole mountain down to time this. For science. Mostly for the ski jump.',
+        'Mnot sat still at five spots on the mountain to time this. Sitting still: what an office chair is built for.',
         '€1,649 of ergonomics, and your graphics card still did all the heavy lifting.',
         'Every pine on the mountain was drawn, every frame. No trees were harmed. A few chairs were.',
         'The office at the bottom wanted these numbers in a spreadsheet. Mnot sent JSON.',
         'Mnot drew the same stretch of piste thirty times in a row, to be sure. Not obsessive: statistics.',
       ],
-      dance: () => dance(downhill), more: () => confetti(downhill.obstacles.puffs, ride.pos, { count: 50 }),
+      dance: () => dance(downhill), more: () => confetti(downhill.obstacles.puffs, downhill.ride.pos, { count: 50 }),
     } });
 }
 
-// Back at s, still, with fresh wheels and everything set up again round it, for the frame's parts.
+// The chair parked at s, with fresh wheels and everything set up again round it.
 function put(downhill, s) {
   const { ride } = downhill;
-  downhill.autopilot(false);
   downhill.restart();
   ride.reset(s, { wheels: true });
   downhill.chase.snap(ride);
   downhill.step(1 / 120, 1 / 120);
+}
+
+// Past the finish line, the run done: the party starts.
+function celebrate(downhill) {
+  put(downhill, PAST);
+  Object.assign(downhill.ride, { started: true, done: true });
 }
 
 // What's in the scene, by thing: the piste and the river, what stands on it (the obstacles by kind, the pines, the
@@ -83,8 +82,7 @@ function things({ scene, obstacles }) {
 function dance(downhill) {
   const { ride, camera, obstacles } = downhill;
   const narrow = matchMedia('(max-width: 640px)');
-  put(downhill, FEATURES.finish + 12);
-  Object.assign(ride, { started: true, done: true });         // done: heels down (main.js intent()), then the party
+  celebrate(downhill);
   confetti(obstacles.puffs, ride.pos);
   let last = 0, next = 3;
   const frame = t => {

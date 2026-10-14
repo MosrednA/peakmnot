@@ -10,8 +10,9 @@ its own pass found.
 
 Every game has it. Open [`peak.html?perf`](https://peakmnot.mosredna.eu/peak.html?perf) for the climb or
 [`downhill.html?perf`](https://peakmnot.mosredna.eu/downhill.html?perf) for the downhill (on the dev server,
-`http://127.0.0.1:5280/peak.html?perf` and so on). The climb takes about a minute and the downhill about two: keep the
-tab in front and leave it be. Add `&by=NAME` to the link to say whose computer it was.
+`http://127.0.0.1:5280/peak.html?perf` and so on). Each takes about a minute, half that on a fast graphics card and up
+to a minute and a half on a laptop's integrated one: keep the tab in front and leave it be. Add `&by=NAME` to the link
+to say whose computer it was.
 
 At the end the run goes to the score server, `POST /api/<game>/perf` ([server/README.md](../server/README.md)). The
 run holds what the browser says about the computer: graphics chip, screen size, pixel ratio and browser. The server
@@ -55,19 +56,16 @@ browser executable to use instead of Playwright's own.
 
 ## What the probe measures
 
-1. **Spots.** On the climb, base camp, each checkpoint and the summit, each a jump there. At each spot it:
+1. **Spots**, a handful in each game, each a jump there. On the climb, base camp, each checkpoint and the summit. On
+   the downhill the start, the ice, the river (on its first floe, in the gorge), the ski jump's in-run and past the
+   finish line, where the party plays; the chair stands parked at each, Mnot idling on it, as under the title. At
+   each spot it:
    - notes the first frame's time and how many shaders that frame had to build (it should be none: see the warm-up
      below);
    - plays 4 s as the game does, a step or a few and then a frame, and notes the fps, the 95th-percentile gap between
      frames, and our JS each frame (the game's `step` and `render()`);
    - holds still and times one frame with the GPU waited for, and counts its draw calls and triangles.
 
-   On the downhill the autopilot rides the whole run in one go, and the spots are its stretches: the start, the
-   crevasse, the ice, the moguls, the rollers, the river, the bowling lane, the ski jump, the office and the finish
-   (3 s of the party). As the chair gets to each, it holds still and times a frame with the GPU waited for, and
-   counts its draw calls and triangles; then it rides on to the next, noting the same as above, the worst gap
-   between frames and the shaders built on the way. For the next two steps the chair is put back at the start of the
-   slowest stretch, held still.
 2. **The frame's parts**, held still at the slowest spot. It tries:
    - the pixel ratio, MSAA at 4×, 2× and none, and the depth copy after MSAA;
    - the shadow map held, or at half size;
@@ -249,9 +247,13 @@ ratio 1, 4× MSAA), and on the integrated AMD Radeon at a retina laptop's size (
 - **The probe's own timing showed up as a gap.** The first frame after the probe times a frame held still can carry
   a timestamp from before that timing, so the start's worst gap came out at 83–92 ms on the desktop and 750–890 ms on
   the integrated GPU, all of it the probe's. `watch()` in `kit/perf.js` now leaves out a frame that began before it did.
-- **The chase camera after a jump down the run** (the probe's stretches, a test) looked down from 100 m up for a
+- **The chase camera after a jump down the run** (the probe's spots, a test) looked down from 100 m up for a
   moment: its ground lookup started from where the chair had been. `snap()` in `camera.js` now looks for the snow
   under the chair afresh.
+- **The first version rode the whole run**, the autopilot timed stretch by stretch. That took over two minutes, and
+  at some frame rates the autopilot came off a floe into the river, rode on from the pit stop before it and came off
+  again, over and over. Now the probe parks the chair at five spots, as the climb puts Mnot at its checkpoints: 32 s
+  on the desktop GPU, 88 s on the integrated one (the climb takes 68 s there).
 
 ## Not done yet
 

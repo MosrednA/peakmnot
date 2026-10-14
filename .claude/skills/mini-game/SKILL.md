@@ -175,10 +175,12 @@ What made the climb and the downhill smooth (`docs/performance.md`) comes with t
 
 Every game has `?perf` from the start, as the climb and the downhill do: `<game>.html?perf` times how any computer
 draws it and sends the run to the server, and `node tools/perf.mjs --game <game>` runs it headless. The game's side
-is its `perf.js` (the template's: the bot walks it stretch by stretch); `main.js` treats `?perf` as `?manual` and
-loads it. Its `board` is the game's on the score server, where the run goes; the server takes the runs once
-`perf=True` is in the game's `Game` in `server/games.py`. Its spots are where the game is dearest to draw (the most
-in view, the effects); its `things()` names what's in the scene, so the table says what costs.
+is its `perf.js` (the template's: Mnot put at a few spots on the way to the flag); `main.js` treats `?perf` as
+`?manual` and loads it. Its `board` is the game's on the score server, where the run goes; the server takes the runs
+once `perf=True` is in the game's `Game` in `server/games.py`. Its spots are a handful (five or so keep the run to
+about a minute), each a jump there with Mnot standing or parked, never a bot playing through: a bot can come off and
+take the run with it. Pick them where the game is dearest to draw (the most in view, the effects); its `things()`
+names what's in the scene, so the table says what costs.
 
 Time it on the desktop GPU and on the integrated one (`--igpu --size 1512x945 --dpr 2`), and on a phone. A speed-up
 that changes the picture is the art director's call. Compare shots pixel for pixel before and after.

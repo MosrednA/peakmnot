@@ -99,7 +99,8 @@ soundSwitch(sounds, hud.sound);
 
 // ------------------------------------------------------------------ the ride's events
 
-let playing = manual, respawnAt = -1, time = 0;
+// the perf probe (perf.js) keeps the chair parked where it puts it, as under the title
+let playing = manual && !perf, respawnAt = -1, time = 0;
 ride.on('start', () => { music.start(); toast('Go!', 'Mind the €1,649.'); });
 ride.on('jump', () => {
   sfx.cue({ type: 'jump' });
@@ -370,6 +371,7 @@ function restart() {
   ride.checkpoint = FEATURES.pits[0];
   ride.reset(ride.checkpoint, { wheels: true });
   Object.assign(ride, { started: false, done: false, time: 0 });
+  waitYaw = null;                                 // parked, it idles facing down its own slope
   party.reset();
   Object.assign(run, { pins: -1, jump: 0, photo: null, snapAt: false, bowled: 0, bonus: 0 });
   music.reset();

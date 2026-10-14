@@ -3,19 +3,18 @@
 // starting the game (no title, no scores, no stats, the picture held at its first pixel ratio, as in ?manual): the
 // climb's peak/dev/perf.js, the downhill's peak/downhill/perf.js. That calls probe() here with the game's spots, the
 // things in its scene and what plays under the thank-you card.
-// At each spot it watches frames, run as the game runs them: the climb puts Mnot at each spot for a few seconds, the
-// downhill rides its whole run and watches each stretch from its start to the next. Then, held still at the spot that
-// took longest, it times the frame's parts one by one with the GPU waited for (the pixel ratio, MSAA, the scene, its
-// ink, the shadows, the glow, the grade) and what each thing in the scene costs. It ends with a table to copy, and
-// sends the run to the server (/api/<game>/perf, server/perf.py), where Mnot says thank you on a card (thanks.js).
+// It puts the game at each spot in turn (Mnot at the climb's checkpoints, the chair at the downhill's stretches) and
+// watches a few seconds of frames there, run as the game runs them. Then, held still at the spot that took longest,
+// it times the frame's parts one by one with the GPU waited for (the pixel ratio, MSAA, the scene, its ink, the
+// shadows, the glow, the grade) and what each thing in the scene costs. It ends with a table to copy, and sends the
+// run to the server (/api/<game>/perf, server/perf.py), where Mnot says thank you on a card (thanks.js).
 // With ?manual, as tools/perf.mjs runs it headless, nothing is sent. ?perf&by=NAME says whose computer it was.
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 import { share, thank } from './thanks.js';
 
 const FRAMES = 30;          // frames timed for each line
-const WATCH = 4;            // seconds of frames watched at a spot the game is put at
-const RIDE = 60;            // seconds at most of a stretch played on to the next spot
+const WATCH = 4;            // seconds of frames watched at each spot
 
 const KEPT = ' Nothing is sent anywhere; copy the table at the end.';
 const SENT = " At the end it sends the timings, with this computer's graphics chip, screen size and browser, to the " +
@@ -30,9 +29,8 @@ const ms = v => v.toFixed(1).padStart(6);
 // game: its handle for tests (window.<game>: renderer, scene, camera, post, step(seconds, dt), render()).
 // name: the game's, on top of the table; what: what's drawn ('the climb'); long: how long it takes ('about a minute').
 // board: the game's board on the score server ('peak', 'downhill'), where the run goes (/api/<board>/perf).
-// spots: where to time it, in order. { label, go() }: go() puts the game there, and the probe watches WATCH s of it.
-//   { label, go(), until() }: reached by playing on from the spot before; timed held still as it comes, then played
-//   on until until() says so; go() puts the game back there for the frame's parts.
+// spots: where to time it, in order, a handful: { label, go() }, where go() puts the game there; the probe watches
+//   WATCH s of it, then times a frame held still.
 // things(): what's in the scene, by thing (a Map of label to objects), for what each costs.
 // frame(dt): one frame of the game, as its loop steps it; settle(): before the first spot.
 // card: what the thank-you card says, and what plays under it (thanks.js).
@@ -80,11 +78,11 @@ export async function probe(game, { name, what, long = 'about a minute', board, 
   }
 }
 
-// Runs the game as its frame loop does (frame(dt), which steps it and draws), for `seconds` or until until() says so,
-// noting the gaps between frames and our JS in each: the game's steps and render(). A frame that began before the
-// watch did is left out: its time can be from before the probe's own timing just now (on an integrated GPU, the
-// first gap of the downhill's start came out at 750 ms, all of it the probe's).
-async function watch(game, frame, { seconds = RIDE, until = null }) {
+// Runs the game as its frame loop does (frame(dt), which steps it and draws) for `seconds`, noting the gaps between
+// frames and our JS in each: the game's steps and render(). A frame that began before the watch did is left out: its
+// time can be from before the probe's own timing just now (on an integrated GPU, a first gap of 750 ms, all of it the
+// probe's).
+async function watch(game, frame, seconds) {
   const w = { gaps: [], step: [], render: [] };
   const post = game.post, render = post.render, since = now();
   let drawing = 0;
@@ -104,7 +102,7 @@ async function watch(game, frame, { seconds = RIDE, until = null }) {
           w.render.push(drawing);
         } else first = t;
         last = t;
-        if (t - first < seconds * 1000 && !(last !== first && until?.())) requestAnimationFrame(tick);
+        if (t - first < seconds * 1000) requestAnimationFrame(tick);
         else done();
       };
       requestAnimationFrame(tick);
@@ -172,32 +170,22 @@ async function measure(game, { name, what, spots, things, frame: play, settle },
     return { calls, triangles };
   };
 
-  // Each spot: the first frame there (with the shaders it had to build), then a few seconds as the game runs; or, for
-  // a spot the game plays on to, held still as it comes, then played on to the next (and the shaders built on it).
+  // Each spot: the first frame there (with the shaders it had to build), then a few seconds as the game runs, then
+  // put back there and held still.
   say(`Perf probe: letting ${what} settle…`);
   settle();
   await wait(1500);
   for (const spot of spots) {
-    const programs = r.info.programs.length;
-    if (spot.until) {
-      say(`Perf probe: at ${spot.label}, and on…`);
-      finish(null);
-      spot.frame = time(() => post.render());
-      Object.assign(spot, counted());
-      spot.watched = await watch(game, play, { until: spot.until });
-      spot.built = r.info.programs.length - programs;
-    } else {
-      say(`Perf probe: watching ${WATCH} s at ${spot.label}…`);
-      const t = now();
-      spot.go();
-      finish(null);
-      Object.assign(spot, { first: now() - t, built: r.info.programs.length - programs });
-      await wait(200);
-      spot.watched = await watch(game, play, { seconds: WATCH });
-      spot.go();
-      spot.frame = time(() => post.render());
-      Object.assign(spot, counted());
-    }
+    say(`Perf probe: watching ${WATCH} s at ${spot.label}…`);
+    const programs = r.info.programs.length, t = now();
+    spot.go();
+    finish(null);
+    Object.assign(spot, { first: now() - t, built: r.info.programs.length - programs });
+    await wait(200);
+    spot.watched = await watch(game, play, WATCH);
+    spot.go();
+    spot.frame = time(() => post.render());
+    Object.assign(spot, counted());
     drawn += spot.watched.gaps.length;
   }
 
@@ -335,11 +323,9 @@ async function measure(game, { name, what, spots, things, frame: play, settle },
     const w = s.watched, fps = w.gaps.length ? 1000 / avg(w.gaps) : 0;
     return `${s.label.padEnd(pad)} ${fps.toFixed(0).padStart(4)} fps · gap p95 ${at(w.gaps, 0.95).toFixed(1)} · ` +
       `step ${avg(w.step).toFixed(2)} · render() ${avg(w.render).toFixed(1)} · frame ${s.frame.toFixed(1)} ms · ` +
-      `${s.calls} draws, ${Math.round(s.triangles / 1000)}k tris · ` +
-      (s.until ? `worst gap ${Math.max(0, ...w.gaps).toFixed(0)} ms` : `first frame ${s.first.toFixed(0)} ms`) +
+      `${s.calls} draws, ${Math.round(s.triangles / 1000)}k tris · first frame ${s.first.toFixed(0)} ms` +
       (s.built ? ` (${s.built} shaders built)` : '');
   };
-  const rides = spots.some(s => s.until);
   const text = [
     `${name} perf · ${ua}`,
     gpu,
@@ -347,10 +333,8 @@ async function measure(game, { name, what, spots, things, frame: play, settle },
       `MSAA ${samples}× · shadow map ${mapSize} · ${r.info.programs.length} shaders`,
     ...(hidden ? ['this tab was in the background for part of the run: some timings may be off'] : []),
     '',
-    ...(rides ? ['Each stretch, played from its start to the next (our JS a frame: the game\'s step and render()),',
-      'and held still at its start (frame: the GPU waited for):']
-      : [`Each spot, played for ${WATCH} s (our JS a frame: the game's step and render()), then held still (frame: the`,
-        'GPU waited for):']),
+    `Each spot, played for ${WATCH} s (our JS a frame: the game's step and render()), then held still (frame: the`,
+    'GPU waited for):',
     ...spots.map(spotLine),
     '',
     `ms per frame at ${worst.label}, GPU waited for:`,
