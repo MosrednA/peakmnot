@@ -282,8 +282,7 @@ and `ui/`, and uses the kit's controller. Its README ([kit/README.md](kit/README
 | File | What |
 |---|---|
 | `bots.js` | Test players for tuning; nothing in the game imports it |
-| `perf.js` | The perf probe for `peak.html?perf`: times how this computer draws the climb and sends the run to the server ([docs/performance.md](../docs/performance.md)) |
-| `thanks.js`, `thanks.css` | The end of a perf run: Mnot dances on the summit, a card says thank you with a nerdy joke, and the raw numbers sit behind a button |
+| `perf.js` | The climb's side of the perf probe (`kit/perf.js`) for `peak.html?perf`: its spots (base camp, the checkpoints, the summit), what's in its scene and the thank-you card's words, with Mnot dancing on the summit under the card ([docs/performance.md](../docs/performance.md)) |
 
 ## Events
 

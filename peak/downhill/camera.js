@@ -42,8 +42,11 @@ export class ChaseCamera {
     return speed;
   }
 
+  // Straight to where it wants to be, wherever the chair is now (a respawn, a new run, a test), looking for the snow
+  // under it afresh.
   snap(ride) {
     this.finish = ride.done ? 1 : 0;
+    this.hint = -1;
     this.aim(ride);
     this.pos.copy(_want);
     this.look.copy(_look);

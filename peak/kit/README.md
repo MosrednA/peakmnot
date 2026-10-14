@@ -2,9 +2,9 @@
 
 What every mini game is built on, so a new one starts from the same base as the others: the stage and its light,
 the frame loop and the preloader, the handle for tests, the HUD's moving parts, the title screen, the finish
-party's beat and confetti, the controller, the stats' goals and the levels. The downhill (`peak/downhill/`) is built
-on it. The climb (`peak/main.js`) came first and still has its own copies of the same things (it uses the kit's
-controller and levels); it can move onto the kit later.
+party's beat and confetti, the controller, the stats' goals, the levels and the perf probe. The downhill
+(`peak/downhill/`) is built on it. The climb (`peak/main.js`) came first and still has its own copies of the same
+things (it uses the kit's controller, levels and perf probe); it can move onto the kit later.
 
 The recipe for a whole new game (its page, its folder, the premise, sound, scores, the build and the checks) is the
 `mini-game` skill in [.claude/skills/mini-game/](../../.claude/skills/mini-game/SKILL.md), with templates. A new
@@ -31,6 +31,8 @@ replay keeps its `?level=`. Every game's Hall of Fame races and watches its runs
 | `pad.css` | The chip, the card and the button glyphs (A, ✕ or B, by the controller's maker); `body.pad` swaps the keyboard's hints (`key-only`) for the controller's (`pad-only`). A page links it after `kit.css` |
 | `analytics.js` | `goals(game, { manual })`: the game's Plausible goals, a `send(name)` that counts `<game>: <name>` on the public site only (null on localhost, staging and `?manual`, so the game doesn't listen there); a blocked tracker never interrupts. The tracker itself is in the page's head. The downhill, `/games` and the template use it |
 | `levels.js` | `pickLevel(levels)`: the level the page is asked for with `?level=`, one of the game's ids (`''` is the first, the one the page opens on), else its first. `boardName(game, level)`: that level's board on the score server, the game's own name for the first and `<game>-<level>` for the others (`server/games.py`). `levelUrl(level)`: a link to a level of this page. A game keeps `LEVELS` in its `main.js`, passes the level to `apiBase(location, '<game>', level)` for its scores and replays, and exports each level's route with `export_route.py <game> <level>` |
+| `perf.js` | `probe(game, { name, what, long, board, spots, things, card, frame, settle })`: the perf probe for `<game>.html?perf` ([docs/performance.md](../../docs/performance.md)). It times the game's frames at each spot (`{ label, go() }`, put there and watched 4 s; or `{ label, go(), until() }`, reached by playing on from the one before, as the downhill rides its run), then the frame's parts and what each thing in the scene costs (`things()`: a Map of label to objects), held still at the slowest spot. The table goes in `window.peakPerf` (for `tools/perf.mjs`) and to `/api/<board>/perf` (`board`: the game's on the score server), and the card thanks the player. A game's own side is its `perf.js` (the climb's `peak/dev/perf.js`, the downhill's `peak/downhill/perf.js`); its `main.js` loads it for `?perf` and treats that as `?manual` |
+| `thanks.js`, `thanks.css` | The end of a perf run: `share(run, board)` sends it, `thank(run, box, card)` shows the card, with a nerdy joke and another on request, the raw numbers behind a button and the game's party playing under it. `card`: `pictures`, `way` (up, down), `wobble`, `play` (the button back to the game), the game's own `jokes`, `dance()` and `more()` (another burst of confetti). It loads its CSS itself |
 | `kit.css` | The HUD's look: the palette as CSS variables, the cards, the time, the Sound button, the help line, the toast and its pop, the panel and the finish card. A page links it after `peak/ui/title.css` and adds its own parts inline |
 
 ## How a game uses it
@@ -65,6 +67,7 @@ warmUp(scene, render);
 render();
 startLoop({ manual, post, step, render });
 expose('mygame', { THREE, scene, camera, title, … }, { step, render });
+if (perf) import('./perf.js').then(m => m.probe(window.mygame));   // ?perf (also ?manual): the game's side of perf.js
 ```
 
 The page links `peak/ui/title.css`, `peak/ui/preload.css`, `peak/scores/scores.css`, `peak/kit/kit.css` and

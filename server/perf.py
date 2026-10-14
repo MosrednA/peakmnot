@@ -1,9 +1,11 @@
-"""The perf runs: what `peak.html?perf` measured on other people's computers (peak/dev/perf.js sends it at the end
-of a run, docs/performance.md), kept so nobody has to copy the table by hand.
+"""The perf runs: what `?perf` measured on other people's computers, in every game that has it (`peak.html?perf`,
+`downhill.html?perf`; peak/kit/perf.js sends it to /api/<game>/perf at the end of a run, docs/performance.md), kept
+so nobody has to copy the table by hand.
 
-Each run is one JSON line in DATA_DIR/perf.jsonl, rolled over to perf.1.jsonl at its cap so the newest runs are always
-kept, and one line in the server's log. No IP address is kept: the computer is described by what its browser says
-about itself (graphics chip, screen, browser), and by the name in `?perf&by=NAME` if the link had one.
+Each run is one JSON line in DATA_DIR/perf.jsonl, with the game it's of, rolled over to perf.1.jsonl at its cap so the
+newest runs are always kept, and one line in the server's log. No IP address is kept: the computer is described by
+what its browser says about itself (graphics chip, screen, browser), and by the name in `?perf&by=NAME` if the link
+had one.
 """
 import json
 import threading
@@ -32,13 +34,13 @@ def clean(value, depth=0):
     return None
 
 
-def keepable(data, now=None):
-    """The run as kept, or None for anything that isn't one."""
+def keepable(data, now=None, game=None):
+    """The run as kept, with the game it came from (its board's name) if given, or None for anything that isn't one."""
     if not isinstance(data, dict) or data.get("v") != 1 or not isinstance(data.get("text"), str):
         return None
-    rest = {k: v for k, v in data.items() if k not in ("v", "text")}
+    rest = {k: v for k, v in data.items() if k not in ("v", "text", "game")}
     at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now if now is not None else time.time()))
-    return {"at": at, **clean(rest), "text": data["text"][:MAX_TEXT]}
+    return {"at": at, **({"game": game} if game else {}), **clean(rest), "text": data["text"][:MAX_TEXT]}
 
 
 def summary(run):
@@ -48,7 +50,8 @@ def summary(run):
         return f"{value:.1f}{unit}" if isinstance(value, (int, float)) else "?"
     by = f" by {run['by']}" if run.get("by") else ""
     canvas = "×".join(str(v) for v in run["canvas"]) if isinstance(run.get("canvas"), list) else "?"
-    return (f"perf run: frame {num('frame', ' ms')}, {num('fps', ' fps')} played, on {run.get('gpu') or '?'}, "
+    of = f" ({run['game']})" if run.get("game") else ""
+    return (f"perf run{of}: frame {num('frame', ' ms')}, {num('fps', ' fps')} played, on {run.get('gpu') or '?'}, "
             f"canvas {canvas}{by}")
 
 

@@ -1,10 +1,11 @@
-// The end of a perf run (perf.js): it goes to the server (server/perf.py), and once it's there Mnot says thank you.
-// Mnot dances on the summit in bursts of confetti, and a card (thanks.css, the HUD's cream and ink) says how smoothly
-// this computer drew the climb, with a nerdy joke and another on request. The numbers stay behind a button.
+// The end of a perf run (perf.js), the same in every mini game: it goes to the server (server/perf.py), and once it's
+// there Mnot says thank you. The game plays something under the card (the climb: Mnot dancing on the summit; the
+// downhill: the finish party), and the card (thanks.css, the HUD's cream and ink) says how smoothly this computer
+// drew it, with a nerdy joke and another on request. The numbers stay behind a button.
 import { apiBase } from '../scores/scores.js';
-import { look } from './bots.js';
 
-// Peak Mnot is the nerds digging too deep into a detail; a benchmark is that, with a table at the end.
+// Peak Mnot is the nerds digging too deep into a detail; a benchmark is that, with a table at the end. Each game adds
+// its own (card()'s jokes).
 const JOKES = [
   'Mnot timed everything twice, ABBA style: with, without, without, with. Mamma mia.',
   'No cans were dented in the making of these numbers. Well. A few.',
@@ -18,9 +19,7 @@ const JOKES = [
   'Draw calls made: hundreds. Phone calls made: zero. A perfect introvert run.',
   'Mnot asked whether this counts as cardio. It does not.',
   'The sky is drawn last now, so it only paints where no rock is in the way. Lazy sky. Smart sky.',
-  'Peak performance? Peak Mnot performance.',
   'Your numbers are in a JSON file now. That is the highest honour a number can get.',
-  'Mnot drew the same summit thirty times in a row, to be sure. Not obsessive: statistics.',
   'Results may vary. Mostly with the size of your screen, and the size of your GPU\'s ego.',
   'Fun fact: Mnot has no idea what a GPU is. It just knows it likes yours.',
   'This run took about as long as an intro of the podcast. Without the tangents.',
@@ -32,10 +31,11 @@ const JOKES = [
 export const gpuName = gpu => (gpu.match(/^ANGLE \([^,]+, (.+?)(?: \(0x[0-9A-Fa-f]+\))?(?: Direct3D|, |\)$)/)?.[1] ??
   gpu).replace(/^ANGLE Metal Renderer: |\((TM|R)\)/gi, '').replace(/\s+/g, ' ').trim();
 
-// Sends a run to the server; says how that went.
-export async function share(run) {
+// Sends a run to the server (this game's /api/<game>/perf); says how that went.
+// board: the game's on the score server ('peak', 'downhill')
+export async function share(run, board) {
   try {
-    const answer = await fetch(`${apiBase()}/perf`, {
+    const answer = await fetch(`${apiBase(location, board)}/perf`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(run),
     });
     return answer.ok ? { ok: true, say: 'Sent to the Peak Mnot server. Thank you!' }
@@ -45,23 +45,27 @@ export async function share(run) {
   }
 }
 
-const how = fps => {
+// way: 'up' or 'down'; wobble: who else wobbles
+const how = (fps, { way, wobble }) => {
   const n = Math.round(fps);
-  if (fps >= 55) return `Smooth as a freshly opened can: about ${n} frames a second, all the way up.`;
+  if (fps >= 55) return `Smooth as a freshly opened can: about ${n} frames a second, all the way ${way}.`;
   if (fps >= 40) return `It kept up nicely, at about ${n} frames a second. A wobble here and there, but so does ` +
-    'Mnot on the rope.';
+    `${wobble}.`;
   if (fps >= 25) return `It worked hard: about ${n} frames a second at full sharpness. When you play, the game turns ` +
     'the sharpness down by itself, so it runs smoother than that.';
   return `That was heavy going, at about ${n} frames a second. Exactly the kind of computer we needed numbers from, ` +
     'so: double thanks.';
 };
 
-// The card, over Mnot dancing on the summit; `numbers` is the box with the table (none for ?perf=thanks).
-export async function thank(peak, { by = null, fps = 0, drawn = 0, tris = 0, gpu = '' }, numbers = null) {
+// The card, over what the game plays under it; `numbers` is the box with the table (none for ?perf=thanks). The
+// game's words: pictures (of what), way and wobble (how()), play (the button back to the game), its own jokes, and
+// dance() and more(): what plays under the card, and a burst of confetti for each joke more.
+export async function thank({ by = null, fps = 0, drawn = 0, tris = 0, gpu = '' }, numbers, words) {
+  const { pictures, play, jokes = [] } = words;
   await styled();
   numbers?.style.setProperty('display', 'none');
   document.body.classList.add('perf-thanks');
-  dance(peak);
+  words.dance();
   const veil = document.createElement('div');
   veil.className = 'pt-veil';
   veil.innerHTML = `<div class="pt-card card" role="dialog" aria-labelledby="pt-title">
@@ -77,26 +81,29 @@ export async function thank(peak, { by = null, fps = 0, drawn = 0, tris = 0, gpu
       <p class="pt-soft">It has all reached the Peak Mnot server: graphics chip, screen and browser, no IP address.
         You can close this tab.</p>
       <div class="pt-buttons">
-        <button type="button" class="pt-play">Climb Peak Mnot</button>
+        <button type="button" class="pt-play"></button>
         <button type="button" class="pt-numbers">Raw numbers</button>
       </div>
     </div>`;
   const $ = selector => veil.querySelector(selector);
   $('h1').textContent = by ? `Thanks, ${by}!` : 'Thank you!';
   $('.pt-lead').textContent = `Your ${gpu ? gpuName(gpu) : 'computer'} just drew ${drawn.toLocaleString('en')} ` +
-    `pictures of a soda can on a mountain: about ${Math.round(tris).toLocaleString('en')} million triangles, and ` +
+    `pictures of ${pictures}: about ${Math.round(tris).toLocaleString('en')} million triangles, and ` +
     'Mnot wrote every one of them down.';
-  $('.pt-how').textContent = fps ? how(fps) : '';
+  $('.pt-how').textContent = fps ? how(fps, words) : '';
   const bag = [];
   const joke = () => {
-    if (!bag.length) bag.push(...JOKES.map(j => [Math.random(), j]).sort((a, b) => a[0] - b[0]).map(([, j]) => j));
+    if (!bag.length) {
+      bag.push(...[...JOKES, ...jokes].map(j => [Math.random(), j]).sort((a, b) => a[0] - b[0]).map(([, j]) => j));
+    }
     $('.pt-joke span').textContent = bag.pop();
   };
   joke();
   $('.pt-more').onclick = () => {
     joke();
-    peak.moments.confetti(24);
+    words.more();
   };
+  $('.pt-play').textContent = play;
   $('.pt-play').onclick = () => location.assign(location.pathname);
   if (numbers) {
     // the table as it was (perf.js), with Copy, and a way back to the card
@@ -122,32 +129,4 @@ function styled() {
     setTimeout(done, 3000);
     document.head.append(link);
   });
-}
-
-// Mnot on the summit, dancing for as long as the tab is open, with a burst of confetti every few seconds; the
-// camera holds its summit close-up while Mnot celebrates (camera.js). On a narrow screen the card sits at the top,
-// so the picture slides down a fifth of the screen to keep Mnot below it.
-function dance(peak) {
-  const { player, moments, world, camera } = peak;
-  const narrow = matchMedia('(max-width: 640px)');
-  look(peak, world.summit.at.toArray(), Math.PI);
-  moments.confetti(70);
-  let last = 0, next = 2;
-  const frame = t => {
-    const dt = last ? Math.min((t - last) / 1000, 0.05) : 0;
-    last = t;
-    if (narrow.matches) camera.setViewOffset(camera.aspect, 1, 0, -0.2, camera.aspect, 1);
-    else if (camera.view?.enabled) camera.clearViewOffset();
-    if (dt > 0) {
-      player.idleClip = moments.playing = 'Dance';
-      player.celebrate = 0.5;
-      peak.step(dt, dt / Math.ceil(dt * 60 - 1e-6));
-      if ((next -= dt) <= 0) {
-        moments.confetti(30);
-        next = 2.5 + 2 * Math.random();
-      }
-    }
-    requestAnimationFrame(frame);
-  };
-  requestAnimationFrame(frame);
 }

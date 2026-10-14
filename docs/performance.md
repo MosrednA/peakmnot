@@ -8,27 +8,31 @@ its own pass found.
 
 ### In a browser
 
-Open [`peak.html?perf`](https://peakmnot.mosredna.eu/peak.html?perf) (or `http://127.0.0.1:5280/peak.html?perf` on
-the dev server). It takes about a minute: keep the tab in front and leave it be. Add `&by=NAME` to the link to say
-whose computer it was.
+Every game has it. Open [`peak.html?perf`](https://peakmnot.mosredna.eu/peak.html?perf) for the climb or
+[`downhill.html?perf`](https://peakmnot.mosredna.eu/downhill.html?perf) for the downhill (on the dev server,
+`http://127.0.0.1:5280/peak.html?perf` and so on). The climb takes about a minute and the downhill about two: keep the
+tab in front and leave it be. Add `&by=NAME` to the link to say whose computer it was.
 
-At the end the run goes to the score server, `POST /api/peak/perf` ([server/README.md](../server/README.md)). The run
-holds what the browser says about the computer: graphics chip, screen size, pixel ratio and browser. The server
-keeps no IP address. Once the run is in, Mnot dances on the summit and a card says thank you, with a nerdy joke and
-another on request ([`peak/dev/thanks.js`](../peak/dev/thanks.js)). **Raw numbers** on the card shows the table,
-with a **Copy** button. If sending fails, the table stays up so the run can be pasted instead.
+At the end the run goes to the score server, `POST /api/<game>/perf` ([server/README.md](../server/README.md)). The
+run holds what the browser says about the computer: graphics chip, screen size, pixel ratio and browser. The server
+keeps no IP address. Once the run is in, a card says thank you, with a nerdy joke and another on request
+([`peak/kit/thanks.js`](../peak/kit/thanks.js)), over the game's own party: Mnot dancing on the summit, or the
+downhill's finish party. **Raw numbers** on the card shows the table, with a **Copy** button. If sending fails, the
+table stays up so the run can be pasted instead.
 
 The game doesn't start: no title, no scores, no stats, and the pixel ratio stays at its first step, as with
-`?manual`. [`peak/dev/perf.js`](../peak/dev/perf.js) is the probe; `main.js` only loads it for `?perf`.
-`?manual&perf` (what the headless run below uses) sends nothing. On the dev server, `?perf=thanks` shows the card
-straight away with made-up numbers, for working on it, and `&fps=30` shows what a slower computer is told.
+`?manual`. The probe is the kit's ([`peak/kit/perf.js`](../peak/kit/perf.js)); each game gives it its spots, what's in
+its scene and the card's words: the climb's [`peak/dev/perf.js`](../peak/dev/perf.js), the downhill's
+[`peak/downhill/perf.js`](../peak/downhill/perf.js). `main.js` only loads it for `?perf`. `?manual&perf` (what the
+headless run below uses) sends nothing. On the dev server, `?perf=thanks` shows the card straight away with made-up
+numbers, for working on it, and `&fps=30` shows what a slower computer is told.
 
 ### The runs on the server
 
-Each run is one JSON line in `DATA_DIR/perf.jsonl`, with the time, the name from `by` and the whole table.
-[`server/perf.py`](../server/perf.py) keeps it, at most 6 runs per address every 10 minutes. A file over 8 MB moves
-to `perf.1.jsonl`, so the newest runs are always kept. The server's log gets one line per run: the frame time, the
-fps, the graphics chip, the canvas and the name.
+Each run is one JSON line in `DATA_DIR/perf.jsonl`, every game's in the one file, with the time, the game (`peak`,
+`downhill`), the name from `by` and the whole table. [`server/perf.py`](../server/perf.py) keeps it, at most 6 runs
+per address every 10 minutes. A file over 8 MB moves to `perf.1.jsonl`, so the newest runs are always kept. The
+server's log gets one line per run: the game, the frame time, the fps, the graphics chip, the canvas and the name.
 
 ### Headless
 
@@ -38,6 +42,7 @@ With the dev server running:
 node tools/perf.mjs --igpu --size 1512x945 --dpr 2 --out run.json
 ```
 
+- `--game downhill` runs the downhill's (the page `downhill.html`); without it, the climb's.
 - `--size` and `--dpr` set the window. `1512x945` at `--dpr 2` is a 15-inch laptop with a retina screen. The default
   is `1280x760` at dpr 1.
 - `--igpu` asks the browser for the low-power GPU (Chromium's `--force_low_power_gpu`). On a desktop with an
@@ -50,12 +55,19 @@ browser executable to use instead of Playwright's own.
 
 ## What the probe measures
 
-1. **Spots.** Base camp, each checkpoint and the summit. At each spot it:
+1. **Spots.** On the climb, base camp, each checkpoint and the summit, each a jump there. At each spot it:
    - notes the first frame's time and how many shaders that frame had to build (it should be none: see the warm-up
      below);
    - plays 4 s as the game does, a step or a few and then a frame, and notes the fps, the 95th-percentile gap between
      frames, and our JS each frame (the game's `step` and `render()`);
    - holds still and times one frame with the GPU waited for, and counts its draw calls and triangles.
+
+   On the downhill the autopilot rides the whole run in one go, and the spots are its stretches: the start, the
+   crevasse, the ice, the moguls, the rollers, the river, the bowling lane, the ski jump, the office and the finish
+   (3 s of the party). As the chair gets to each, it holds still and times a frame with the GPU waited for, and
+   counts its draw calls and triangles; then it rides on to the next, noting the same as above, the worst gap
+   between frames and the shaders built on the way. For the next two steps the chair is put back at the start of the
+   slowest stretch, held still.
 2. **The frame's parts**, held still at the slowest spot. It tries:
    - the pixel ratio, MSAA at 4×, 2× and none, and the depth copy after MSAA;
    - the shadow map held, or at half size;
@@ -205,6 +217,42 @@ at pixel ratio 2, at eleven spots from the gate to the finish:
   After that, nothing was built in a whole ride, the finish party, a second ride, a respawn, and 19 crashes with 10
   lost casters.
 
+### With `?perf`
+
+`downhill.html?perf` came next, on the kit's probe. Measured in October 2026 on the same desktop GPU at 1280×760 (pixel
+ratio 1, 4× MSAA), and on the integrated AMD Radeon at a retina laptop's size (2268×1417 at pixel ratio 1.5):
+
+- **On the desktop GPU every stretch runs at the screen's rate**, 120 fps with a 95th-percentile gap of 8.4 ms. A
+  frame takes the GPU 0.8–2.3 ms; our JS is `step` 0.3–0.5 ms and `render()` 1.7–3.4 ms, for 173–729 draw calls
+  (the most at the ice, where most of the run is in view) and 0.45–1.05 million triangles. No shader is built on the
+  way down. Nothing in the scene costs more than 0.7 ms (Mnot on the chair).
+- **On the integrated GPU the pixels are the cost**, as on the climb. Held at pixel ratio 1.5 (in play the adaptive
+  quality steps down) it plays at 39–49 fps, with frames of 17–29 ms; our JS takes the same 3–4.5 ms as on the
+  desktop. The river is the dearest stretch (29–34 ms): there the gorge's rock walls, in the climb's painted rock,
+  cost 9.4 ms, nearly all of it their pattern, and the cloud sea 5–7 ms. At pixel ratio 1 that frame takes 16 ms;
+  2× MSAA saves 5 ms of it and no MSAA 11.
+- **The ski jump's photo held its frame up.** The snowman's photo is drawn from its camera in the frame the chair
+  flies past, then read off the canvas and made into a JPEG (`toDataURL`). Reading it back waited for the GPU: 2–5 ms
+  on the desktop, 23–45 ms on the integrated one; and the first JPEG took 31 ms (50 on the integrated one). In the
+  air off the ski jump, of all places, that was the only hitch over 25 ms in a whole ride: one frame with 28.5 ms
+  of JS.
+
+  `develop()` in the downhill's `main.js` now makes the photo without waiting: the GPU copies the middle of the canvas
+  down to the photo's size (`blitFramebuffer`) and into a buffer (`readPixels` into a `PIXEL_PACK_BUFFER`), and that
+  buffer is read once a fence says the GPU is done, a few frames on. The JPEG comes from a canvas kept off the GPU
+  (`willReadFrequently`), so `toBlob` has nothing to read back and makes it off the main thread. The photo then shows
+  in the corner as before, and on the finish card. Round the photo no frame takes longer now than in the same ride
+  without it, on either GPU.
+
+  A first try, `createImageBitmap` and `toBlob`, moved the JS off the frame but was worse on the integrated GPU:
+  `toBlob` on a canvas that holds a GPU picture reads it back itself, on the main thread, 100–125 ms each time.
+- **The probe's own timing showed up as a gap.** The first frame after the probe times a frame held still can carry
+  a timestamp from before that timing, so the start's worst gap came out at 83–92 ms on the desktop and 750–890 ms on
+  the integrated GPU, all of it the probe's. `watch()` in `kit/perf.js` now leaves out a frame that began before it did.
+- **The chase camera after a jump down the run** (the probe's stretches, a test) looked down from 100 m up for a
+  moment: its ground lookup started from where the chair had been. `snap()` in `camera.js` now looks for the snow
+  under the chair afresh.
+
 ## Not done yet
 
 In rough order of what they'd give, and what they'd cost:
@@ -227,8 +275,13 @@ In rough order of what they'd give, and what they'd cost:
   of frames well inside the budget.
 - **Phones** haven't been measured on real hardware yet: `?perf` on a phone will tell. Phones start at ratio 1 and
   get a smaller shadow map (`post.js`).
-- **The downhill's draw calls**: up to 650 at the top, more than the climb's most. Its obstacles, pines and props
-  that share a material could be merged, as the climb's could. `?perf` doesn't measure the downhill yet.
+- **The gorge's rock walls** at the river: 9.4 ms on the integrated GPU, a third of the frame, nearly all of it the
+  rock pattern. The walls fill the screen there, close up, so the rock shader's layers run for nearly every pixel.
+  Fewer layers on the gorge, or the 3D texture above, would cut it; both change the picture a little, so they're the
+  art director's and look-dev's call.
+- **The downhill's draw calls**: up to 729 at the ice, more than the climb's most (574). On a desktop GPU they're
+  what `render()`'s JS spends its time on. Its obstacles, signs and props that share a material could be merged, as
+  the climb's could; the snowmen (101 meshes) and the signs, banners and lines on the snow (111) are the most.
 - **The climb's shadows** draw with the same shared depth material. Its warm-up built everything in play when it was
   measured, but its painted props could get a depth material of their own too, to be sure.
 

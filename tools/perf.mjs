@@ -1,8 +1,10 @@
-// Runs the perf probe (peak/dev/perf.js) headless on this computer, while the dev server is running, and prints its
-// table (docs/performance.md).
-//   node tools/perf.mjs [--igpu] [--size 1512x945] [--dpr 2] [--out run.json] [--url http://127.0.0.1:5280/]
-// --igpu asks the browser for the low-power GPU (on a laptop or a desktop with an integrated one). Set PLAYWRIGHT to
-// Playwright's index.mjs if it isn't installed here, and CHROME to a browser to use instead of Playwright's own.
+// Runs a game's perf probe (peak/kit/perf.js: the climb's peak/dev/perf.js, the downhill's peak/downhill/perf.js)
+// headless on this computer, while the dev server is running, and prints its table (docs/performance.md).
+//   node tools/perf.mjs [--game downhill] [--igpu] [--size 1512x945] [--dpr 2] [--out run.json]
+//     [--url http://127.0.0.1:5280/]
+// --game picks the game's page (peak, the climb, by default). --igpu asks the browser for the low-power GPU (on a
+// laptop or a desktop with an integrated one). Set PLAYWRIGHT to Playwright's index.mjs if it isn't installed here,
+// and CHROME to a browser to use instead of Playwright's own.
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -12,7 +14,7 @@ const option = (name, fallback) => {
   return i < 0 ? fallback : args[i + 1];
 };
 const [width, height] = option('size', '1280x760').split('x').map(Number);
-const url = new URL('peak.html?manual&perf', option('url', 'http://127.0.0.1:5280/')).href;
+const url = new URL(`${option('game', 'peak')}.html?manual&perf`, option('url', 'http://127.0.0.1:5280/')).href;
 const { chromium } = await import(process.env.PLAYWRIGHT ? pathToFileURL(process.env.PLAYWRIGHT).href : 'playwright');
 
 const browser = await chromium.launch({

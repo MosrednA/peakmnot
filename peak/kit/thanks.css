@@ -1,9 +1,8 @@
-/* The thank-you card at the end of a perf run (thanks.js): the HUD's cream card and ink outlines (peak.html's
-   variables), the preloader's can on top with a few sparkles. It docks at the right edge, clear of Mnot dancing in
-   the middle, like the summit card; on narrow screens it sits at the top, over the sky, with Mnot below it. */
-body.perf-thanks #help, body.perf-thanks #balance, body.perf-thanks #scores-hud, body.perf-thanks #toast,
-body.perf-thanks #title, body.perf-thanks #touch-help, body.perf-thanks #touch, body.perf-thanks #sound {
-  display: none; }
+/* The thank-you card at the end of a perf run (thanks.js), in every game: the HUD's cream card and ink outlines (the
+   page's variables), the preloader's can on top with a few sparkles. It docks at the right edge, clear of Mnot in
+   the middle, like the summit card; on narrow screens it sits at the top, over the sky, with Mnot below it. The
+   game's HUD and touch controls go while it's up. */
+body.perf-thanks #hud, body.perf-thanks #touch-help, body.perf-thanks #touch { display: none; }
 
 .pt-veil { position: fixed; inset: 0; z-index: 45; pointer-events: none;
   background: radial-gradient(ellipse at 40% 50%, rgba(43, 51, 82, 0) 45%, rgba(43, 51, 82, 0.28) 100%); }

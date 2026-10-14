@@ -3,7 +3,7 @@
 // physics, Mnot and the camera together, and runs the HUD and the controls. The physics steps at a fixed 120 Hz.
 // Open downhill.html?manual to stop the loop and step it from the console (window.downhill.step), for tests;
 // downhill.autopilot(true) lets a bot ride. ?ghost=ID races a run from the Hall of Fame, ?replay=ID watches one
-// (playback.js); ?level= picks the level (kit/levels.js).
+// (playback.js); ?level= picks the level (kit/levels.js); ?perf times how this computer draws it (perf.js).
 import * as THREE from 'three';
 import { MnotSounds } from '../../sounds.js';
 import { buildScenery } from '../look/scenery.js';
@@ -39,7 +39,8 @@ import { apiBase } from '../scores/scores.js';
 import { pickLevel } from '../kit/levels.js';
 
 const params = new URLSearchParams(location.search);
-const manual = params.has('manual');
+const perf = params.has('perf');               // the perf probe (perf.js) drives the game, as tests do
+const manual = params.has('manual') || perf;
 const STEP = 1 / 120;
 // The downhill's levels (kit/levels.js): one mountain so far. A level is a board, route and replays of its own.
 const LEVELS = [''];
@@ -226,11 +227,10 @@ ride.on('flight', ({ distance: metres }) => {
 
 // The snowman at the landing hill takes a photo as the chair flies past: the frame is drawn once from its camera,
 // kept, and drawn over at once by the chase camera's; the flash hides the swap. It shows in the corner and on the
-// finish card.
-const shot = document.createElement('canvas');
-shot.width = 480;
-shot.height = 360;
+// finish card. It is developed off the frame (develop()): read straight off the canvas, it held its frame up 30 to
+// 95 ms in the air off the ski jump (docs/performance.md, "The downhill").
 const _look = new THREE.Vector3();
+let developed = null;                             // the last photo's picture, let go once there's a newer one
 function snap() {
   run.snapAt = false;
   if (run.photo || obstacles.cameraman.gone) return;
@@ -243,8 +243,16 @@ function snap() {
   camera.updateProjectionMatrix();
   post.render();
   const c = renderer.domElement, cw = Math.min(c.width, c.height * 4 / 3), ch = cw * 3 / 4;
-  shot.getContext('2d').drawImage(c, (c.width - cw) / 2, (c.height - ch) / 2, cw, ch, 0, 0, shot.width, shot.height);
-  run.photo = shot.toDataURL('image/jpeg', 0.85);
+  // this run's photo: its picture (src) once it's developed, in the corner if that's still up; unless the run is
+  // over by then (a new one, or a watched run taken back to before the jump)
+  const photo = run.photo = { src: null };
+  develop((c.width - cw) / 2, (c.height - ch) / 2, cw, ch).then(blob => {
+    if (!blob || run.photo !== photo) return;
+    if (developed) URL.revokeObjectURL(developed);
+    developed = photo.src = URL.createObjectURL(blob);
+    hud.photo.querySelector('img').src = photo.src;
+    hud.photo.hidden = !(photoTimer > 0) || !hud.finish.hidden;
+  });
   camera.position.copy(save.pos);
   camera.quaternion.copy(save.quat);
   camera.fov = save.fov;
@@ -252,11 +260,58 @@ function snap() {
   hud.flash.className = '';
   void hud.flash.offsetWidth;
   hud.flash.className = 'go';
-  hud.photo.querySelector('img').src = run.photo;
-  hud.photo.hidden = false;
   photoTimer = 3.5;
 }
 let photoTimer = 0;
+
+// The canvas's (x, y, w, h), just drawn, as a JPEG the photo's size, without waiting for the GPU: it copies that down
+// to size and into a buffer, which is read once it says it's done (a fence), a few milliseconds on; then the JPEG is
+// made off the main thread (toBlob) from a canvas kept off the GPU, so that needs no reading back either.
+const shot = document.createElement('canvas');
+shot.width = 480;
+shot.height = 360;
+const darkroom = shot.getContext('2d', { willReadFrequently: true });
+function develop(x, y, w, h) {
+  const gl = renderer.getContext(), { width, height } = shot, size = width * height * 4;
+  renderer.resetState();                          // GL's defaults, as three will expect them back
+  const frame = gl.createFramebuffer(), film = gl.createRenderbuffer(), buffer = gl.createBuffer();
+  gl.bindRenderbuffer(gl.RENDERBUFFER, film);
+  gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, width, height);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, frame);
+  gl.framebufferRenderbuffer(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, film);
+  x = Math.round(x);
+  y = Math.round(y);
+  gl.blitFramebuffer(x, y, x + Math.round(w), y + Math.round(h), 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.LINEAR);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, frame);
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
+  gl.bufferData(gl.PIXEL_PACK_BUFFER, size, gl.STREAM_READ);
+  gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+  gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+  gl.deleteFramebuffer(frame);
+  gl.deleteRenderbuffer(film);
+  const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+  gl.flush();
+  return new Promise(done => {
+    const read = () => {
+      const status = gl.clientWaitSync(sync, 0, 0);
+      if (status === gl.TIMEOUT_EXPIRED) return void setTimeout(read, 4);
+      gl.deleteSync(sync);
+      if (status === gl.WAIT_FAILED) return void (gl.deleteBuffer(buffer), done(null));      // the context was lost
+      const rows = new Uint8Array(size), picture = new ImageData(width, height), row = width * 4;
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
+      gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, rows);
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      gl.deleteBuffer(buffer);
+      // GL's rows run from the bottom up
+      for (let i = 0; i < height; i++) picture.data.set(rows.subarray(size - (i + 1) * row, size - i * row), i * row);
+      darkroom.putImageData(picture, 0, 0);
+      shot.toBlob(done, 'image/jpeg', 0.85);
+    };
+    setTimeout(read, 4);
+  });
+}
 ride.on('finish', ({ time: t }) => {
   sounds.play('wave');
   pad.rumble('cheer');
@@ -274,8 +329,8 @@ ride.on('finish', ({ time: t }) => {
   hud.finish.querySelector('.verdict').textContent = left === CHAIR.legs ? 'Worth every euro.'
     : left > 2 ? 'Mostly worth it.' : 'The warranty does not cover this.';
   const picture = hud.finish.querySelector('.snap');
-  picture.hidden = !run.photo;
-  if (run.photo) picture.querySelector('img').src = run.photo;
+  picture.hidden = !run.photo?.src;
+  if (run.photo?.src) picture.querySelector('img').src = run.photo.src;
   hud.photo.hidden = true;
   hud.finish.hidden = false;
   confetti(puffs, ride.pos);
@@ -588,3 +643,4 @@ expose('downhill', { THREE, renderer, scene, camera, post, stage, track, obstacl
   sounds, sfx, music, party, scores, input, title, restart, respawn, pad, padMenu, replays,
   get watch() { return watch; }, get ghost() { return ghost; }, get intent() { return last; },
   autopilot(on = true) { autopilot.on = on; begin(); return autopilot; } }, { step, render });
+if (perf) import('./perf.js').then(m => m.probe(window.downhill));

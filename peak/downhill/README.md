@@ -114,7 +114,7 @@ game kit's (`peak/kit/`).
 
 | Module | What |
 |---|---|
-| `main.js` | The page: the stage (`kit/stage.js`), the HUD, the controls, the events and the frame loop (physics at 120 Hz) |
+| `main.js` | The page: the stage (`kit/stage.js`), the HUD, the controls, the events and the frame loop (physics at 120 Hz). The ski jump's photo, developed without waiting for the GPU (`develop()`). `?perf` runs the perf probe |
 | `track.js` | The piste: a centreline sampled every half metre, the cross-section (dish, banks, powder, the drop), the features, and `ground(x, z)`, which the physics and the snow mesh both use |
 | `ride.js` | The chair's physics: rolling, steering, braking, the jump, flights, the seat's swivel, crashes, lost wheels and falls; its events drive everything else |
 | `chair.js` | The office chair's model and its pose (the base, the casters, the gas lift, the seat); at a pit stop the fresh casters fly in and pop on |
@@ -131,6 +131,7 @@ game kit's (`peak/kit/`).
 | `record.js`, `scores.js`, `routedata.js` | The high scores: the recorder, the server talk and the card, the route as data for the server |
 | `playback.js` | The Hall of Fame's replays: a recorded run checked, played back on the page's own chair (Watch run) or on a see-through one (Race ghost) |
 | `autopilot.js` | A test rider that rides the whole run through the same physics |
+| `perf.js` | The downhill's side of the perf probe (`kit/perf.js`) for `downhill.html?perf`: the autopilot rides the run, timed stretch by stretch; what's in the scene, the thank-you card's words, and the finish party under the card ([docs/performance.md](../../docs/performance.md)) |
 | `analytics.js` | The Plausible goals of public rides (above); excludes development and manual tests |
 | `viewer.js` | The downhill's tab in the animation viewer (`index.html`, `/viewer`): Mnot on the chair, its moves and the party |
 | `sfx.js`, `music.js` | The chair's sounds and the downhill's variant of the climb's tune (Codex) |
@@ -148,6 +149,9 @@ game kit's (`peak/kit/`).
   both with the dev server on 5280 and no score server: the autopilot rides a run, and the Hall of Fame and the
   replay API are routed to it (the chair on the recording, every event told once, jumps in time, pause and speed,
   the finish, a link that can't play, the ghost on the player's clock).
+- `downhill.html?perf` times how this computer draws the ride (about two minutes) and sends it to the server, as
+  the climb's `?perf` does; `node tools/perf.mjs --game downhill` runs it headless and prints the table
+  ([docs/performance.md](../../docs/performance.md)).
 - `downhill.restart()` is a new run from the top; `downhill.ride`, `downhill.track` and `downhill.chase` are there
   to look at.
 - Check the console for errors after every reload, and look at the start, a fall, the river, the ski jump and the

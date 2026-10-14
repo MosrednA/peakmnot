@@ -3,7 +3,7 @@
 // party starts. The stage, the loop, the HUD's parts, the title and the controller come from the kit
 // (peak/kit/README.md).
 // Open mygame.html?manual to stop the loop and step it from the console (window.mygame.step), for tests;
-// mygame.autopilot(true) lets a bot play.
+// mygame.autopilot(true) lets a bot play. ?perf times how this computer draws it (perf.js).
 import * as THREE from 'three';
 import { MnotSounds } from '../../sounds.js';
 import { buildScenery } from '../look/scenery.js';
@@ -23,7 +23,9 @@ import { pickLevel } from '../kit/levels.js';
 import { Title } from './title.js';
 import { hookAnalytics } from './analytics.js';
 
-const manual = new URLSearchParams(location.search).has('manual');
+const params = new URLSearchParams(location.search);
+const perf = params.has('perf');                // the perf probe (perf.js) drives the game, as tests do
+const manual = params.has('manual') || perf;
 // Made for more than one level from the start (kit/levels.js): '' is the first. ?level= picks one; the world is
 // built for it, and the high scores and the Hall of Fame's ghost and replay go to its board (SKILL.md, step 6).
 const LEVELS = [''];
@@ -38,6 +40,7 @@ const scenery = buildScenery(scene, new THREE.Vector3(0, 0, 0));
 // the world: a round of snow to stand on, and the flag (replace with the game's own, in its own modules)
 const snow = new THREE.Mesh(new THREE.CircleGeometry(40, 64).rotateX(-Math.PI / 2), toon('#f4f7ff'));
 snow.receiveShadow = true;
+snow.name = 'the snow';                         // by name in the perf probe's costs (perf.js)
 scene.add(snow);
 const flag = new THREE.Group();
 const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2), toon('#2b3352'));
@@ -46,9 +49,11 @@ const cloth = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.03), toon('#e23b
 cloth.position.set(0.47, 1.9, 0);
 for (const m of [pole, cloth]) { m.castShadow = true; flag.add(m); }
 flag.position.copy(GOAL);
+flag.name = 'the flag';
 scene.add(flag);
 // the pooled bursts (look/bursts.js) want a little world: a group, things to update, the ground's height
 const world = { group: new THREE.Group(), animated: [], ground: () => ({ top: 0 }) };
+world.group.name = 'puffs and confetti';
 scene.add(world.group);
 const puffs = bursts(world);
 
@@ -183,4 +188,5 @@ startLoop({ manual, post, step, render });
 
 // for debugging and tests
 expose('mygame', { THREE, renderer, scene, camera, post, stage, mnot, player, sounds, input, title, restart, pad,
-  padMenu, level, autopilot(on = true) { autopilot = on; begin(); } }, { step, render });
+  padMenu, level, puffs, autopilot(on = true) { autopilot = on; begin(); } }, { step, render });
+if (perf) import('./perf.js').then(m => m.probe(window.mygame));

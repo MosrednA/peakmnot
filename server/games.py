@@ -87,7 +87,7 @@ class Game:
     finish). verify(route, replay, claim, splits): None for a good run, else a checks.Rejection; raises
     checks.Malformed for a replay that isn't one. speed: m/s, the most the game goes, for the jokes. claim: the
     numbers the finish sends; time, falls and dents go on the board, and a game with time off the clock sends the
-    clock too. perf: the climb's ?perf runs (perf.py) go to /api/<game>/perf. replay: what GET .../replay/ID
+    clock too. perf: the game's ?perf runs (perf.py) go to /api/<game>/perf. replay: what GET .../replay/ID
     gives of a run's replay, for its ghost and its watching (peak/replays/). page, level: the game and which of its
     levels this board is ('' for the first); name is board_name(page, level)."""
 
@@ -119,7 +119,7 @@ def load(peak_route=None, downhill_route=None, levels=None):
         Game("peak", peak, verify.verify, peak.run_speed, house=PEAK_HOUSE, perf=True),
         # the rider's legs and lean follow the keys (heels down to brake, tucked in), so its ghost needs them
         Game("downhill", hill, downhill.verify, hill.top_speed, house=DOWNHILL_HOUSE, words=DOWNHILL_WORDS,
-             claim=("time", "clock", "bonus", "falls", "dents"),
+             claim=("time", "clock", "bonus", "falls", "dents"), perf=True,
              replay=("v", "route", "phase", "samples", "events", "inputs")),
     ]
     routes = {"peak": (route.Route, "run_speed"), "downhill": (downhill.Route, "top_speed")}

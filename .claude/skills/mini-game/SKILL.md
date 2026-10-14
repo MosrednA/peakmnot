@@ -1,6 +1,6 @@
 ---
 name: mini-game
-description: The recipe for a new Peak Mnot mini game, or a big change to one - the premise and the vibe, the page and its folder, the shared kit (stage, loop, HUD, title screen, finish party, controller, stats, levels), effects, sound and music, high scores with the Hall of Fame's ghost and replay, stats and their Plausible goals, the production build, performance, phones and controllers, tests and checks, and who does what. Use when making a new mini game, or when adding a title screen, finish party, HUD, sound, scores, controller support, stats or a page to one.
+description: The recipe for a new Peak Mnot mini game, or a big change to one - the premise and the vibe, the page and its folder, the shared kit (stage, loop, HUD, title screen, finish party, controller, stats, levels), effects, sound and music, high scores with the Hall of Fame's ghost and replay, stats and their Plausible goals, the production build, performance and its ?perf probe, phones and controllers, tests and checks, and who does what. Use when making a new mini game, or when adding a title screen, finish party, HUD, sound, scores, controller support, stats or a page to one.
 ---
 
 # A new mini game
@@ -38,6 +38,7 @@ do what it does.
 | `peak/<game>/title.js` | The title's shot and act, on the kit's `TitleScreen`. From [templates/title.js](templates/title.js) |
 | `peak/<game>/party.js` | The finish party, on the kit's `Beat` (the downhill's is the example) |
 | `peak/<game>/autopilot.js` | A test bot that plays the whole game through the same rules a player does |
+| `peak/<game>/perf.js` | Its side of the perf probe (`peak/kit/perf.js`) for `<game>.html?perf`: where to time it, what's in its scene, the thank-you card's words and the party under it (step 8). From [templates/perf.js](templates/perf.js) |
 | `peak/<game>/sfx.js`, `music.js` | The game's sounds and its variant of the climb's tune (Codex) |
 | `peak/<game>/README.md` | The premise, the rules, the controls, the modules, who owns what, how to test. From [templates/README.md](templates/README.md) |
 | `audio/<game>/` | Its effects, WAV masters and AAC `.m4a` (Codex) |
@@ -66,6 +67,7 @@ games see.
 - `TitleScreen` for the title; `Beat` and `confetti()` for the finish party.
 - `GamepadInput` and `PadMenu` (with `pad.css`) for the controller, which every game has (step 10).
 - `goals('<Game>', { manual })` for its Plausible goals, which every game has too (step 6, "Stats").
+- `probe()` (`perf.js`, with `thanks.js`) for `?perf`, which every game has as well (step 8, "Performance").
 
 Change the kit only with an option whose default keeps every game as it is, and check every game (its README says
 how).
@@ -171,8 +173,15 @@ What made the climb and the downhill smooth (`docs/performance.md`) comes with t
 - nothing far ahead drawn when it's not needed (hide it by distance, as `obstacles.update` does);
 - small AAC sounds, music after the first frame, the game's own assets only.
 
-Time it on the desktop GPU in `?manual` with the bot playing, and on a phone. A speed-up that changes the picture is
-the art director's call. Compare shots pixel for pixel before and after.
+Every game has `?perf` from the start, as the climb and the downhill do: `<game>.html?perf` times how any computer
+draws it and sends the run to the server, and `node tools/perf.mjs --game <game>` runs it headless. The game's side
+is its `perf.js` (the template's: the bot walks it stretch by stretch); `main.js` treats `?perf` as `?manual` and
+loads it. Its `board` is the game's on the score server, where the run goes; the server takes the runs once
+`perf=True` is in the game's `Game` in `server/games.py`. Its spots are where the game is dearest to draw (the most
+in view, the effects); its `things()` names what's in the scene, so the table says what costs.
+
+Time it on the desktop GPU and on the integrated one (`--igpu --size 1512x945 --dpr 2`), and on a phone. A speed-up
+that changes the picture is the art director's call. Compare shots pixel for pixel before and after.
 
 ## 9. Phones
 

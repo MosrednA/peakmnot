@@ -366,6 +366,16 @@ class PerfRuns(unittest.TestCase):
                                                                                 [2268, 1417]))
         self.assertNotIn("127.0.0.1", self.file.read_text(encoding="utf-8"))
         self.assertNotIn("v", run)
+        self.assertEqual(run["game"], "peak")
+
+    def test_each_game_its_own(self):
+        # the downhill's ?perf too (peak/downhill/perf.js), in the same file, each run saying which game it's of
+        down = dict(self.RUN, text="Mnot Downhill perf · a table", game="peak")
+        self.assertEqual(self.server.request("POST", "/api/downhill/perf", down).status, 201)
+        self.assertEqual(self.server.request("POST", "/api/peak/perf", self.RUN).status, 201)
+        self.assertEqual([(run["game"], run["text"]) for run in self.kept()],
+                         [("downhill", down["text"]), ("peak", self.RUN["text"])])
+        self.assertIn("(downhill)", perf.summary(self.kept()[0]))
 
     def test_only_runs(self):
         for body in ({"v": 2, "text": "x"}, {"v": 1}, {"v": 1, "text": 5}, b"[1]", b"{"):

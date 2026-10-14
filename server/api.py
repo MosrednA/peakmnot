@@ -1,6 +1,6 @@
 """The /api/<game> endpoints, one set for every mini game (games.py), without the HTTP plumbing (peak_scores.py
 feeds requests in): rate limits, the signature and nonce on every request after the first, the checks on splits and
-the finish, the game's replay check (verify.py for the climb, downhill.py), the climb's perf runs from `?perf`
+the finish, the game's replay check (verify.py for the climb, downhill.py), the games' perf runs from `?perf`
 (perf.py), and the eggs (eggs.py, in the game's words) for anything that doesn't add up.
 
 Api.handle(method, path, query, headers, body, ip) -> (status, headers, body bytes); body is the raw request body
@@ -180,7 +180,7 @@ class Api:
             raise loud("method")
         if parts == ["perf"] and self.perf and b.game.perf:
             self.limit("perf", who)
-            return self.perf_run(headers, body)
+            return self.perf_run(b, headers, body)
         if parts == ["run"]:
             self.limit("run", who)
             return self.new_run(b, headers, body, who)
@@ -231,10 +231,10 @@ class Api:
 
     # ------------------------------------------------------------------ a perf run
 
-    def perf_run(self, headers, body):
+    def perf_run(self, b, headers, body):
         if len(body) > perf_runs.MAX_BODY:
             raise loud("oversized")
-        run = perf_runs.keepable(self.decode(headers, body), self.clock())
+        run = perf_runs.keepable(self.decode(headers, body), self.clock(), b.game.name)
         if run is None:
             raise loud("malformed")
         self.perf.keep(run)

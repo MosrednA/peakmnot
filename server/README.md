@@ -106,10 +106,12 @@ fingerprint lets the game check that a stored v1 replay matches its current rout
 Missing, unclaimed, shadow, house, and replaced best runs all return 404; a showcased climb (above) returns 200
 without a board entry. This endpoint uses the same read rate limit as the board.
 
-`POST /api/peak/perf` takes a run of the perf probe (`peak.html?perf`, [docs/performance.md](../docs/performance.md)):
-`{v: 1, text, …}`, at most 64 KB, 6 per address every 10 minutes. `perf.py` clips it (strings, numbers and three
-levels deep only) and adds it as one line to `DATA_DIR/perf.jsonl` with the time, but no address; past 8 MB the file
-moves to `perf.1.jsonl`. It needs no signature: a run is only numbers about a computer, and nothing reads them back.
+`POST /api/<game>/perf` takes a run of the perf probe (`peak.html?perf`, `downhill.html?perf`,
+[docs/performance.md](../docs/performance.md)), for every game whose `Game.perf` is set (`games.py`): `{v: 1, text,
+…}`, at most 64 KB, 6 per address every 10 minutes. `perf.py` clips it (strings, numbers and three levels deep only)
+and adds it as one line to `DATA_DIR/perf.jsonl`, every game's in the one file, with the time and the game, but no
+address; past 8 MB the file moves to `perf.1.jsonl`. It needs no signature: a run is only numbers about a computer,
+and nothing reads them back.
 
 ### The house records
 

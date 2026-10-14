@@ -38,6 +38,7 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`), the sound switch (`sou
 | `main.js` | The page: the stage, the world, the player, the camera, the HUD, the controls, the events and the loop |
 | `title.js` | The title screen: the shot at the start and Mnot's act |
 | `party.js` | The finish party, on the music's beat |
+| `perf.js` | The perf probe's side of the game, for `mygame.html?perf` (`peak/kit/perf.js`, `docs/performance.md`) |
 | `autopilot.js` | A test bot that plays the whole game through the same rules |
 | `playback.js` | The Hall of Fame's replays: a recorded run checked, watched and raced as a ghost |
 | `sfx.js`, `music.js` | The game's sounds and its variant of the climb's tune (Codex) |
@@ -60,6 +61,8 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`), the sound switch (`sou
   `<game>.step(seconds, dt)` steps it (pass `dt`: a hidden tab has none of its own) and draws a frame;
   `<game>.render()` draws one.
 - `<game>.autopilot(true)` lets the test bot play it through.
+- `<game>.html?perf` times how this computer draws it and sends the run to the server; `node tools/perf.mjs --game
+  <game>` runs it headless (`docs/performance.md`).
 - `<game>.html?manual&replay=ID` watches a run step by step, `?ghost=ID` races one; `tools/check_<game>_replays.js`
   checks both on a run the test bot rode.
 - Check the console for errors after every reload, and look at the title, the start, a mishap and the finish party.
