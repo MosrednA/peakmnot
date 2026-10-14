@@ -11,6 +11,9 @@ and animated for a three.js browser game. These rules are for every agent workin
   mini games in one world, with the same style and vibe: Peak Mnot, a mountain climb (`peak.html` and `peak/`), and
   the office-chair downhill (`downhill.html` and `peak/downhill/`, a prototype). "The mini games" in
   [docs/agents.md](docs/agents.md#the-mini-games) says how they fit together.
+- **A new mini game** (or a title screen, finish party, HUD, sound, scores or page for one): follow the `mini-game`
+  skill, [.claude/skills/mini-game/SKILL.md](.claude/skills/mini-game/SKILL.md), with its templates. Every game is
+  built on the shared kit in [peak/kit/](peak/kit/README.md).
 - **The team:** [docs/agents.md](docs/agents.md) explains who does what and how to brief the specialist agents in
   `.claude/agents/` (level designer, art director, look-dev, animator, score-keeper, mobile).
   [docs/making-a-level.md](docs/making-a-level.md) is the guide to changing the climb.

@@ -1,0 +1,42 @@
+/* The HUD every mini game wears (peak/kit/README.md): cream cards with an ink outline, the Fredoka font, the
+   palette, the toast that pops, the help line, the keys, the finish card, and the title's "press a key" or
+   "tap". A page links it after scores.css, title.css and preload.css, and adds its own parts after it. */
+:root { --ink: #2b3352; --card: #fff7e8; --muted: #6b6f86; --red: #e23b2e; --teal: #22a98f; --gold: #ffc23d;
+  --sky: #4aa8f0; }
+html, body { margin: 0; height: 100%; background: #cfe3f5; color: var(--ink);
+  font: 500 14px/1.35 Fredoka, system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; user-select: none; }
+canvas { display: block; touch-action: none; }
+#hud { position: fixed; inset: 0; pointer-events: none; }
+.card { background: var(--card); border: 2.5px solid var(--ink); border-radius: 14px; box-shadow: 0 3px 0 var(--ink); }
+#title { position: absolute; top: 12px; left: 14px; padding: 5px 12px 6px; }
+#title b { display: block; font-size: 19px; font-weight: 700; color: var(--red); text-shadow: 0 1.5px 0 #ffd9c2; }
+#stats { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+#sound { position: absolute; top: 12px; right: 14px; pointer-events: auto; font: 600 13px Fredoka, sans-serif;
+  color: var(--ink); padding: 6px 12px; cursor: pointer; }
+#sound[aria-pressed="false"] { color: var(--muted); text-decoration: line-through; }
+#help { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
+  padding: 4px 12px; border-radius: 12px; background: rgba(255, 247, 232, 0.82); color: var(--muted);
+  font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+kbd { display: inline-block; min-width: 10px; padding: 0 5px; margin: 0 1px; border: 1.5px solid var(--ink);
+  border-radius: 5px; box-shadow: 0 1.5px 0 var(--ink); background: #fff; color: var(--ink); font: 600 11px/16px Fredoka, sans-serif; }
+#toast { position: absolute; top: 20%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center;
+  gap: 6px; opacity: 0; transition: opacity 0.35s; }
+#toast.show { opacity: 1; }
+#toast b { font-size: 40px; font-weight: 700; line-height: 1.05; color: #fff; -webkit-text-stroke: 7px var(--ink);
+  paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); }
+#toast small { padding: 3px 14px; font-size: 16px; font-weight: 600; }
+#toast.checkpoint b { color: #7ff0c8; }
+#toast.oops b { color: #ffb3a4; }
+#toast.show b { animation: pop 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+#toast.show small { animation: pop 0.55s 0.08s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes pop { from { transform: scale(0.4) rotate(-6deg); opacity: 0; } 60% { opacity: 1; } to { transform: none; } }
+.panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100% - 32px));
+  box-sizing: border-box; padding: 18px 22px 20px; text-align: center; }
+.panel h1 { margin: 0; font-size: 34px; line-height: 1.05; color: var(--red); text-shadow: 0 2px 0 #ffd9c2; }
+#finish { top: auto; bottom: 52px; transform: translateX(-50%); }
+.panel .time { font-size: 44px; font-weight: 700; }
+.panel .verdict { margin: 4px 0 10px; font-size: 18px; font-weight: 600; color: var(--red); }
+.ts-press .tap { display: none; }
+@media (hover: none) and (pointer: coarse) { .ts-press .key { display: none; } .ts-press .tap { display: inline; } }
+[hidden] { display: none !important; }
+@media (max-width: 560px) { #help { font-size: 11px; } #toast b { font-size: 30px; } .panel h1 { font-size: 28px; } }

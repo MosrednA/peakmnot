@@ -13,46 +13,15 @@
 <link rel="stylesheet" href="peak/ui/title.css">
 <link rel="stylesheet" href="peak/ui/preload.css">
 <link rel="preload" href="models/mnot.glb" as="fetch" crossorigin>
+<link rel="stylesheet" href="peak/kit/kit.css">
 <style>
-  /* The same cream cards with an ink outline as the climb's HUD. */
-  :root { --ink: #2b3352; --card: #fff7e8; --muted: #6b6f86; --red: #e23b2e; --teal: #22a98f; --gold: #ffc23d;
-    --sky: #4aa8f0; }
-  html, body { margin: 0; height: 100%; background: #cfe3f5; color: var(--ink);
-    font: 500 14px/1.35 Fredoka, system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; user-select: none; }
-  canvas { display: block; touch-action: none; }
-  #hud { position: fixed; inset: 0; pointer-events: none; }
-  .card { background: var(--card); border: 2.5px solid var(--ink); border-radius: 14px; box-shadow: 0 3px 0 var(--ink); }
-  #title { position: absolute; top: 12px; left: 14px; padding: 5px 12px 6px; }
-  #title b { display: block; font-size: 19px; font-weight: 700; color: var(--red); text-shadow: 0 1.5px 0 #ffd9c2; }
-  #stats { display: flex; align-items: center; gap: 12px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+  /* The HUD is the kit's (peak/kit/kit.css); here are the downhill's own parts: the speed and the wheels, the
+     ski jump's photo, the time off the clock and the logo. */
   #speed { min-width: 58px; }
   #wheels { display: flex; gap: 3px; }
   #wheels i { width: 10px; height: 10px; border: 2px solid var(--ink); border-radius: 50%; background: #3c404c;
     transition: transform 0.25s, opacity 0.25s; }
   #wheels i.gone { opacity: 0.25; transform: scale(0.6) translateY(6px); background: transparent; }
-  #sound { position: absolute; top: 12px; right: 14px; pointer-events: auto; font: 600 13px Fredoka, sans-serif;
-    color: var(--ink); padding: 6px 12px; cursor: pointer; }
-  #sound[aria-pressed="false"] { color: var(--muted); text-decoration: line-through; }
-  #help { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px);
-    padding: 4px 12px; border-radius: 12px; background: rgba(255, 247, 232, 0.82); color: var(--muted);
-    font-size: 12.5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  kbd { display: inline-block; min-width: 10px; padding: 0 5px; margin: 0 1px; border: 1.5px solid var(--ink);
-    border-radius: 5px; box-shadow: 0 1.5px 0 var(--ink); background: #fff; color: var(--ink); font: 600 11px/16px Fredoka, sans-serif; }
-  #toast { position: absolute; top: 20%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center;
-    gap: 6px; opacity: 0; transition: opacity 0.35s; }
-  #toast.show { opacity: 1; }
-  #toast b { font-size: 40px; font-weight: 700; line-height: 1.05; color: #fff; -webkit-text-stroke: 7px var(--ink);
-    paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); }
-  #toast small { padding: 3px 14px; font-size: 16px; font-weight: 600; }
-  #toast.checkpoint b { color: #7ff0c8; }
-  #toast.oops b { color: #ffb3a4; }
-  #toast.show b { animation: pop 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
-  #toast.show small { animation: pop 0.55s 0.08s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
-  @keyframes pop { from { transform: scale(0.4) rotate(-6deg); opacity: 0; } 60% { opacity: 1; } to { transform: none; } }
-  .panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100% - 32px));
-    box-sizing: border-box; padding: 18px 22px 20px; text-align: center; }
-  .panel h1 { margin: 0; font-size: 34px; line-height: 1.05; color: var(--red); text-shadow: 0 2px 0 #ffd9c2; }
-  #finish { top: auto; bottom: 52px; transform: translateX(-50%); }
   /* the photo from the ski jump: a flash, then a print in the corner, and on the finish card */
   #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
   #flash.go { animation: flash 0.6s ease-out; }
@@ -64,8 +33,6 @@
     animation: pop 0.55s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
   #finish .snap { margin: 2px 0 10px; transform: rotate(-2deg); }
   #finish .snap img { width: 180px; height: 135px; }
-  .panel .time { font-size: 44px; font-weight: 700; }
-  .panel .verdict { margin: 4px 0 10px; font-size: 18px; font-weight: 600; color: var(--red); }
   .panel .bonus { margin: -2px 0 4px; font-size: 13px; font-weight: 600; color: var(--teal); }
   /* time off the clock, popping under it */
   #bonus { position: absolute; top: 78px; left: 16px; display: flex; align-items: center; gap: 6px;
@@ -83,11 +50,7 @@
   .dh-tag { margin: 0.1em 0 0; padding: 2px 12px; border-style: dashed; border-radius: 9px; font-size: 15px;
     font-weight: 600; transform: rotate(-2deg); }
   .dh-tag b { color: var(--red); }
-  .ts-press .tap { display: none; }
-  @media (hover: none) and (pointer: coarse) { .ts-press .key { display: none; } .ts-press .tap { display: inline; } }
-  [hidden] { display: none !important; }
-  @media (max-width: 560px) { #help { font-size: 11px; } #toast b { font-size: 30px; } .panel h1 { font-size: 28px; }
-    .print img { width: 140px; height: 105px; } #finish .snap img { width: 150px; height: 112px; }
+  @media (max-width: 560px) { .print img { width: 140px; height: 105px; } #finish .snap img { width: 150px; height: 112px; }
     .dh-tag { font-size: 13px; } }
 </style>
 </head>
