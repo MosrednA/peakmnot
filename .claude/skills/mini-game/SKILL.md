@@ -1,6 +1,6 @@
 ---
 name: mini-game
-description: The recipe for a new Peak Mnot mini game, or a big change to one - the premise and the vibe, the page and its folder, the shared kit (stage, loop, HUD, title screen, finish party), effects, sound and music, high scores, the production build, performance, phones, tests and checks, and who does what. Use when making a new mini game, or when adding a title screen, finish party, HUD, sound, scores or a page to one.
+description: The recipe for a new Peak Mnot mini game, or a big change to one - the premise and the vibe, the page and its folder, the shared kit (stage, loop, HUD, title screen, finish party, controller), effects, sound and music, high scores, the production build, performance, phones and controllers, tests and checks, and who does what. Use when making a new mini game, or when adding a title screen, finish party, HUD, sound, scores, controller support or a page to one.
 ---
 
 # A new mini game
@@ -56,6 +56,7 @@ games see.
 - `warmUp(scene, render)` once everything is in the scene, then `startLoop()`; `expose('<game>', …)` for the tests.
 - `toaster()`, `pop()`, `soundSwitch()` for the HUD; `kit.css` for its look.
 - `TitleScreen` for the title; `Beat` and `confetti()` for the finish party.
+- `GamepadInput` and `PadMenu` (with `pad.css`) for the controller, which every game has (step 10).
 
 Change the kit only with an option whose default keeps every game as it is, and check every game (its README says
 how).
@@ -132,7 +133,37 @@ the left half to steer, tap the right half to jump), `viewport-fit=cover` and th
 anywhere", a portrait layout (the 560 px media queries), no browser gesture in the way (`touch-action: none` on the
 canvas), and the audio unlocked by a real tap (`soundSwitch` listens to pointerup and touchend too).
 
-## 10. Testing and checks
+## 10. The controller
+
+Every game plays with a controller too, from the kit, so they all look and feel the same (the climb and the downhill
+are the examples, `peak/main.js` and `peak/downhill/main.js`, both `readPad`):
+
+- **Reading it:** `const pad = new GamepadInput()` (`peak/kit/gamepad.js`), and `pad.poll()` once a step. Then
+  `pad.stick` (the left stick, y up, with `push` past the dead zone), `pad.dpad`, `pad.keys(held)` (the stick and the
+  D-pad as the W A S D they point at, true for a light push), `pad.look` (the right stick as a camera drag, pixels a
+  second, after the Camera and Look speed settings), `pad.down(b)`, `pad.value(b)` (the triggers, 0..1),
+  `pad.fresh` (the buttons pressed this step, by `BUTTON`) and `pad.used`. Everything lets go while the page isn't
+  in front. A key or a touch hands the hints back to them.
+- **On the screen:** `const padMenu = new PadMenu(pad, { controls, help, press, settings, sounds })`
+  (`peak/kit/padmenu.js`): the chip in the corner while one is connected (its name for a moment), the card behind it
+  (the Menu button), and the page's hints in the controller's own buttons (A, ✕ or B; `pad.css` draws them): the
+  help line, "Press A to …" (`press`), How to play. `controls` and `help` say what the buttons do, `[buttons, what]`
+  (button names as in `glyphs()`). `settings` is `['rumble']`, plus `'invert'` and `'speed'` when the right stick
+  turns a camera. Call `padMenu.update(dt)` right after `pad.poll()`: true means the controller went to the page this
+  step (the card, the title's buttons, the Hall of Fame, the finish card), and the game reads nothing from it.
+- **The same buttons everywhere:** the left stick and the D-pad move or steer; A is the game's one action (the jump);
+  on the title A is Start, Y the Hall of Fame and X How to play; B closes; Y plays again; View switches the sound;
+  Menu opens the card. The triggers are for what's analogue (the downhill's push and brake, the climb's zoom), the
+  right stick looks around if the camera can. A controller press on the title starts the game the way a key does.
+- **Rumble** at the moments that hurt or cheer: `pad.rumble('bump')` (a hard landing, a knock), `'hit'` (a crash, a
+  lost wheel), `'cheer'` (the finish). Only while the controller is in use and Rumble is on.
+- **The page** links `peak/kit/pad.css` after `kit.css`. A keyboard-only hint gets `class="key-only"`, and the
+  controller's button beside it `<i class="pg pg-y pad-only"></i>` (the downhill's finish card).
+- **The sound** can't start from a controller: browsers wait for a click or a key. The card and "Press A" say so
+  while it waits.
+- **Checks:** `tools/check_gamepad.js` plays every game with a fake controller; add the new game's buttons to it.
+
+## 11. Testing and checks
 
 - `?manual`: no title, no loop; `window.<game>.step(seconds, dt)` moves it the same way every time; `render()` draws.
   A test bot (`<game>.autopilot(true)`) plays it through.
@@ -142,7 +173,7 @@ canvas), and the audio unlocked by a real tap (`soundSwitch` listens to pointeru
 - Before a commit, every check in [docs/agents.md](../../../docs/agents.md#checks-before-handing-over) passes, in
   every game the change touches, and the game's README says what changed.
 
-## 11. Who does what
+## 12. Who does what
 
 The specialists in `.claude/agents/` work on every game; a brief names the game (docs/agents.md, "A brief that
 works"):

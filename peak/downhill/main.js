@@ -14,6 +14,8 @@ import { warmUp } from '../kit/warmup.js';
 import { startLoop, expose } from '../kit/loop.js';
 import { toaster, pop, soundSwitch } from '../kit/hud.js';
 import { confetti } from '../kit/party.js';
+import { GamepadInput, BUTTON } from '../kit/gamepad.js';
+import { PadMenu } from '../kit/padmenu.js';
 import { Track, FEATURES, RIVER } from './track.js';
 import { Chair, CHAIR } from './chair.js';
 import { Ride } from './ride.js';
@@ -86,12 +88,14 @@ ride.on('jump', () => {
 });
 ride.on('land', ({ impact, at, air }) => {
   rider.land(impact);
+  if (impact > 4) pad.rumble('bump');
   sfx.cue({ type: 'land', impact, air });
   if (impact > 2) puffs.snow(at, { puffs: 4 + Math.min(8, impact), flakes: 6 + impact, spread: 0.5 + impact * 0.08 });
   chase.shake(Math.min(0.5, impact * 0.035));
 });
 ride.on('crash', ({ impulse, kind, at }) => {
   rider.crash(impulse);
+  if (impulse > 1.5) pad.rumble(impulse > 3 ? 'hit' : 'bump');
   chase.shake(Math.min(0.9, impulse * 0.08));
   if (impulse > 1.5) sfx.cue({ type: 'crash', impulse, kind });
   if (kind === 'tree') puffs.snow(at.setY(at.y + 1.2), { puffs: 8, flakes: 16, spread: 0.9, up: -0.5 });
@@ -104,6 +108,7 @@ ride.on('crash', ({ impulse, kind, at }) => {
 });
 ride.on('wheel', ({ index, cause, left }) => {
   sfx.cue({ type: 'wheel', cause, left });
+  pad.rumble('hit');
   const caster = chair.dropWheel(index);
   const kick = new THREE.Vector3(Math.random() - 0.5, 2.5 + Math.random() * 2, Math.random() - 0.5);
   obstacles.debris.add(caster, { vel: ride.vel.clone().multiplyScalar(0.85).add(kick), radius: 0.075, life: 12,
@@ -121,6 +126,7 @@ ride.on('wrecked', () => {
 let swims = 0;
 ride.on('lost', ({ at, water }) => {
   sfx.cue({ type: water ? 'splash' : 'lost' });
+  pad.rumble('hit');
   music.duck(0.24);
   if (water) {
     at.y = track.sample(ride.s).y - RIVER.water;
@@ -139,6 +145,7 @@ ride.on('lost', ({ at, water }) => {
 let snowmen = 0;
 ride.on('bump', ({ kind }) => {
   sfx.cue({ type: 'bump', kind });
+  pad.rumble('bump');
   chase.shake(kind === 'pin' ? 0.12 : 0.25);
   if (kind === 'snowman') {
     snowmen++;
@@ -230,6 +237,7 @@ function snap() {
 let photoTimer = 0;
 ride.on('finish', ({ time: t }) => {
   sounds.play('wave');
+  pad.rumble('cheer');
   music.finish();
   const left = CHAIR.legs - ride.missing, jumped = jumpBonus(run.jump);
   hud.finish.querySelector('.time').textContent = clock(Math.max(0, t - run.bonus));
@@ -326,6 +334,36 @@ function begin() {
   music.start();
 }
 
+// A controller (kit/gamepad.js): the left stick or the D-pad steers (up pushes, down brakes), RT pushes and tucks,
+// LT brakes, A pulls the lever, Y is a new run, View the sound. On screen, its chip, card and hints (kit/padmenu.js),
+// which also take its presses on the title, in the Hall of Fame and on the finish card.
+const pad = new GamepadInput();
+const padMenu = new PadMenu(pad, { sounds, press: 'roll',
+  controls: [['move dpad', 'steer; up pushes, down brakes'], ['rt', 'push off, then tuck in'],
+    ['lt', 'heels in the snow: brake'], ['a', 'pull the height lever: jump'], ['y', 'a new run from the top'],
+    ['view', 'sound on or off'], ['menu', 'this card']],
+  help: [['move', 'steer'], ['rt', 'push, tuck'], ['lt', 'brake'], ['a', 'the lever (jump)'], ['y', 'again'],
+    ['menu', 'more']] });
+const stick = { steer: 0, push: false, brake: false, jump: false };      // the controller this step
+function readPad(dt) {
+  pad.poll();
+  Object.assign(stick, { steer: 0, push: false, brake: false, jump: false });
+  if (!pad.connected || padMenu.update(dt)) return;
+  if (document.activeElement?.matches('input, textarea, select, [contenteditable="true"]')) return;
+  const { x, y, push } = pad.stick, d = pad.dpad;
+  const steer = THREE.MathUtils.clamp((push > 0 ? x : 0) + d.x, -1, 1);
+  const forward = push > 0 && y > 0.5 || d.y > 0 || pad.value(BUTTON.rt) > 0.5;
+  const brake = push > 0 && y < -0.5 || d.y < 0 || pad.value(BUTTON.lt) > 0.5;
+  if (pad.fresh.has(BUTTON.view)) hud.sound.click();
+  if (title.visible) {                            // A went to the title's Start (padmenu.js); the stick starts too
+    if (steer || forward || brake) title.start('move');
+    return;
+  }
+  if (pad.fresh.has(BUTTON.y)) { begin(); restart(); return; }
+  if (pad.used) begin();
+  Object.assign(stick, { steer, push: forward, brake, jump: pad.fresh.has(BUTTON.a) });
+}
+
 // The title screen (title.js): a slow shot of Mnot at the start until a key, a tap or Start. It listens after the
 // controls above, so the key or tap that starts the run isn't also a steer or a jump.
 const title = new Title({ camera, chase, track, ride, rider, scene, dom: renderer.domElement });
@@ -336,11 +374,13 @@ function intent(dt) {
   if (autopilot.on) return autopilot.intent(ride);
   if (!playing || ride.done) { input.pressed.clear(); return { steer: 0, push: false, tuck: false, brake: ride.done, jump: false }; }
   const held = (...codes) => input.held(...codes);
-  const want = THREE.MathUtils.clamp((held('KeyD', 'ArrowRight') ? 1 : 0) - (held('KeyA', 'ArrowLeft') ? 1 : 0) + touch.steer, -1, 1);
+  const want = THREE.MathUtils.clamp((held('KeyD', 'ArrowRight') ? 1 : 0) - (held('KeyA', 'ArrowLeft') ? 1 : 0) + touch.steer
+    + stick.steer, -1, 1);
   steer = THREE.MathUtils.damp(steer, want, 12, dt);
-  const forward = held('KeyW', 'ArrowUp') || touch.push;
-  const frame = { steer, push: forward, tuck: forward, brake: held('KeyS', 'ArrowDown', 'ShiftLeft', 'ShiftRight') || touch.brake,
-    jump: input.pressed.has('Space') || touch.jump };
+  const forward = held('KeyW', 'ArrowUp') || touch.push || stick.push;
+  const frame = { steer, push: forward, tuck: forward,
+    brake: held('KeyS', 'ArrowDown', 'ShiftLeft', 'ShiftRight') || touch.brake || stick.brake,
+    jump: input.pressed.has('Space') || touch.jump || stick.jump };
   input.pressed.clear();
   touch.jump = false;
   return frame;
@@ -354,6 +394,7 @@ function step(dt) {
   if (!(dt > 0)) return;
   time += dt;
   shaderTime.value = time;
+  readPad(dt);
   const want = intent(dt);
   last = want;
   scores.recorder.input(want);
@@ -437,5 +478,5 @@ startLoop({ manual, post, step, render });
 
 // for debugging and tests: window.downhill, with step(seconds, dt) and render() (kit/loop.js)
 expose('downhill', { THREE, renderer, scene, camera, post, stage, track, obstacles, chair, ride, rider, chase, mnot,
-  sounds, sfx, music, party, scores, input, title, restart, respawn, get intent() { return last; },
+  sounds, sfx, music, party, scores, input, title, restart, respawn, pad, padMenu, get intent() { return last; },
   autopilot(on = true) { autopilot.on = on; begin(); return autopilot; } }, { step, render });

@@ -1,6 +1,7 @@
 // TEMPLATE for peak/<game>/main.js: replace "mygame" and "My Game", then grow the game in its own modules. As it is
-// it runs: Mnot on a snowy shoulder of the mountain walks (WASD or arrows) to a flag, and the finish party starts.
-// The stage, the loop, the HUD's parts and the title come from the kit (peak/kit/README.md).
+// it runs: Mnot on a snowy shoulder of the mountain walks (WASD, arrows or a controller) to a flag, and the finish
+// party starts. The stage, the loop, the HUD's parts, the title and the controller come from the kit
+// (peak/kit/README.md).
 // Open mygame.html?manual to stop the loop and step it from the console (window.mygame.step), for tests;
 // mygame.autopilot(true) lets a bot play.
 import * as THREE from 'three';
@@ -16,6 +17,8 @@ import { warmUp } from '../kit/warmup.js';
 import { startLoop, expose } from '../kit/loop.js';
 import { toaster, soundSwitch } from '../kit/hud.js';
 import { confetti } from '../kit/party.js';
+import { GamepadInput, BUTTON } from '../kit/gamepad.js';
+import { PadMenu } from '../kit/padmenu.js';
 import { Title } from './title.js';
 
 const manual = new URLSearchParams(location.search).has('manual');
@@ -71,6 +74,7 @@ function finish() {
   hud.finish.querySelector('.verdict').textContent = 'Flawless. Probably.';
   hud.finish.hidden = false;
   confetti(puffs, player.pos);
+  pad.rumble('cheer');
   mnot.animator.play('Dance', 0.3);
 }
 function restart() {
@@ -85,6 +89,28 @@ addEventListener('keydown', e => {
   begin();
 });
 renderer.domElement.addEventListener('pointerdown', () => { if (!title.visible) begin(); });
+
+// a controller (kit/gamepad.js): the left stick or the D-pad walks, Y starts again, View switches the sound. On the
+// screen, its chip, card and hints (kit/padmenu.js), which also take its presses on the title and in the Hall of Fame.
+const pad = new GamepadInput();
+const padMenu = new PadMenu(pad, { sounds,
+  controls: [['move dpad', 'walk'], ['y', 'start again'], ['view', 'sound on or off'], ['menu', 'this card']],
+  help: [['move', 'walk'], ['y', 'again'], ['menu', 'more']] });
+const padKeys = new Set();                        // the keys the controller's stick and D-pad stand for, this step
+function readPad(dt) {
+  pad.poll();
+  padKeys.clear();
+  if (!pad.connected || padMenu.update(dt)) return;
+  if (pad.fresh.has(BUTTON.view)) $('sound').click();
+  pad.keys(padKeys);
+  if (title.visible) {                            // A went to the title's Start (padmenu.js); the stick starts too
+    if (padKeys.size) title.start('move');
+    return;
+  }
+  if (pad.fresh.has(BUTTON.y)) restart();
+  if (pad.used) begin();
+}
+const held = (...codes) => input.held(...codes) || codes.some(c => padKeys.has(c));
 
 // ------------------------------------------------------------------ the camera
 
@@ -107,13 +133,14 @@ function step(dt) {
   if (!(dt > 0)) return;
   time += dt;
   shaderTime.value = time;
+  readPad(dt);
   // the player: walks where the keys say (or the bot), until the flag
   const move = new THREE.Vector3();
   if (playing && !player.done) {
     if (autopilot) move.subVectors(GOAL, player.pos).setY(0);
     else {
-      move.x = (input.held('KeyA', 'ArrowLeft') ? 1 : 0) - (input.held('KeyD', 'ArrowRight') ? 1 : 0);
-      move.z = (input.held('KeyW', 'ArrowUp') ? 1 : 0) - (input.held('KeyS', 'ArrowDown') ? 1 : 0);
+      move.x = (held('KeyA', 'ArrowLeft') ? 1 : 0) - (held('KeyD', 'ArrowRight') ? 1 : 0);
+      move.z = (held('KeyW', 'ArrowUp') ? 1 : 0) - (held('KeyS', 'ArrowDown') ? 1 : 0);
     }
     if (move.lengthSq() > 1e-4) {
       move.normalize();
@@ -146,5 +173,5 @@ render();
 startLoop({ manual, post, step, render });
 
 // for debugging and tests
-expose('mygame', { THREE, renderer, scene, camera, post, stage, mnot, player, sounds, input, title, restart,
-  autopilot(on = true) { autopilot = on; begin(); } }, { step, render });
+expose('mygame', { THREE, renderer, scene, camera, post, stage, mnot, player, sounds, input, title, restart, pad,
+  padMenu, autopilot(on = true) { autopilot = on; begin(); } }, { step, render });

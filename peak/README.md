@@ -28,6 +28,21 @@ On touch screens (`touch.js`, `touch.css`; they show on a coarse pointer or the 
 | Tilt on a plank or rope | lean (A / D); let go and Mnot walks on |
 | Drag elsewhere, pinch | look around (never round to the can's back), zoom |
 
+With a controller (the mini game kit's, `peak/kit/gamepad.js`, `padmenu.js`, `pad.css`; `readPad` in `main.js`):
+
+| Button | |
+|---|---|
+| Left stick, D-pad | move, as the keys they point at (8 ways), so onwards and the lane assist work as with keys. A light push is careful steps |
+| LB | careful steps (Shift) |
+| A | jump. On the title: Start |
+| Right stick | look around (`follow.look`, after the card's Camera and Look speed) |
+| LT / RT | zoom in / out |
+| View | sound on/off |
+| Menu | the controller's card: its buttons, Camera (normal or inverted), Look speed, Rumble |
+| Y, X, B | on the title: the Hall of Fame, How to play; B closes them. On the summit's card Y climbs again, B closes it |
+
+It rumbles at a hard landing, a dent and the summit. The D-pad, B and A do the Konami code too.
+
 Phones start at pixel ratio 1 with a 1024 shadow map, and on the lowest steps redraw the sun's shadows every other
 frame (`post.js`); portrait gets a wider lens and a step back (`camera.js`).
 
@@ -166,8 +181,8 @@ each with its CSS next to it.
 
 | File | What |
 |---|---|
-| `input.js` | Keys turned into a move, relative to the camera's shot and the route (see below) |
-| `konami.js` | The Konami code on the keyboard (up up down down left right left right B A), for the party in `moments.js` |
+| `input.js` | Keys turned into a move, relative to the camera's shot and the route (see below); the touch stick and a controller (`input.gamepad`, from `main.js`) as the keys they stand for |
+| `konami.js` | The Konami code on the keyboard or a controller (up up down down left right left right B A), for the party in `moments.js` |
 | `touch.js` | Touch controls (styled in `touch.css`): the floating stick, the Jump button, finger look and pinch, touch wording, the on-screen keyboard |
 | `camera.js` | The follow camera: one shot per stretch, gliding between them; close-ups for a celebration, and its own shot for a fall |
 

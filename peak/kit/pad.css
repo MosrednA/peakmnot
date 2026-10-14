@@ -109,7 +109,7 @@ body[data-pad="nintendo"] .pg-menu { --t: "+"; --i: none; font-size: 13px; }
 body.pad #help, body.pad #touch-help, body:not(.pad) #pad-help { display: none; }
 body.pad .ts-press:not(.pad-press), body:not(.pad) .pad-press { display: none; }
 body.pad #title-howto dl:not(.pad-howto), body:not(.pad) .pad-howto { display: none; }
-body:not(.pad) .pad-only { display: none; }
+body:not(.pad) .pad-only, body.pad .key-only { display: none; }
 #pad-help { position: absolute; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateX(-50%);
   max-width: calc(100% - 136px); box-sizing: border-box; padding: 4px 12px; border-radius: 12px;
   background: rgba(255, 247, 232, 0.82); color: var(--muted); font-size: 12.5px; text-align: center; white-space: nowrap;

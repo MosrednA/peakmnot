@@ -23,6 +23,10 @@ scores: the `games` entry runs the score server with both games on port 5294 (da
 
 On a touch screen: drag on the left half to steer (up pushes, down brakes), tap the right half to jump.
 
+With a controller (the kit's, `readPad` in `main.js`): the left stick or the D-pad steers (up pushes, down brakes), RT
+pushes off and tucks in, LT brakes, A pulls the lever, Y is a new run, View the sound, Menu the controller's card.
+It rumbles at a hard landing or knock, a lost wheel, a fall and the finish.
+
 ## The rules
 
 - The clock starts at the gate (12 m down) and runs to the finish line at 1055 m, also while the chair is out after

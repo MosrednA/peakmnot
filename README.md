@@ -33,6 +33,12 @@ dents back out. The fastest climbs go on the Hall of Fame.
 On a phone or tablet: a stick under your left thumb (wherever it lands; a light thumb or small push is careful steps, a
 fuller push runs), the round Jump button on the right, drag to look and pinch to zoom.
 
+With a controller (Xbox, PlayStation or Switch): the left stick or the D-pad moves (a light push is careful steps, as
+is LB), A jumps, the right stick looks around, the triggers zoom, View switches the sound, and Menu opens a card with
+the buttons and the settings (camera, look speed, rumble). A small controller chip in the corner shows it's
+connected, and the hints show its buttons. The sound still wants one click or key: browsers don't let a controller
+start it.
+
 Loose ledges crumble shortly after you land on them, so don't stop there. On ice Mnot keeps sliding: small taps steer
 best. Wind gaps blow on a steady beat, and the windsock tells you when. The full rules are in
 [peak/README.md](peak/README.md).
