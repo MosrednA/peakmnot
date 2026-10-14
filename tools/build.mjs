@@ -33,7 +33,7 @@ const PAGES = [
   'index.html',
 ];
 // Linked from the pages by name, copied as they are
-const FILES = ['favicon.png', 'favicon.ico', 'share.jpg', 'manifest.webmanifest', 'models/mnot.glb'];
+const FILES = ['favicon.png', 'favicon.ico', 'share.jpg', 'share-downhill.jpg', 'manifest.webmanifest', 'models/mnot.glb'];
 // What the score server serves from assets/ (HASHED in server/peak_scores.py): a name, esbuild's hash, a type
 const TYPES = ['js', 'css', 'm4a', 'mp3', 'wav', 'jpg'];
 const SERVED = new RegExp(`^assets/[a-z0-9_-]+-[A-Z2-7]{8}\\.(${TYPES.join('|')})$`);

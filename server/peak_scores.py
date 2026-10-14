@@ -37,7 +37,7 @@ import verify                       # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = Path(os.environ.get("SITE_DIR") or ROOT).resolve()     # what --static serves: the repository, or a build
-STATIC = re.compile(r"^/((" + "|".join(games.NAMES) + r")\.html|sounds\.js|music\.js|favicon\.(png|ico)|share\.jpg|"
+STATIC = re.compile(r"^/((" + "|".join(games.NAMES) + r")\.html|sounds\.js|music\.js|favicon\.(png|ico)|share(-[a-z]+)?\.jpg|"
                     r"manifest\.webmanifest|peak/([a-z]+/)?[a-z0-9_-]+\.(js|css|jpg)|models/mnot\.glb|"
                     r"audio/([a-z]+/)?[a-z0-9_-]+\.(wav|mp3|m4a)|audio/music/[a-z0-9_-]+\.mp3)$")
 # the pages: the first game's at /, every other game's at /<game> too, the page of all the games at /games and the

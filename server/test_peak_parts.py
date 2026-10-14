@@ -106,7 +106,8 @@ class StaticFiles(unittest.TestCase):
         self.assertEqual(self.server.request("GET", "/peak/main.js").status, 200)
         self.assertEqual(self.server.request("HEAD", "/peak/scores/scores.css").status, 200)
         for path, kind in (("/favicon.png", "image/png"), ("/favicon.ico", "image/x-icon"),
-                           ("/manifest.webmanifest", "application/manifest+json"), ("/share.jpg", "image/jpeg")):
+                           ("/manifest.webmanifest", "application/manifest+json"), ("/share.jpg", "image/jpeg"),
+                           ("/share-downhill.jpg", "image/jpeg")):
             icon = self.server.request("GET", path)
             self.assertEqual((icon.status, icon.headers["Content-Type"]), (200, kind), path)
 

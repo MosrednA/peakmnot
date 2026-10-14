@@ -44,6 +44,7 @@ do what it does.
 | `server/<game>.py`, `server/<game>.json` | Its high scores' checker and route (step 6) |
 | `peak/<game>/viewer.js` | Its tab in the animation viewer (`index.html`, live at `/viewer`): Mnot with what the game adds (the chair, the moves, the party), and a line in `GAMES` in `peak/viewer/tabs.js`. The downhill's is the example |
 | `peak/<game>/analytics.js` | Its Plausible goals, each named `<Game>: <goal>` so a game's goals stay together, the tracker in the page's head, and the goals added in Plausible by hand ([peak/README.md](../../../peak/README.md#analytics)). The downhill's is the example, `tools/check_downhill_analytics.mjs` its check |
+| `share-<game>.jpg` | Its link preview (Slack, Discord, WhatsApp): the title screen at 1200 x 630, a JPEG, with the logo, Mnot clear of it, and the tagline in place of the menu, linked from the page's `og:` and `twitter:` tags (the template has them), in `FILES` in `tools/build.mjs` and in the server test's list of plain files. The climb's `share.jpg` and the downhill's are the examples |
 | `games.html`, `peak/games/<game>.jpg` | Its card on the page of all the games (`/games`), in place of the "?" card or before it, and its shot from about a quarter of the way in (800 x 500, a JPEG, never the title or the finish: no spoilers) in `THUMBS` in `peak/games/main.js` |
 
 **Every new game updates the page of all the games and the viewer**: a card and a shot on `games.html`, a tab in the
@@ -116,7 +117,9 @@ Development needs no build: the page loads the modules as they are, three.js fro
 `npm run build` (`tools/build.mjs`): one line in `PAGES` gives the page its own bundle, shared chunks and its CSS in
 one file. Load every file from code with `new URL('…', import.meta.url)` so the build finds, hashes and copies it;
 a file the page links by name goes in `FILES`. Check the built page: serve `dist/` with
-`SITE_DIR=dist python server/peak_scores.py --static --port <free port>` and open `/<game>`.
+`SITE_DIR=dist python server/peak_scores.py --static --port <free port>`, open `/<game>` and start a run: the server
+takes it (201) only when the built page's route fingerprint is its own. The build renames functions and classes, so
+never take data from a `.name` (the downhill's office did, and its live board took no runs until f3f5e8d).
 
 ## 8. Performance
 
