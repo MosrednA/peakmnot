@@ -213,6 +213,16 @@ export class Chair {
     }
   }
 
+  // The casters as on says (on[i]: is caster i there?), at once and none flying in: a replay's jump in time.
+  setWheels(on) {
+    this.casters.forEach((c, i) => {
+      c.gone = !on[i];
+      c.fly = null;
+      c.swivel.position.copy(c.home);
+      c.swivel.scale.setScalar(1);
+    });
+  }
+
   // A fresh caster on its way in: from out past its leg, spinning, faster and faster, then the pop as it snaps on.
   refit(c, dt) {
     c.fly += dt;

@@ -257,12 +257,14 @@ class Handler(BaseHTTPRequestHandler):
 
 class App:
     def __init__(self, data_dir, keys, origins, trusted, static=False, route=None, clock=None, quiet=False,
-                 downhill_route=None):
-        """route, downhill_route: a game's route instead of its file's (tests)."""
+                 downhill_route=None, levels=None):
+        """route, downhill_route: a game's route instead of its file's; levels: the games' other levels, as
+        games.load() takes them (tests)."""
         self.db = Database(Path(data_dir) / "peak.sqlite3")
         kwargs = {"clock": clock} if clock else {}
         self.store = Store(self.db, keys, **kwargs)                 # the climb's; .for_game() for another's
-        self.games = {game.name: game for game in games.load(peak_route=route, downhill_route=downhill_route)}
+        self.games = {game.name: game for game in games.load(peak_route=route, downhill_route=downhill_route,
+                                                             levels=levels)}
         for game in self.games.values():
             self.store.for_game(game.name).house(game.house)
         self.route = self.games["peak"].route
@@ -301,7 +303,9 @@ def main(argv=None):
     p.add_argument("--showcase", metavar="FILE", help="check a recorded climb's replay JSON ('-' for stdin) and keep "
                    "it to be played by link only, never on the board; prints the link's id")
     p.add_argument("--as", dest="name", metavar="NAME", help="the fixture's name (climb), or the showcased climber's")
-    p.add_argument("--game", default="peak", choices=games.NAMES, help="whose run --reverify and --fixture mean")
+    boards = [games.board_name(name, level) for name in games.NAMES for level in ("", *games.LEVELS[name])]
+    p.add_argument("--game", default="peak", choices=boards, help="whose run --reverify and --fixture mean "
+                   "(a game, or a level of one: downhill-<level>)")
     args = p.parse_args(argv)
     data_dir = Path(os.environ.get("DATA_DIR") or ROOT / "data")
     dev = ",".join(f"http://{host}:{port}" for port in (5280, 5293) for host in ("127.0.0.1", "localhost"))

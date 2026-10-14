@@ -8,9 +8,26 @@ A new game is:
 - a Game in load() below, with its house records and any words of its own;
 - its page, <game>.html, which peak_scores.py serves at /<game> once the name is in NAMES;
 - in the page, peak/scores/scores.js's createRun() and createBoard() for /api/<game>/.
-"""
 
-NAMES = ("peak", "downhill")        # the first is the one at /
+Every game is made for more than one level, even while it has one. A level is a board of its own: its runs, its
+replays and its route, under /api/<game>-<level>/ (board_name()), checked by the game's checker against its own route
+file, server/<game>-<level>.json (export_route.py <game> <level>). The first level is the game itself, /api/<game>/,
+so a game keeps its board when it grows a second level. A level is in LEVELS; the page picks it from ?level=
+(peak/kit/levels.js). The player, and their name, are the same in every game and every level.
+"""
+import re
+from pathlib import Path
+
+NAMES = ("peak", "downhill")        # the games' pages; the first is the one at /
+# Each game's levels after its first: ids of a-z and 0-9, in the order the game offers them.
+LEVELS = {"peak": (), "downhill": ()}
+LEVEL = re.compile(r"^[a-z0-9]{1,16}$")
+HERE = Path(__file__).resolve().parent
+
+
+def board_name(game, level=""):
+    """The board of a game's level on the server: the game's own name for the first level."""
+    return f"{game}-{level}" if level else game
 
 # (id, name, quip, time ms, falls, dents): slow, silly runs, so a fresh board isn't empty and any real run beats
 # them. Nobody can claim one, improve it or take its name (store.py). The climb's came with db.py's migration 2.
@@ -70,27 +87,51 @@ class Game:
     finish). verify(route, replay, claim, splits): None for a good run, else a checks.Rejection; raises
     checks.Malformed for a replay that isn't one. speed: m/s, the most the game goes, for the jokes. claim: the
     numbers the finish sends; time, falls and dents go on the board, and a game with time off the clock sends the
-    clock too. perf: the climb's ?perf runs (perf.py) go to /api/<game>/perf."""
+    clock too. perf: the climb's ?perf runs (perf.py) go to /api/<game>/perf. replay: what GET .../replay/ID
+    gives of a run's replay, for its ghost and its watching (peak/replays/). page, level: the game and which of its
+    levels this board is ('' for the first); name is board_name(page, level)."""
 
     def __init__(self, name, route, verify, speed, house=(), words=None, claim=("time", "falls", "dents"),
-                 perf=False):
+                 perf=False, replay=("v", "route", "phase", "samples", "events"), page=None, level=""):
         self.name, self.route, self.verify, self.speed = name, route, verify, speed
         self.house, self.words, self.claim, self.perf = tuple(house), words or {}, tuple(claim), perf
+        self.replay, self.page, self.level = tuple(replay), page or name, level
 
     def clock_ms(self, claim):
         """The game's clock at the finish, for the wall-clock checks: the board's time unless time came off it."""
         return claim.get("clock", claim["time"])
 
+    def at_level(self, level, route, speed):
+        """This game's board for another of its levels: the same checks, words and house records, its own route."""
+        return Game(board_name(self.page, level), route, self.verify, speed, house=self.house, words=self.words,
+                    claim=self.claim, replay=self.replay, page=self.page, level=level)
 
-def load(peak_route=None, downhill_route=None):
-    """Every game, its route loaded (or the one given, for tests), in NAMES' order."""
+
+def load(peak_route=None, downhill_route=None, levels=None):
+    """Every game, its route loaded (or the one given, for tests), in NAMES' order, then each game's other levels:
+    LEVELS' with their route files, or levels, {game: {level: route}}, for tests."""
     import downhill
     import route
     import verify
     peak = peak_route or route.Route.load()
     hill = downhill_route or downhill.Route.load()
-    return [
+    first = [
         Game("peak", peak, verify.verify, peak.run_speed, house=PEAK_HOUSE, perf=True),
+        # the rider's legs and lean follow the keys (heels down to brake, tucked in), so its ghost needs them
         Game("downhill", hill, downhill.verify, hill.top_speed, house=DOWNHILL_HOUSE, words=DOWNHILL_WORDS,
-             claim=("time", "clock", "bonus", "falls", "dents")),
+             claim=("time", "clock", "bonus", "falls", "dents"),
+             replay=("v", "route", "phase", "samples", "events", "inputs")),
     ]
+    routes = {"peak": (route.Route, "run_speed"), "downhill": (downhill.Route, "top_speed")}
+    out = list(first)
+    for game in first:
+        kind, speed = routes[game.name]
+        if levels is None:
+            more = {level: kind.load(HERE / f"{board_name(game.name, level)}.json") for level in LEVELS[game.name]}
+        else:
+            more = levels.get(game.name, {})
+        for level, its in more.items():
+            if not LEVEL.fullmatch(level):
+                raise ValueError(f"{game.name}: a level is a-z and 0-9, at most 16: {level!r}")
+            out.append(game.at_level(level, its, getattr(its, speed)))
+    return out

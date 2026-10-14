@@ -55,11 +55,11 @@ class Reply:
 class Server:
     """The score server in a temp folder, on a free port."""
 
-    def __init__(self, route, static=False, downhill_route=None):
+    def __init__(self, route, static=False, downhill_route=None, levels=None):
         self.tmp = tempfile.TemporaryDirectory()
         self.clock = Clock()
         self.app = App(self.tmp.name, [b"k" * 32], [ORIGIN], networks("127.0.0.1/32"), static=static, route=route,
-                       clock=self.clock, quiet=True, downhill_route=downhill_route)
+                       clock=self.clock, quiet=True, downhill_route=downhill_route, levels=levels)
         self.httpd = self.app.serve("127.0.0.1", 0)
         self.port = self.httpd.server_address[1]
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()

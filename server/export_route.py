@@ -4,6 +4,8 @@ per line, so a diff shows what changed) and stops.
 
     python -X utf8 server/export_route.py              # the climb: server/route.json, from peak/scores/routedata.js
     python -X utf8 server/export_route.py downhill     # server/downhill.json, from peak/downhill/routedata.js
+    python -X utf8 server/export_route.py downhill ice # a level of it (games.py's LEVELS): server/downhill-ice.json,
+                                                       # from downhill.html?level=ice&manual
 """
 import json
 import secrets
@@ -30,8 +32,12 @@ def write(route, path=OUT):
     path.write_text("{\n" + ",\n".join(lines) + "\n}\n", encoding="utf-8", newline="\n")
 
 
-def main(game="peak", port=5289):
+def main(game="peak", port=5289, level=""):
     out, needed, page, export = GAMES[game]
+    if level:                                       # another level: its own file, the page asked for it
+        out, page = HERE / f"{game}-{level}.json", f"{page}?level={level}&"
+    else:
+        page += "?"
     ticket = secrets.token_urlsafe(12)
     done = {}
 
@@ -63,7 +69,7 @@ def main(game="peak", port=5289):
             pass
 
     server = HTTPServer(("127.0.0.1", port), Handler)
-    print(f"Paste this into the console of http://127.0.0.1:5280/{page}?manual :\n")
+    print(f"Paste this into the console of http://127.0.0.1:5280/{page}manual :\n")
     print(f"fetch('http://127.0.0.1:{port}/route?ticket={ticket}', {{ method: 'POST', body: JSON.stringify("
           f"await {export}) }})"
           f".then(r => console.log(r.status))\n")
@@ -75,4 +81,5 @@ def main(game="peak", port=5289):
 if __name__ == "__main__":
     args = sys.argv[1:]
     name = args.pop(0) if args and args[0] in GAMES else "peak"
-    main(name, int(args[0]) if args else 5289)
+    level = args.pop(0) if args and not args[0].isdigit() else ""
+    main(name, int(args[0]) if args else 5289, level)

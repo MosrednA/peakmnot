@@ -2,7 +2,8 @@
 // the frame loop and the HUD's moving parts with the mini game kit (peak/kit/), wires the piste, the chair, its
 // physics, Mnot and the camera together, and runs the HUD and the controls. The physics steps at a fixed 120 Hz.
 // Open downhill.html?manual to stop the loop and step it from the console (window.downhill.step), for tests;
-// downhill.autopilot(true) lets a bot ride.
+// downhill.autopilot(true) lets a bot ride. ?ghost=ID races a run from the Hall of Fame, ?replay=ID watches one
+// (playback.js); ?level= picks the level (kit/levels.js).
 import * as THREE from 'three';
 import { MnotSounds } from '../../sounds.js';
 import { buildScenery } from '../look/scenery.js';
@@ -31,10 +32,25 @@ import { Party } from './party.js';
 import { createScores } from './scores.js';
 import { Title } from './title.js';
 import { hookAnalytics } from './analytics.js';
+import { Recording, Driver, Ghost, validate } from './playback.js';
+import { routeFingerprint } from './routedata.js';
+import { ReplayController } from '../replays/controller.js';
+import { apiBase } from '../scores/scores.js';
+import { pickLevel } from '../kit/levels.js';
 
 const params = new URLSearchParams(location.search);
 const manual = params.has('manual');
 const STEP = 1 / 120;
+// The downhill's levels (kit/levels.js): one mountain so far. A level is a board, route and replays of its own.
+const LEVELS = [''];
+const level = pickLevel(LEVELS);
+// the Hall of Fame's Race ghost (?ghost=ID) and Watch run (?replay=ID); a link with both is an error to show
+const hasGhost = params.has('ghost'), hasReplay = params.has('replay');
+const replayRoute = hasGhost || hasReplay ? {
+  mode: hasGhost && hasReplay ? 'invalid' : hasReplay ? 'replay' : 'ghost',
+  id: hasGhost && hasReplay ? '' : params.get(hasReplay ? 'replay' : 'ghost'),
+} : null;
+const watching = !!replayRoute && replayRoute.mode !== 'ghost';    // no run of its own: no scores, stats or keys
 
 // The shadows reach from just behind the camera to about 50 m down the run (stage.aimSun, in step()), so a tree's
 // comes in far off, not as the chair gets to it; the bias is the same 5 cm as over the old, shorter range.
@@ -66,7 +82,7 @@ const sfx = new DownhillSfx(sounds);              // the chair's own sounds, thr
 const music = new DownhillMusic(sounds);          // the climb's tune, a little faster
 const party = new Party();                        // the finish party, once the chair has stopped past the line
 // the high scores: the run recorded from the gate, checked by the server at the finish (scores.js)
-const scores = createScores({ ride, track, obstacles, manual, again: () => { restart(); begin(); } });
+const scores = createScores({ ride, track, obstacles, manual, level, watching, again: () => { restart(); begin(); } });
 const input = new Input();
 const puffs = obstacles.puffs;
 
@@ -181,8 +197,12 @@ function bonus(seconds, what) {
 }
 
 obstacles.pins.onScore = down => {
-  run.pins = down;
+  if (watching) return;                           // a watched run bowls as it was recorded (watcher(), below)
   scores.recorder.event('bowl', down);
+  bowled(down);
+};
+function bowled(down) {
+  run.pins = down;
   sfx.cue({ type: 'bowling', down });
   const pins = pinsBonus(down);
   if (pins > run.bowled) { bonus(pins - run.bowled, down === 10 ? 'strike' : 'spare'); run.bowled = pins; }
@@ -190,7 +210,7 @@ obstacles.pins.onScore = down => {
   else if (down >= 7) toast('Spare!', `${down} of 10. So close.`, 'checkpoint');
   else if (down > 0) toast(`${down} of 10.`, 'The rest are still sitting.', 'oops');
   else toast('Gutter ball.', 'The knock-offs live on.', 'oops');
-};
+}
 ride.on('flight', ({ distance: metres }) => {
   const distance = Math.round(metres * 100) / 100;    // to the cm, as the server has it
   const had = jumpBonus(run.jump);
@@ -273,11 +293,15 @@ function throwPaper() {
 // back on the snow at the last pit stop (or the start), with fresh wheels and every snowman stood up again
 function respawn() {
   respawnAt = -1;
+  ride.reset(ride.checkpoint, { wheels: true });
+  scores.recorder.respawned();
+  putBack();
+}
+// what a respawn sets right besides the ride (a watched run's ride is put back by its recording)
+function putBack() {
   party.reset();
   sfx.reset();
   music.duck(1);
-  ride.reset(ride.checkpoint, { wheels: true });
-  scores.recorder.respawned();
   chair.fix();
   obstacles.reset();
   chase.snap(ride);
@@ -304,7 +328,7 @@ function restart() {
 
 const touch = { steer: 0, push: false, brake: false, jump: false, pointer: null };
 renderer.domElement.addEventListener('pointerdown', e => {
-  if (title.visible) return;                                 // a tap on the title only starts the run (title.js)
+  if (title.visible || watching) return;                     // a tap on the title only starts the run (title.js)
   begin();
   if (e.clientX < innerWidth / 2) touch.pointer = { id: e.pointerId, x: e.clientX, y: e.clientY };
   else touch.jump = true;
@@ -323,7 +347,7 @@ const release = e => {
 renderer.domElement.addEventListener('pointerup', release);
 renderer.domElement.addEventListener('pointercancel', release);
 addEventListener('keydown', e => {
-  if (title.visible) return;                                 // the title has the keys until the run starts
+  if (title.visible || watching) return;                     // the title has the keys until the run starts
   if (e.target.closest?.('input, textarea')) return;         // a name for the board
   if (e.code === 'KeyR' && !e.repeat) { begin(); restart(); }
   else if (!e.ctrlKey && !e.metaKey && !e.altKey) begin();
@@ -360,6 +384,7 @@ function readPad(dt) {
     if (steer || forward || brake) title.start('move');
     return;
   }
+  if (watching) return;
   if (pad.fresh.has(BUTTON.y)) { begin(); restart(); return; }
   if (pad.used) begin();
   Object.assign(stick, { steer, push: forward, brake, jump: pad.fresh.has(BUTTON.a) });
@@ -369,7 +394,7 @@ function readPad(dt) {
 // controls above, so the key or tap that starts the run isn't also a steer or a jump.
 const title = new Title({ camera, chase, track, ride, rider, scene, dom: renderer.domElement });
 title.on('start', () => begin());
-hookAnalytics({ title, ride, pits: FEATURES.pits, manual });
+if (!watching) hookAnalytics({ title, ride, pits: FEATURES.pits, manual });
 
 let steer = 0;
 function intent(dt) {
@@ -388,6 +413,69 @@ function intent(dt) {
   return frame;
 }
 
+// ------------------------------------------------------------------ the Hall of Fame's ghost and replay
+
+// Watching a run (?replay=ID): the controls (peak/replays/controller.js) move the run's clock, and the driver
+// (playback.js) the page's own chair along the recording, telling the ride's events as they happened, so the sounds,
+// puffs, toasts and the finish card are the live game's. Past the finish, the physics roll it out, heels down, for
+// the party. Racing (?ghost=ID): a see-through chair on the recording, at the player's clock.
+let replays = null, watch = null, ghost = null;
+const RUN_OUT = { steer: 0, push: false, tuck: false, brake: true, jump: false };
+if (replayRoute) {
+  replays = new ReplayController({ mode: replayRoute.mode, id: replayRoute.id, scene, title,
+    api: apiBase(location, 'downhill', level), fingerprint: routeFingerprint({ track, obstacles }), validate,
+    createActor: async ({ replay, ghost: race }) => race
+      ? ghost = await Ghost.create({ replay, track, obstacles, scene }) : watch = watcher(replay),
+    snap: () => chase.snap(ride), done: () => ride.done,
+    isRunActive: () => replays?.mode === 'ghost' && replays.ready && !title.visible && !ride.done,
+    words: { ready: 'Start rolling when you’re ready.', finished: clock => `Finish · ${clock} on the clock`,
+      leave: 'Leave this run? Your current run will be lost.' } });
+  if (replayRoute.mode === 'ghost') {
+    // the clean title start, but no race before its ghost has loaded and been checked
+    const startTitle = title.start.bind(title);
+    title.start = (how = 'key') => {
+      if (!replays.ready) { replays.status.textContent = 'Wait for the ghost to load before starting.'; return; }
+      startTitle(how);
+    };
+  }
+}
+
+// The page's own chair along a recorded run: the controls' actor.
+function watcher(replay) {
+  const recording = new Recording(replay);
+  const driver = new Driver(recording, ride, (name, data) => {
+    if (name === 'respawn') putBack();
+    else if (name === 'bowl') bowled(data.down);
+    else if (name !== 'space') ride.emit(name, data);
+  }, { knock: true });
+  return { recording, driver, duration: recording.end, phase: 0, root: chair.root, dispose() {},
+    seek(t) { if (driver.to(t) === 'seek') rewind(driver, t); } };
+}
+
+// After a jump in the watched run: the scene as it was at t. Its wheels, the props knocked over since its last spill,
+// the time off the clock so far, no card or party up, and the tune back on if it had finished.
+function rewind(driver, t) {
+  driver.knockTo(t);
+  chair.setWheels(ride.wheels);
+  respawnAt = -1;
+  party.reset();
+  sfx.reset();
+  if (!ride.done) {
+    hud.finish.hidden = true;
+    if (music.scene === 'finished') { music.reset(); music.start(); }
+  }
+  hud.bonus.hidden = hud.photo.hidden = true;
+  bonusTimer = photoTimer = 0;
+  let pins = -1, jump = 0, bowled = 0;
+  for (const [at, name, arg] of driver.recording.events) {
+    if (at > t * 1000) break;
+    if (name === 'bowl') { pins = arg; bowled = Math.max(bowled, pinsBonus(arg)); }
+    if (name === 'flight') jump = Math.max(jump, arg / 100);
+  }
+  Object.assign(run, { pins, jump, bowled, bonus: bowled + jumpBonus(jump), photo: jump ? run.photo : null,
+    snapAt: false });
+}
+
 // ------------------------------------------------------------------ the loop
 
 const feet = [new THREE.Vector3(), new THREE.Vector3()], _spray = new THREE.Vector3(), _kick = new THREE.Vector3();
@@ -397,13 +485,21 @@ function step(dt) {
   time += dt;
   shaderTime.value = time;
   readPad(dt);
-  const want = intent(dt);
+  // a watched run: the controls move its clock (playing, paused, 2×, a jump) and the chair with it; the scene moves
+  // on by the run's own time (none while it's paused), and past the finish by the frame's
+  const from = replays?.time ?? 0;
+  if (watching) replays.update(dt, { gameTime: ride.time });
+  const ended = !!watch && replays.time >= replays.duration && !replays.playing;
+  const vdt = watch && !ended ? Math.max(0, replays.time - from) : dt;
+  const want = watch ? ended ? RUN_OUT : watch.recording.intent(replays.time) : intent(dt);
   last = want;
-  scores.recorder.input(want);
+  if (!watching) scores.recorder.input(want);
   // the physics at a fixed rate; a jump only on the first of the steps. Until the player starts, the chair waits at
   // the top (on a slope, it would roll off under the title), the seat swivelling lazily under an idling Mnot.
   const steps = Math.max(1, Math.round(dt / STEP));
-  if (playing || autopilot.on) {
+  if (watching) {
+    if (ended) for (let i = 0; i < steps; i++) ride.step(dt / steps, want);
+  } else if (playing || autopilot.on) {
     for (let i = 0; i < steps; i++) {
       ride.step(dt / steps, i === 0 ? want : { ...want, jump: false });
       scores.recorder.step();
@@ -414,25 +510,31 @@ function step(dt) {
     ride.seatYaw = waitYaw + 0.14 * Math.sin(time * 0.8) * Math.min(1, time / 2);
   }
   title.update(dt);                               // on the title: the seat's turn and Mnot's act
-  if (respawnAt >= 0 && time >= respawnAt) respawn();
+  if (!watching && respawnAt >= 0 && time >= respawnAt) respawn();
   scores.update();
+  // the ghost, at the player's clock (from the gate; at the gate while the title is up)
+  if (replays?.mode === 'ghost') {
+    replays.update(dt, { gameTime: ride.time, titleVisible: title.visible });
+    ghost?.update(dt);
+  }
   // the finish party poses the seat, the lift and a hop of the whole chair on top of the physics
-  const dance = party.update(dt, ride, camera, music.loopTime());
+  const dance = party.update(vdt, ride, camera, music.loopTime());
   if (dance) {
     Object.assign(ride, { seatYaw: dance.yaw, seatL: 0, lift: dance.lift, liftVel: 0 });
     if (dance.paper) throwPaper();
     if (dance.landed) rider.land(dance.landed);
   }
   rider.party = dance;
-  rider.update(dt, ride, want);
-  chair.pose(ride, dt);
+  rider.update(vdt, ride, want);
+  chair.pose(ride, vdt);
   if (dance) chair.root.position.y += dance.hop;
   // the party's spins creak the swivel (the ride's own spin stays still under it)
-  sfx.update({ active: playing && !ride.out && (!ride.done || !!dance), speed: dance ? 0 : ride.speed,
+  sfx.update({ active: (playing || watching && vdt > 0) && !ride.out && (!ride.done || !!dance),
+    speed: dance ? 0 : ride.speed,
     grounded: ride.grounded, surface: ride.under.surface, brake: rider.brake, spin: dance ? dance.spin : ride.seatSpin,
     missing: ride.missing });
   // heels in the snow: a fine spray off each foot, flying on with the chair
-  spray += dt;
+  spray += vdt;
   if (rider.brake > 0.5 && ride.grounded && ride.speed > 1.5 && spray > 1 / 30) {
     spray = 0;
     chair.root.updateMatrixWorld(true);
@@ -449,7 +551,7 @@ function step(dt) {
       }
     }
   }
-  obstacles.update(dt, ride.s);
+  obstacles.update(vdt, ride.s);
   chase.update(dt, ride);
   title.place(dt);
   stage.aimSun(ride.pos);
@@ -469,7 +571,9 @@ function step(dt) {
 
 ride.reset(FEATURES.pits[0], { wheels: true });
 chase.snap(ride);
-if (!manual) { title.show(); music.start(); }     // the tune plays under the title once the sound is unlocked
+if (!manual && !watching) { title.show(); music.start(); }   // the tune plays under the title once it's unlocked
+if (!replayRoute && !manual && params.has('hall')) scores.board?.openHall();   // back from a replay (controller.js)
+replays?.load();
 step(1 / 60);
 
 // Every shader built now, behind the preloader, not on the way down where each one is a hitch (kit/warmup.js): the
@@ -480,5 +584,6 @@ startLoop({ manual, post, step, render });
 
 // for debugging and tests: window.downhill, with step(seconds, dt) and render() (kit/loop.js)
 expose('downhill', { THREE, renderer, scene, camera, post, stage, track, obstacles, chair, ride, rider, chase, mnot,
-  sounds, sfx, music, party, scores, input, title, restart, respawn, pad, padMenu, get intent() { return last; },
+  sounds, sfx, music, party, scores, input, title, restart, respawn, pad, padMenu, replays,
+  get watch() { return watch; }, get ghost() { return ghost; }, get intent() { return last; },
   autopilot(on = true) { autopilot.on = on; begin(); return autopilot; } }, { step, render });

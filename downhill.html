@@ -28,6 +28,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="peak/scores/scores.css">
+<link rel="stylesheet" href="peak/replays/replay.css">
 <link rel="stylesheet" href="peak/ui/title.css">
 <link rel="stylesheet" href="peak/ui/preload.css">
 <link rel="preload" href="models/mnot.glb" as="fetch" crossorigin>
@@ -71,6 +72,29 @@
   .dh-tag b { color: var(--red); }
   @media (max-width: 560px) { .print img { width: 140px; height: 105px; } #finish .snap img { width: 150px; height: 112px; }
     .dh-tag { font-size: 13px; } }
+  /* Watching a run from the Hall of Fame (peak/replays/replay.css hides the climb's live HUD): the downhill keeps
+     its clock, speed and wheels, the sound and the toasts, which tell the run's story; the finish card and the photo
+     sit above the replay's controls, and there's no riding again from the card. */
+  body.replay-watch #title { display: block !important; }
+  body.replay-watch #sound { display: inline-block !important; }
+  body.replay-watch #toast { display: flex !important; }
+  body.replay-watch #finish, body.replay-watch #photo { bottom: calc(120px + env(safe-area-inset-bottom)); }
+  body.replay-watch #finish .again { display: none; }
+  /* Racing a ghost: on the title, its chip and status go under the downhill's taller logo (1.8em) and the price tag
+     (the climb's go under its one line), and on a landscape screen, where Mnot's head is right under the tag, into
+     the top right corner, beside MNOT. */
+  .replay-ui--race { --under-tag: calc(5.5vh + 1.8 * clamp(56px, 11vw, 124px) + 44px + env(safe-area-inset-top)); }
+  body.title-up .replay-ui--race .replay-top { top: var(--under-tag); }
+  body.title-up .replay-ui--race .replay-status { top: calc(var(--under-tag) + 44px); }
+  body.title-up .replay-ui--race .replay-back-game { top: calc(var(--under-tag) + 84px); }
+  @media (min-aspect-ratio: 1/1) and (min-height: 521px) {
+    body.title-up .replay-ui--race :is(.replay-top, .replay-status, .replay-back-game) {
+      left: auto; right: calc(16px + env(safe-area-inset-right)); transform: none; }
+    body.title-up .replay-ui--race .replay-top { top: calc(12px + env(safe-area-inset-top)); }
+    body.title-up .replay-ui--race .replay-status { top: calc(56px + env(safe-area-inset-top)); text-align: right; }
+    body.title-up .replay-ui--race .replay-back-game { top: calc(96px + env(safe-area-inset-top)); }
+  }
+  @media (max-height: 520px) { body.title-up .replay-ui--race .replay-status { display: none; } }
 </style>
 </head>
 <body class="preloading">
@@ -126,7 +150,7 @@
     <div class="wheels"></div>
     <div class="verdict"></div>
     <div class="snap print" hidden><img alt="Mnot in the air off the ski jump"><div>Smile!</div></div>
-    <div><kbd class="key-only">R</kbd><i class="pg pg-y pad-only"></i> ride again</div>
+    <div class="again"><kbd class="key-only">R</kbd><i class="pg pg-y pad-only"></i> ride again</div>
   </div>
   <div id="photo" class="print" hidden><img alt="Mnot in the air off the ski jump"><div>Smile!</div></div>
   <div id="flash"></div>

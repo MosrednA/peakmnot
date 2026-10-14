@@ -23,15 +23,19 @@ import { Title } from './ui/title.js';
 import { Touch } from './controls/touch.js';
 import { Moments } from './mnot/moments.js';
 import { onKonami } from './controls/konami.js';
-import { createScores } from './scores/scores.js';
+import { createScores, apiBase } from './scores/scores.js';
 import { hookAnalytics } from './analytics.js';
 import { ReplayController } from './replays/controller.js';
 import { GamepadInput, BUTTON } from './kit/gamepad.js';
 import { PadMenu } from './kit/padmenu.js';
+import { pickLevel } from './kit/levels.js';
 
 const params = new URLSearchParams(location.search);
 const perf = params.has('perf');               // the perf probe (dev/perf.js) drives the game, as tests do
 const manual = params.has('manual') || perf;
+// The climb's levels (kit/levels.js): one mountain so far. A level is a board, route and replays of its own.
+const LEVELS = [''];
+const level = pickLevel(LEVELS);
 const hasGhost = params.has('ghost'), hasReplay = params.has('replay');
 const replayRoute = hasGhost || hasReplay ? {
   mode: hasGhost && hasReplay ? 'invalid' : hasReplay ? 'replay' : 'ghost',
@@ -86,7 +90,7 @@ const moments = new Moments({ player, game, world, weather, title, hud, camera, 
   model: mnot.model });
 const konami = replayRoute?.mode !== 'replay' ? onKonami(() => moments.startParty()) : null;   // none in the spectator
 const replayIsReadOnly = replayRoute && replayRoute.mode !== 'ghost';
-const scores = createScores({ player, game, world, manual, replayMode: replayIsReadOnly });   // watched/invalid routes never record or post scores
+const scores = createScores({ player, game, world, manual, replayMode: replayIsReadOnly, level });   // watched/invalid routes never record or post scores
 if (!replayIsReadOnly) hookAnalytics({ title, game, player, manual });
 // a controller (kit/gamepad.js), read once a step by readPad(); on screen, its chip, card and hints (kit/padmenu.js)
 const pad = new GamepadInput();
@@ -104,6 +108,7 @@ follow.snap(player, world);
 let replays = null;
 if (replayRoute) {
   replays = new ReplayController({ mode: replayRoute.mode, id: replayRoute.id, scene, world, player, game, follow, title,
+    api: apiBase(location, 'peak', level),
     isRunActive: () => replays?.mode === 'ghost' && replays.ready && !title.visible && !game.done });
   if (replayRoute.mode === 'replay') {
     input.setEnabled(false);

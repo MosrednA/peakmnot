@@ -7,6 +7,7 @@
 import { Recorder } from './replay.js';
 import { routeFingerprint } from './routedata.js';
 import { Leaderboard } from './leaderboard.js';
+import { boardName } from '../kit/levels.js';
 
 const STORE = 'peakmnot.player';     // { id, secret, name } once the server has given this browser a player, in
                                      // every game: the server knows one player by the same name in all of them
@@ -16,10 +17,11 @@ const sleep = t => new Promise(resolve => setTimeout(resolve, t));
 const hex = buffer => [...new Uint8Array(buffer)].map(b => b.toString(16).padStart(2, '0')).join('');
 
 // The dev server on 5280 has the score server next door on 5281 (the downhill's preview on 5293 has one on 5294);
-// anywhere else it's behind the same origin. game: 'peak' (the climb) or 'downhill'.
-export function apiBase(loc = location, game = 'peak') {
-  const dev = { 5280: 5281, 5293: 5294 }[loc.port];
-  return dev ? `${loc.protocol}//${loc.hostname}:${dev}/api/${game}` : `/api/${game}`;
+// anywhere else it's behind the same origin. game: 'peak' (the climb) or 'downhill'; level: which of its levels
+// (kit/levels.js), each a board of its own, '' for the first.
+export function apiBase(loc = location, game = 'peak', level = '') {
+  const dev = { 5280: 5281, 5293: 5294 }[loc.port], board = boardName(game, level);
+  return dev ? `${loc.protocol}//${loc.hostname}:${dev}/api/${board}` : `/api/${board}`;
 }
 
 // localStorage can be missing or throw (private windows, blocked storage): then there's just no "your best".
@@ -159,10 +161,10 @@ export function createBoard({ base, run, words, again, isRunActive }) {
 
 const CLIMB = { game: 'Peak Mnot', run: 'climb', checkpoint: 'checkpoint' };
 
-export function createScores({ player, game, world, manual = false, replayMode = false }) {
+export function createScores({ player, game, world, manual = false, replayMode = false, level = '' }) {
   // the Web Crypto API needs a secure context (https or localhost)
   if (manual || replayMode || !globalThis.crypto?.subtle) return { step() {}, status: 'off', board: null };
-  const base = apiBase();
+  const base = apiBase(location, 'peak', level);
   const route = routeFingerprint({ world, player });      // the snapshot is taken now, before the first step
   const enqueue = createQueue();
   let run = null;

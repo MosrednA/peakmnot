@@ -4,7 +4,8 @@
 // player may put a name on it, the same player and name as on the climb's board. The card and the Hall of Fame are
 // the climb's (leaderboard.js), in the downhill's words. The board time is the clock less the bonus (bonus.js): the
 // server adds the bonus up again from the run itself.
-// ?manual (tests and bots) records but never talks to the server, unless ?scores is there too.
+// ?manual (tests and bots) records but never talks to the server, unless ?scores is there too; nor does watching a
+// run (?replay=, playback.js). level: the board's (kit/levels.js).
 import { apiBase, createBoard, createQueue, createRun, playerName } from '../scores/scores.js';
 import { Recorder } from './record.js';
 import { routeFingerprint } from './routedata.js';
@@ -20,7 +21,8 @@ export const WORDS = {
   carrying: 'Rolling your chair over to the board…', fetching: 'Fetching the fastest chairs…',
   made: n => `${plural(n, 'chair')} made it down`, nobody: 'Nobody has made it down yet. Be the first chair!',
   offline: 'The board is out of reach just now. Your run still counts, in our hearts.',
-  replays: false,
+  replays: true,                    // the Hall of Fame's Race ghost and Watch run (playback.js)
+  leave: 'Leave this run? Your current run will be lost.',
 };
 
 // What a recorded run adds up to: the clock at the finish, the bonus, the board's time, spills and lost wheels.
@@ -36,11 +38,12 @@ export function tally(recorder) {
 
 const RIDE = { game: 'Mnot Downhill', run: 'run', checkpoint: 'pit stop' };
 
-export function createScores({ ride, track, obstacles, manual = false, again }) {
+export function createScores({ ride, track, obstacles, manual = false, again, level = '', watching = false }) {
   const recorder = new Recorder(ride, FEATURES.pits);
-  const live = (!manual || new URLSearchParams(location.search).has('scores')) && !!globalThis.crypto?.subtle;
+  const asked = !manual || new URLSearchParams(location.search).has('scores');
+  const live = !watching && asked && !!globalThis.crypto?.subtle;
   if (!live) return { recorder, board: null, status: 'off', update() {}, reset() { recorder.reset(); } };
-  const base = apiBase(location, 'downhill');
+  const base = apiBase(location, 'downhill', level);
   const route = routeFingerprint({ track, obstacles });
   const enqueue = createQueue();
   let session = null, cardTimer = 0;               // the run on the server: a new one for every ride from the top

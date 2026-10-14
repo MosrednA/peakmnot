@@ -293,8 +293,9 @@ class Store:
         row = self.db.one("SELECT data, verdict, details FROM replays WHERE run_id = ?", (run_id,))
         return row and (json.loads(gzip.decompress(row["data"])), row["verdict"], row["details"])
 
-    def public_replay(self, run_id):
-        """Return only a claimed player's current, verified best replay, or a showcased one, and its public fields."""
+    def public_replay(self, run_id, fields=("v", "route", "phase", "samples", "events")):
+        """Return only a claimed player's current, verified best replay, or a showcased one, and its public fields
+        (the game's: games.py)."""
         row = self.db.one(
             "SELECT p.name, s.time_ms, s.falls, s.dents, rp.data "
             "FROM scores s JOIN players p ON p.id = s.player_id "
@@ -312,8 +313,7 @@ class Store:
             replay = json.loads(gzip.decompress(row["data"]))
         except (OSError, EOFError, ValueError, UnicodeDecodeError, RecursionError, zlib.error):
             return None
-        if not isinstance(replay, dict) or any(key not in replay for key in ("v", "route", "phase", "samples", "events")):
+        if not isinstance(replay, dict) or any(key not in replay for key in fields):
             return None
         return {"id": run_id, "name": row["name"], "time": row["time_ms"], "falls": row["falls"],
-                "dents": row["dents"],
-                "replay": {key: replay[key] for key in ("v", "route", "phase", "samples", "events")}}
+                "dents": row["dents"], "replay": {key: replay[key] for key in fields}}

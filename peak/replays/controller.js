@@ -1,8 +1,18 @@
-// Loads a verified public replay and owns the small, accessible controls for racing or watching it.
+// Loads a verified public replay and owns the small, accessible controls for racing or watching it. Every mini game
+// uses it: the climb's actor, route and words are the default, and another game brings its own (the downhill's
+// peak/downhill/main.js, with peak/downhill/playback.js).
 import { ReplayActor, validateReplay } from './playback.js';
 import { replayLooseLedges } from './loose-ledges.js';
 import { routeFingerprint } from '../scores/routedata.js';
 import { apiBase } from '../scores/scores.js';
+
+// What the controls say, in the climb's words; a game passes any of them as words.
+export const WORDS = {
+  ready: 'Start climbing when you’re ready.',
+  racing: 'Racing the ghost.',
+  finished: clock => `Summit reached · ${clock}`,
+  leave: 'Leave this climb? Your current run will be lost.',
+};
 
 const node = (tag, className = '', text = '') => {
   const el = document.createElement(tag);
@@ -17,10 +27,20 @@ const clockMs = (ms) => {
 };
 
 export class ReplayController {
-  constructor({ mode, id, scene, world, player, game, follow, title, isRunActive = () => false }) {
-    Object.assign(this, { mode, id, scene, world, player, game, follow, title, isRunActive });
+  // mode: 'ghost' or 'replay'; id: the run's. The rest is the climb's unless a game brings its own: api, the base of
+  // its level's board (scores.js apiBase()); fingerprint, a promise of its route's; validate(replay, fingerprint),
+  // which throws for a replay this page can't play; createActor({ replay, ghost }), a promise of what plays it:
+  // { duration, phase (s), root, seek(t), dispose() }; snap(actor), the camera put back on it after a jump in time;
+  // done(), whether the player's run is over; words, any of WORDS.
+  constructor({ mode, id, scene, world, player, game, follow, title, isRunActive = () => false, api = null,
+    fingerprint = null, validate = validateReplay, createActor = null, snap = null, done = () => game?.done,
+    words = {} }) {
+    Object.assign(this, { mode, id, scene, world, player, game, follow, title, isRunActive, validate, createActor,
+      snap, done });
+    this.api = api ?? apiBase();
+    this.words = { ...WORDS, ...words };
     // Start hashing before the frame loop can move any world objects.
-    this.fingerprint = routeFingerprint({ world, player });
+    this.fingerprint = fingerprint ?? routeFingerprint({ world, player });
     this.ready = false;
     this.error = null;
     this.actor = null;
@@ -110,7 +130,7 @@ export class ReplayController {
       const timeout = setTimeout(() => controller.abort(), 12000);
       let res, payload;
       try {
-        res = await fetch(`${apiBase()}/replay/${encodeURIComponent(this.id)}`, { credentials: 'omit', signal: controller.signal });
+        res = await fetch(`${this.api}/replay/${encodeURIComponent(this.id)}`, { credentials: 'omit', signal: controller.signal });
         try { payload = await res.json(); }
         catch (err) { if (err?.name === 'AbortError') throw err; payload = null; }
       } catch (err) {
@@ -124,18 +144,20 @@ export class ReplayController {
       }
       if (!payload?.replay || typeof payload.replay !== 'object') throw new Error('The server did not return a replay for this run.');
       const fingerprint = await this.fingerprint;
-      validateReplay(payload.replay, fingerprint);
-      this.actor = await ReplayActor.create({ scene: this.scene, world: this.world, replay: payload.replay,
-        ghost: this.mode === 'ghost' });
-      if (this.mode === 'replay') this.looseLedges = replayLooseLedges(payload.replay, this.world);
+      this.validate(payload.replay, fingerprint);
+      const ghost = this.mode === 'ghost';
+      this.actor = this.createActor ? await this.createActor({ replay: payload.replay, ghost })
+        : await ReplayActor.create({ scene: this.scene, world: this.world, replay: payload.replay, ghost });
+      // the climb's loose ledges fall where the recording says (another game's world is its own to play back)
+      if (this.mode === 'replay' && !this.createActor) this.looseLedges = replayLooseLedges(payload.replay, this.world);
       this.seekActor(0);
       this.name = typeof payload.name === 'string' && payload.name.trim() ? payload.name.trim() : 'Mystery Can';
       this.recordedTime = Number.isFinite(payload.time) ? payload.time : 0;
       this.duration = Math.max(0, Number(this.actor.duration) || 0);
       this.ready = true;
-      if (this.mode === 'replay') this.follow?.snap(this.actor, this.world);
+      if (this.mode === 'replay') this.snapCamera();
       this.chip.textContent = `${this.mode === 'ghost' ? 'Ghost' : 'Replay'}: ${this.name} · ${clockMs(this.recordedTime)}`;
-      this.status.textContent = this.mode === 'ghost' ? 'Start climbing when you’re ready.' : 'Playing · 1×';
+      this.status.textContent = this.mode === 'ghost' ? this.words.ready : 'Playing · 1×';
       this.el.classList.add('replay-ready');
       if (this.mode === 'replay') {
         this.seekInput.max = String(this.duration);
@@ -158,7 +180,7 @@ export class ReplayController {
     this.el.classList.add('replay-error');
   }
 
-  update(dt, { gameTime = this.game.time, titleVisible = false } = {}) {
+  update(dt, { gameTime = this.game?.time ?? 0, titleVisible = false } = {}) {
     if (!this.ready || !this.actor) return;
     if (this.mode === 'ghost') this.time = titleVisible ? 0 : Math.max(0, gameTime);
     else if (this.playing) {
@@ -168,8 +190,8 @@ export class ReplayController {
     this.seekActor(this.time);
     if (this.mode === 'replay') this.syncControls();
     else {
-      const status = titleVisible ? 'Start climbing when you’re ready.' : this.game.done ?
-        `Summit reached · ${clockMs(gameTime * 1000)}` : 'Racing the ghost.';
+      const status = titleVisible ? this.words.ready : this.done() ?
+        this.words.finished(clockMs(gameTime * 1000)) : this.words.racing;
       if (this.status.textContent !== status) this.status.textContent = status;
     }
   }
@@ -193,7 +215,7 @@ export class ReplayController {
     if (!this.playing && this.time >= this.duration) {
       this.time = 0;
       this.seekActor(0);
-      this.follow?.snap(this.actor, this.world);
+      this.snapCamera();
     }
     this.playing = !this.playing;
     this.syncControls();
@@ -204,7 +226,7 @@ export class ReplayController {
     this.time = 0;
     this.playing = true;
     this.seekActor(0);
-    this.follow?.snap(this.actor, this.world);
+    this.snapCamera();
     this.syncControls();
   }
 
@@ -219,8 +241,13 @@ export class ReplayController {
     const previous = this.time;
     this.time = Math.min(this.duration, Math.max(0, Number(seconds) || 0));
     this.seekActor(this.time);
-    if (this.time < previous - 0.01 || Math.abs(this.time - previous) > 1.5) this.follow?.snap(this.actor, this.world);
+    if (this.time < previous - 0.01 || Math.abs(this.time - previous) > 1.5) this.snapCamera();
     this.syncControls();
+  }
+
+  snapCamera() {
+    if (this.snap) this.snap(this.actor);
+    else this.follow?.snap(this.actor, this.world);
   }
 
   syncControls() {
@@ -243,14 +270,14 @@ export class ReplayController {
   }
 
   exitToHall() {
-    if (this.isRunActive() && !confirm('Leave this climb? Your current run will be lost.')) return;
+    if (this.isRunActive() && !confirm(this.words.leave)) return;
     const url = this.cleanUrl();
     url.searchParams.set('hall', '1');
     location.assign(url.href);
   }
 
   backToGame() {
-    if (this.isRunActive() && !confirm('Leave this climb? Your current run will be lost.')) return;
+    if (this.isRunActive() && !confirm(this.words.leave)) return;
     location.assign(this.cleanUrl().href);
   }
 

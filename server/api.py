@@ -33,8 +33,8 @@ LIMITS = {                      # (requests, per seconds)
 }
 RUN_ID = re.compile(r"^[A-Za-z0-9_-]{8,40}$")
 SIG = re.compile(r"^[0-9a-f]{64}$")
-GAME = re.compile(r"^/api/([a-z]+)/")
-ROBOTS = re.compile(r"^/(robots\.txt|api/[a-z]+/robots(\.txt)?)$")
+GAME = re.compile(r"^/api/([a-z]+(?:-[a-z0-9]{1,16})?)/")      # a game, or one of its levels (games.py)
+ROBOTS = re.compile(r"^/(robots\.txt|api/[a-z]+(-[a-z0-9]{1,16})?/robots(\.txt)?)$")
 
 
 class Limiter:
@@ -167,7 +167,7 @@ class Api:
                 replay_id = parts[1]
                 if not RUN_ID.fullmatch(replay_id):
                     raise loud("not_found")
-                replay = b.store.public_replay(replay_id)
+                replay = b.store.public_replay(replay_id, b.game.replay)
                 if replay is None:
                     raise loud("not_found")
                 return 200, replay, None, {}

@@ -23,6 +23,7 @@ export const WORDS = {
   made: n => `${plural(n, 'can')} made it to the top`, nobody: 'Nobody has made it yet. Be the first can!',
   offline: 'The board is out of reach just now. Your climb still counts, in our hearts.',
   replays: true,                   // the Hall of Fame's ghost and replay buttons (peak/replays/)
+  leave: 'Leave this climb? Your current run will be lost.',
 };
 
 export class Leaderboard {
@@ -179,8 +180,8 @@ export class Leaderboard {
 
   openReplay(mode, id) {
     if (!id || !['ghost', 'replay'].includes(mode)) return;
-    if (this.isRunActive() && !confirm('Leave this climb? Your current run will be lost.')) return;
-    const url = new URL(location.href);
+    if (this.isRunActive() && !confirm(this.words.leave)) return;
+    const url = new URL(location.href);         // its ?level= stays: the run is this level's (kit/levels.js)
     url.searchParams.delete('ghost');
     url.searchParams.delete('replay');
     url.searchParams.delete('hall');

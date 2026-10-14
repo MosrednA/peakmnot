@@ -81,7 +81,11 @@ class TheRide(RideTest):
         first = board["entries"][0]
         self.assertEqual((first["name"], first["time"], first["me"]), ("Test Chair", self.ride["claim"]["time"], True))
         self.assertEqual(first["replayId"], c.run)
-        self.assertEqual(self.server.request("GET", f"/api/downhill/replay/{c.run}").status, 200)
+        public = self.server.request("GET", f"/api/downhill/replay/{c.run}")
+        self.assertEqual(public.status, 200)
+        # the ghost's legs and lean follow the keys, so the downhill's public replay has them (the climb's doesn't)
+        self.assertEqual(public.json["replay"]["inputs"], self.ride["replay"]["inputs"])
+        self.assertEqual(sorted(public.json["replay"]), ["events", "inputs", "phase", "route", "samples", "v"])
         # the climb's board doesn't know it
         self.assertEqual(self.board("peak")["total"], HOUSE)
         self.assertEqual(self.server.request("GET", f"/api/peak/replay/{c.run}").status, 404)
@@ -250,6 +254,62 @@ class Cheats(RideTest):
                                                    downhill.checks.Rejection(reason))
             self.assertTrue(says, reason)
             self.assertNotIn("Peak Mnot detected", says, reason)
+
+
+class Levels(RideTest):
+    """A second level of the downhill (games.py): a board, runs and replays of its own under /api/downhill-two/,
+    checked against its own route, and the same player as everywhere. Here it is the same piste under another
+    fingerprint, so the fixture's ride can be ridden on it."""
+
+    TWO = "2" * 64
+
+    def setUp(self):
+        self.ride = fixture("downhill/ride")
+        self.climb = fixture("climb")
+        self.route = downhill.Route(self.ride["route"])
+        two = downhill.Route(dict(self.ride["route"], fingerprint=self.TWO))
+        self.server = Server(Route(self.climb["route"]), downhill_route=self.route, levels={"downhill": {"two": two}})
+        self.level = dict(self.ride, route=dict(self.ride["route"], fingerprint=self.TWO),
+                          replay=dict(self.ride["replay"], route=self.TWO))
+
+    def test_a_level_has_its_own_board(self):
+        health = self.server.request("GET", "/api/downhill-two/health").json
+        self.assertEqual(health["route"], self.TWO[:12])
+        self.assertEqual(self.board("downhill-two")["total"], HILL_HOUSE)        # the house records, as on any board
+        c = Climber(self.server, self.level, game="downhill-two")
+        r = c.all_the_way("Level Chair")
+        self.assertEqual((r.status, r.json["rank"]), (200, 1), r.data)
+        board = self.board("downhill-two", me=r.json["player"])
+        self.assertEqual((board["total"], board["entries"][0]["replayId"]), (HILL_HOUSE + 1, c.run))
+        public = self.server.request("GET", f"/api/downhill-two/replay/{c.run}")
+        self.assertEqual((public.status, public.json["replay"]["route"]), (200, self.TWO))
+        self.assertIn("inputs", public.json["replay"])
+        # the first level doesn't know it, and the same player rides there under the same name
+        self.assertEqual(self.board()["total"], HILL_HOUSE)
+        self.assertEqual(self.server.request("GET", f"/api/downhill/replay/{c.run}").status, 404)
+        first = rider(self.server, self.ride)
+        first.splits()
+        first.finish(player=r.json["player"])
+        mine = first.claim("Level Chair", player=r.json["player"], secret=r.json["secret"])
+        self.assertEqual((mine.status, mine.json["player"]), (200, r.json["player"]), mine.data)
+        self.assertEqual(self.board(me=r.json["player"])["entries"][0]["name"], "Level Chair")
+
+    def test_a_run_for_another_level(self):
+        for game, route in (("downhill-two", self.ride["route"]["fingerprint"]), ("downhill", self.TWO)):
+            r = self.server.request("POST", f"/api/{game}/run", {"v": 1, "route": route, "t0": 0})
+            self.assertEqual(r.status, 409, game)
+
+    def test_no_such_level(self):
+        for path in ("/api/downhill-three/board", "/api/peak-two/board", "/api/downhill-Two/board",
+                     "/api/downhill-/board", f"/api/downhill-{'x' * 17}/board"):
+            self.assertEqual(self.server.request("GET", path).status, 404, path)
+
+    def test_a_level_is_a_short_name(self):
+        with self.assertRaises(ValueError):
+            games.load(self.climb_route(), self.route, levels={"downhill": {"Two": self.route}})
+
+    def climb_route(self):
+        return Route(self.climb["route"])
 
 
 if __name__ == "__main__":
