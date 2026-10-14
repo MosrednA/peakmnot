@@ -40,13 +40,15 @@ const SIGNS = [
 const BANNERS = [[FEATURES.gate, 'START', '#d0352a'],
   ...FEATURES.pits.slice(1).map(s => [s, 'PIT STOP · fresh casters', '#2f6fd0']),
   [FEATURES.river.from - 9, 'MIND THE GAP', '#2f8fd0'], [FEATURES.finish, 'FINISH', 'checker']];
-// [s, d, what]: the open-plan office at the bottom, a slalom through the furniture
-const OFFICE = [[952, -3, cabinet], [956, 2.5, cooler], [961, 0.5, desk], [966, -4, ficus], [968, 4, cabinet],
-  [973, -1.5, cooler], [975, 1.2, knockoff], [977, 3.4, desk], [982, -3.5, cabinet], [985, 1, ficus],
-  [990, -0.5, printer], [993, -3.6, knockoff], [995, 3.5, cooler], [997, -4.6, cabinet], [1002, -1.5, desk],
-  [1006, 4, ficus], [1008, 1.6, knockoff], [1011, 0, cooler], [1014, -3.2, cabinet], [1016, 3.2, cabinet],
-  [1022, -1.5, ficus], [1026, 2.5, cooler], [1029, -0.8, knockoff]];
-const SOFT = new Set([cooler, ficus, knockoff]);
+// [s, d, kind]: the open-plan office at the bottom, a slalom through the furniture. The kind is spelled out, not taken
+// from the function's name: the production build shortens those, and the kind is in the route the server checks.
+const OFFICE = [[952, -3, 'cabinet'], [956, 2.5, 'cooler'], [961, 0.5, 'desk'], [966, -4, 'ficus'],
+  [968, 4, 'cabinet'], [973, -1.5, 'cooler'], [975, 1.2, 'knockoff'], [977, 3.4, 'desk'], [982, -3.5, 'cabinet'],
+  [985, 1, 'ficus'], [990, -0.5, 'printer'], [993, -3.6, 'knockoff'], [995, 3.5, 'cooler'], [997, -4.6, 'cabinet'],
+  [1002, -1.5, 'desk'], [1006, 4, 'ficus'], [1008, 1.6, 'knockoff'], [1011, 0, 'cooler'], [1014, -3.2, 'cabinet'],
+  [1016, 3.2, 'cabinet'], [1022, -1.5, 'ficus'], [1026, 2.5, 'cooler'], [1029, -0.8, 'knockoff']];
+const MAKE = { cabinet, cooler, desk, ficus, printer, knockoff };
+const SOFT = new Set(['cooler', 'ficus', 'knockoff']);
 const WATER = new THREE.Color('#8ccbf5'), LEAF = new THREE.Color('#4f9a4a'), SOIL = new THREE.Color('#6b4a33');
 
 const GRAVITY = 15;
@@ -180,10 +182,10 @@ export class Obstacles {
 
   // The office: hard furniture to steer round, soft things to plough through. A loafing knock-off flies off whole.
   office() {
-    for (const [s, d, make] of OFFICE) {
-      const at = this.track.point(s, d), soft = SOFT.has(make);
-      let thing = make(this.rand);
-      if (make === knockoff) {
+    for (const [s, d, kind] of OFFICE) {
+      const at = this.track.point(s, d), soft = SOFT.has(kind);
+      let thing = MAKE[kind](this.rand);
+      if (kind === 'knockoff') {
         const chair = thing;
         chair.position.y = KNOCKOFF.middle;
         chair.userData.radius = KNOCKOFF.radius;
@@ -193,7 +195,6 @@ export class Obstacles {
       thing.position.copy(at);
       thing.rotation.y = uphill(this.track.frame(s).tangent) + (this.rand() - 0.5) * (soft ? 2.5 : 0.6);
       this.group.add(thing);
-      const kind = make === knockoff ? 'knockoff' : make.name;
       this.add({ kind, soft, x: at.x, y: at.y, z: at.z, r: thing.userData.radius, top: at.y + thing.userData.height,
         mesh: thing, puff: kind === 'cooler' ? 'water' : kind === 'ficus' ? 'leaves' : 'snow' });
     }
