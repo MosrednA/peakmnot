@@ -97,6 +97,8 @@ fast preview reversals, jumps interrupting gait transitions, equal diagonal spee
 movement/turning at 30, 60 and 120 fps. The harness uses a
 manual clock on its test page; use a new browser tab afterwards to try normal playback.
 Run `tools/check_sounds.js` in a fresh Playwright tab for real-time audio checks using trusted clicks and keys.
+It unlocks audio through the Mnot tab when sound is already on, or the Sound button when muted, so the viewer's
+tabs do not block a canvas click. Check both saved sound preferences when changing audio initialization.
 
 ## In three.js
 

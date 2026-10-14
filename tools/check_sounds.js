@@ -16,7 +16,7 @@ async (page) => {
     await page.goto('http://127.0.0.1:5280/');
     await page.waitForFunction(() => !!window.viewer?.mnot);
     if (!(await state()).sound.enabled) await page.locator('#sound').click();
-    else await page.locator('canvas').click({ position: { x: 30, y: 50 } });
+    else await page.getByRole('tab', { name: 'Mnot', exact: true }).click();
     await page.waitForFunction(() => viewer.sound.ready && viewer.sound.context === 'running');
     let result = await state();
     check('A real gesture loads and decodes all ten effects', result.sound.ready && !result.sound.error,
