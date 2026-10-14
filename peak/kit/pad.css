@@ -1,0 +1,132 @@
+/* The controller on screen (padmenu.js): the chip in the corner, its card, and the buttons drawn as on the controller
+   itself, by its maker (body[data-pad]: Xbox letters, PlayStation shapes, Nintendo's letters the other way round).
+   The hints follow the device in use: while it's the controller, body has the class `pad`. The same cream cards and
+   ink outlines as the HUD. A page links it after its other styles. */
+
+#pad-chip, #pad-card { --pad: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 16'%3E%3Cpath fill-rule='evenodd' d='M6.5 1.5h11a4.6 4.6 0 0 1 4.5 3.7l1 5.6a2.9 2.9 0 0 1-5 2.5L15.8 11H8.2L6 13.3a2.9 2.9 0 0 1-5-2.5l1-5.6a4.6 4.6 0 0 1 4.5-3.7zM6 4.4h1.6V6h1.6v1.6H7.6v1.6H6V7.6H4.4V6H6zM17.4 4.2a1.05 1.05 0 1 0 0 2.1 1.05 1.05 0 0 0 0-2.1zM19.5 6.3a1.05 1.05 0 1 0 0 2.1 1.05 1.05 0 0 0 0-2.1z'/%3E%3C/svg%3E"); }
+
+/* the chip, bottom right: the controller, a dot that says it's there, and its name for a moment (or on hover) */
+#pad-chip { position: fixed; z-index: 30; right: calc(14px + env(safe-area-inset-right));
+  bottom: calc(12px + env(safe-area-inset-bottom)); display: none; align-items: center; height: 34px; padding: 0 10px;
+  box-sizing: border-box; border-radius: 17px; cursor: pointer; color: var(--ink); font: 600 13px Fredoka, sans-serif; }
+#pad-chip.on { display: flex; animation: pad-in 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) backwards; }
+#pad-chip:hover, #pad-chip[aria-expanded="true"] { transform: translateY(1px); box-shadow: 0 2px 0 var(--ink); }
+#pad-chip[aria-expanded="true"] { background: #fff; }
+#pad-chip:focus-visible { outline: 3px solid var(--sky); outline-offset: 2px; }
+#pad-chip::after { content: ""; position: absolute; left: 28px; top: 5px; width: 8px; height: 8px; box-sizing: border-box;
+  border: 1.5px solid var(--ink); border-radius: 50%; background: var(--teal); }
+#pad-chip.say::after { animation: pad-ping 0.9s 0.3s 3; }
+#pad-chip.off { color: var(--muted); }
+#pad-chip.off::after { background: #c3c7d3; animation: none; }
+.pad-icon { width: 22px; height: 15px; flex: none; background: var(--ink);
+  -webkit-mask: var(--pad) center / contain no-repeat; mask: var(--pad) center / contain no-repeat; }
+#pad-chip.off .pad-icon { background: var(--muted); }
+.pad-name { max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0;
+  transition: max-width 0.35s ease, margin 0.35s ease, opacity 0.25s; }
+#pad-chip.say .pad-name, #pad-chip:hover .pad-name { max-width: 180px; margin-left: 10px; opacity: 1; }
+@keyframes pad-in { from { transform: scale(0.4); opacity: 0; } }
+@keyframes pad-ping { from { box-shadow: 0 0 0 0 rgba(34, 169, 143, 0.75); } to { box-shadow: 0 0 0 7px rgba(34, 169, 143, 0); } }
+
+/* the card above it: what the buttons do, the settings, how to steer it */
+#pad-card { position: fixed; z-index: 31; right: calc(14px + env(safe-area-inset-right));
+  bottom: calc(56px + env(safe-area-inset-bottom)); width: 268px; max-width: calc(100vw - 28px);
+  max-height: calc(100% - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow: auto;
+  box-sizing: border-box; padding: 10px 14px 11px; color: var(--ink); font: 500 13px/1.35 Fredoka, sans-serif;
+  transform-origin: 100% 100%; opacity: 0; visibility: hidden; transform: translateY(8px) scale(0.96);
+  transition: opacity 0.16s, transform 0.22s cubic-bezier(0.2, 1.4, 0.4, 1), visibility 0s 0.22s; }
+#pad-card.open { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+#pad-card header { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+#pad-card header b { flex: 1; font-size: 15px; font-weight: 700; color: var(--red); text-shadow: 0 1.5px 0 #ffd9c2; }
+.pad-x { border: 0; padding: 0 2px; background: none; color: var(--muted); cursor: pointer; font: 600 20px/1 Fredoka, sans-serif; }
+.pad-x:hover { color: var(--ink); }
+.pad-map { display: grid; grid-template-columns: auto 1fr; gap: 5px 10px; align-items: center; margin: 0; }
+.pad-map dt { white-space: nowrap; }
+.pad-map dd { margin: 0; }
+.pad-set { display: grid; gap: 3px; margin-top: 10px; padding-top: 8px; border-top: 2px dashed rgba(43, 51, 82, 0.18); }
+.pad-set[hidden], .pad-row[hidden] { display: none; }
+.pad-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 -6px;
+  padding: 3px 4px 3px 6px; border-radius: 9px; transition: background 0.15s, box-shadow 0.15s; }
+#pad-card.steer .pad-row.at { background: rgba(34, 169, 143, 0.13); box-shadow: inset 0 0 0 2px var(--teal); }
+.pad-seg { display: flex; flex: none; overflow: hidden; border: 1.5px solid var(--ink); border-radius: 8px;
+  background: #fff; box-shadow: 0 1.5px 0 var(--ink); }
+.pad-seg button { padding: 2px 8px; border: 0; background: none; color: var(--muted); cursor: pointer;
+  font: 600 12px/16px Fredoka, sans-serif; }
+.pad-seg button + button { border-left: 1.5px solid var(--ink); }
+.pad-seg button:hover { color: var(--ink); }
+.pad-seg button[aria-pressed="true"] { background: var(--ink); color: var(--card); }
+.pad-note { margin: 9px 0 0; padding: 5px 8px; border-radius: 8px; background: #fff0c4; font-size: 12px; }
+body:not(.pad-quiet) .pad-note { display: none; }
+#pad-card footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 9px; color: var(--muted);
+  font-size: 11.5px; white-space: nowrap; }
+.pad-set[hidden] ~ footer .pad-steer { display: none; }
+
+/* a button as the controller draws it; the words go by its maker */
+.pg { --t: ""; --i: none; display: inline-grid; place-items: center; box-sizing: border-box; min-width: 18px; height: 18px;
+  margin: 0 1px; padding: 0 3px; vertical-align: middle; border: 1.5px solid var(--ink); border-radius: 9px;
+  box-shadow: 0 1.5px 0 var(--ink); background: #fff var(--i) center / 11px no-repeat; color: var(--ink);
+  font: 700 10px/1 Fredoka, sans-serif; font-style: normal; letter-spacing: 0; text-shadow: none;
+  -webkit-text-stroke: 0; }
+.pg::after { content: var(--t); }
+.pg-a { --t: "A"; color: #3f9a24; }
+.pg-b { --t: "B"; color: var(--red); }
+.pg-x { --t: "X"; color: #2f74d0; }
+.pg-y { --t: "Y"; color: #d18f00; }
+.pg-lb { --t: "LB"; } .pg-rb { --t: "RB"; } .pg-lt { --t: "LT"; } .pg-rt { --t: "RT"; }
+.pg-lb, .pg-rb { padding: 0 4px; border-radius: 5px; }
+.pg-lt, .pg-rt { padding: 0 4px; border-radius: 8px 8px 4px 4px; }
+.pg-move { --t: "L"; } .pg-look { --t: "R"; }
+.pg-move, .pg-look { box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 3.5px #d6dbe8, 0 1.5px 0 var(--ink); }
+.pg-view { --i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Crect x='1' y='1.6' width='5.4' height='4.4' rx='1' fill='none' stroke='%232b3352' stroke-width='1.3'/%3E%3Crect x='3.6' y='4' width='5.4' height='4.4' rx='1' fill='%232b3352'/%3E%3C/svg%3E"); }
+.pg-menu { --i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 2.8h6M2 5h6M2 7.2h6' stroke='%232b3352' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E"); }
+.pg-dpad { --i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M3.6 1h2.8v2.6H9v2.8H6.4V9H3.6V6.4H1V3.6h2.6z' fill='%232b3352'/%3E%3C/svg%3E"); }
+body[data-pad="playstation"] .pg-a { --t: ""; --i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2.2 2.2l5.6 5.6M7.8 2.2L2.2 7.8' stroke='%234a7fe0' stroke-width='1.7' stroke-linecap='round'/%3E%3C/svg%3E"); }
+body[data-pad="playstation"] .pg-b { --t: ""; --i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='3.1' fill='none' stroke='%23e8484a' stroke-width='1.6'/%3E%3C/svg%3E"); }
+body[data-pad="playstation"] .pg-x { --t: ""; --i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Crect x='2' y='2' width='6' height='6' rx='0.6' fill='none' stroke='%23d55fb2' stroke-width='1.6'/%3E%3C/svg%3E"); }
+body[data-pad="playstation"] .pg-y { --t: ""; --i: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M5 1.7l3.5 6.1h-7z' fill='none' stroke='%2322a98f' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+body[data-pad="playstation"] .pg-lb { --t: "L1"; } body[data-pad="playstation"] .pg-rb { --t: "R1"; }
+body[data-pad="playstation"] .pg-lt { --t: "L2"; } body[data-pad="playstation"] .pg-rt { --t: "R2"; }
+body[data-pad="playstation"] .pg-view { --t: "Create"; --i: none; }
+body[data-pad-name="DualShock 4"] .pg-view { --t: "Share"; }
+body[data-pad="playstation"] .pg-menu { --t: "Options"; --i: none; }
+body[data-pad="playstation"] :is(.pg-view, .pg-menu) { padding: 0 5px; font-size: 9px; }
+body[data-pad="nintendo"] .pg-a { --t: "B"; } body[data-pad="nintendo"] .pg-b { --t: "A"; }
+body[data-pad="nintendo"] .pg-x { --t: "Y"; } body[data-pad="nintendo"] .pg-y { --t: "X"; }
+body[data-pad="nintendo"] :is(.pg-a, .pg-b, .pg-x, .pg-y) { color: var(--ink); }
+body[data-pad="nintendo"] .pg-lb { --t: "L"; } body[data-pad="nintendo"] .pg-rb { --t: "R"; }
+body[data-pad="nintendo"] .pg-lt { --t: "ZL"; } body[data-pad="nintendo"] .pg-rt { --t: "ZR"; }
+body[data-pad="nintendo"] .pg-view { --t: "−"; --i: none; font-size: 13px; }
+body[data-pad="nintendo"] .pg-menu { --t: "+"; --i: none; font-size: 13px; }
+/* bigger where there's room */
+.pad-map .pg, .pad-howto .pg { min-width: 21px; height: 21px; border-radius: 11px; font-size: 11px;
+  background-size: 12px; }
+.pad-map :is(.pg-lb, .pg-rb), .pad-howto :is(.pg-lb, .pg-rb) { border-radius: 6px; }
+.pad-map :is(.pg-lt, .pg-rt), .pad-howto :is(.pg-lt, .pg-rt) { border-radius: 10px 10px 5px 5px; }
+.ts-press .pg { min-width: 24px; height: 24px; margin: 0 3px; border-radius: 12px; box-shadow: 0 2px 0 var(--ink);
+  font-size: 13px; background-size: 14px; }
+.ts-menu .pg { margin: 0 7px 0 -5px; }
+
+/* the hints, by the device in use */
+body.pad #help, body.pad #touch-help, body:not(.pad) #pad-help { display: none; }
+body.pad .ts-press:not(.pad-press), body:not(.pad) .pad-press { display: none; }
+body.pad #title-howto dl:not(.pad-howto), body:not(.pad) .pad-howto { display: none; }
+body:not(.pad) .pad-only { display: none; }
+#pad-help { position: absolute; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  max-width: calc(100% - 136px); box-sizing: border-box; padding: 4px 12px; border-radius: 12px;
+  background: rgba(255, 247, 232, 0.82); color: var(--muted); font-size: 12.5px; text-align: center; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.pad-press small { display: table; margin: 6px auto 0; padding: 1px 10px; border-radius: 10px;
+  background: rgba(255, 247, 232, 0.85); color: var(--muted); font-size: 12px; font-weight: 500; -webkit-text-stroke: 0; }
+body:not(.pad-quiet) .pad-mute { display: none; }
+.pad-howto dt { white-space: nowrap; }
+
+/* not on a touch screen; on a narrow title, top right (its bottom is the menu's) */
+body.touch #pad-chip, body.touch #pad-card { display: none; }
+@media (max-width: 560px) {
+  body.title-up #pad-chip { top: calc(12px + env(safe-area-inset-top)); bottom: auto; }
+  body.title-up #pad-card { top: calc(56px + env(safe-area-inset-top)); bottom: auto; transform-origin: 100% 0; }
+  #pad-help { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #pad-chip.on, #pad-chip.say::after { animation: none; }
+  #pad-card, .pad-name { transition: none; }
+}

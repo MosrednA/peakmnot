@@ -26,6 +26,8 @@ import { onKonami } from './controls/konami.js';
 import { createScores } from './scores/scores.js';
 import { hookAnalytics } from './analytics.js';
 import { ReplayController } from './replays/controller.js';
+import { GamepadInput, BUTTON } from './kit/gamepad.js';
+import { PadMenu } from './kit/padmenu.js';
 
 const params = new URLSearchParams(location.search);
 const perf = params.has('perf');               // the perf probe (dev/perf.js) drives the game, as tests do
@@ -82,10 +84,20 @@ audio.attachTitle(title);
 const touch = new Touch({ input, follow, player, world, title, dom: renderer.domElement });   // phones (touch.js)
 const moments = new Moments({ player, game, world, weather, title, hud, camera, dom: renderer.domElement,
   model: mnot.model });
-if (replayRoute?.mode !== 'replay') onKonami(() => moments.startParty());   // no live keyboard hooks in the spectator
+const konami = replayRoute?.mode !== 'replay' ? onKonami(() => moments.startParty()) : null;   // none in the spectator
 const replayIsReadOnly = replayRoute && replayRoute.mode !== 'ghost';
 const scores = createScores({ player, game, world, manual, replayMode: replayIsReadOnly });   // watched/invalid routes never record or post scores
 if (!replayIsReadOnly) hookAnalytics({ title, game, player, manual });
+// a controller (kit/gamepad.js), read once a step by readPad(); on screen, its chip, card and hints (kit/padmenu.js)
+const pad = new GamepadInput();
+const padMenu = new PadMenu(pad, { sounds, press: 'start', settings: ['invert', 'speed', 'rumble'],
+  controls: [['move dpad', 'move; right always means onwards'], ['lb', 'careful steps, or a light push'],
+    ['a', 'jump'], ['look', 'look around'], ['lt rt', 'zoom in and out'], ['view', 'sound on or off'],
+    ['menu', 'this card']],
+  help: [['move', 'move'], ['lb', 'careful'], ['a', 'jump'], ['look', 'look'], ['lt rt', 'zoom'], ['menu', 'more']] });
+player.on('land', ({ hard }) => { if (hard) pad.rumble('bump'); });
+game.on('dent', () => pad.rumble('hit'));
+game.on('summit', () => pad.rumble('cheer'));
 player.spawn(start.respawn, start.yaw);
 follow.snap(player, world);
 
@@ -109,6 +121,28 @@ if (replayRoute) {
 } else if (!manual) {
   title.show();
   if (params.has('hall')) scores.board?.openHall();
+}
+
+// The controller, once a step: to the page first (its card, the Hall of Fame, a title button: padmenu.js), else to
+// Mnot as the keys its stick and D-pad stand for (input.js, so the score server's replay reads it like keys), and to
+// the camera (the right stick and the triggers).
+const STILL = { held: new Set(), careful: false, jump: false, mute: false };
+const KONAMI = [[BUTTON.up, 'arrowup'], [BUTTON.down, 'arrowdown'], [BUTTON.left, 'arrowleft'],
+  [BUTTON.right, 'arrowright'], [BUTTON.b, 'b'], [BUTTON.a, 'a']];
+function readPad(dt) {
+  pad.poll();
+  input.gamepad = STILL;
+  if (!pad.connected) return;
+  if (pad.used) touch.enable(false);
+  if (padMenu.update(dt)) return;
+  if (document.activeElement?.matches('input, textarea, select, [contenteditable="true"]')) return;
+  const held = new Set(), careful = pad.keys(held) || pad.down(BUTTON.lb);
+  input.gamepad = { held, careful, jump: pad.fresh.has(BUTTON.a), mute: pad.fresh.has(BUTTON.view) };
+  for (const [button, key] of KONAMI) if (pad.fresh.has(button)) konami?.(key);
+  if (title.visible || !input.enabled) return;
+  if (pad.look.x || pad.look.y) follow.look(pad.look.x * dt, pad.look.y * dt, { player, world });
+  const zoom = pad.value(BUTTON.rt) - pad.value(BUTTON.lt);       // in with LT, out with RT
+  if (zoom) follow.zoomBy(Math.exp(zoom * dt));
 }
 
 let time = 0;
@@ -140,27 +174,7 @@ function step(dt) {
     return;                                 // spectator mode has no live input, physics, hazards, audio or score calls
   }
 
-  const pad = input.pollGamepad();
-  const ghostWaiting = replays?.mode === 'ghost' && !replays.ready;
-  if (!replayIsReadOnly && !ghostWaiting && pad.active) touch.enable(false);
-  const wasTitle = title.visible;
-  const panelOpen = !!document.querySelector('.sc-panel.open');
-  const typing = document.activeElement?.matches('input, textarea, select, [contenteditable="true"]');
-  if (!replayIsReadOnly && !ghostWaiting && !panelOpen && !typing) {
-    if (wasTitle && pad.start) title.start('gamepad');
-    if (!wasTitle && input.enabled) {
-      const padState = input.gamepad;
-      if (padState.look.x || padState.look.y) {
-        follow.look(padState.look.x * 260 * dt, padState.look.y * 260 * dt, { player, world });
-      }
-      if (padState.zoom) follow.zoomBy(Math.exp(padState.zoom * dt));
-    }
-  }
-  // The start button press must not also jump; panels and typing suppress controller actions.
-  if (wasTitle || panelOpen || typing) {
-    Object.assign(input.gamepad, { held: new Set(), careful: false, jump: false, mute: false });
-  }
-
+  readPad(dt);
   const forward = follow.forward();
   const ghostLoading = replays?.mode === 'ghost' && !replays.ready;
   const intent = ghostLoading ? { move: new THREE.Vector3(), held: new Set(), jump: false, mute: false, careful: false } :
@@ -240,6 +254,6 @@ addEventListener('resize', () => {
 // for debugging and tests
 window.peak = { THREE, renderer, scene, camera, world, player, game, dents, rocks, weather, follow, input, mnot, sounds, post,
   step(seconds = 1 / 60, dt = 1 / 60) { for (let t = 0; t < seconds - 1e-9; t += dt) step(dt); render(); },
-  render, key: (code, down) => input.key(code, down), title, moments, touch };
+  render, key: (code, down) => input.key(code, down), title, moments, touch, pad, padMenu };
 window.peak.replays = replays;
 if (perf) import('./dev/perf.js').then(m => m.probe(window.peak));

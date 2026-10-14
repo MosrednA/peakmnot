@@ -1,5 +1,5 @@
-// Keyboard state (and the touch stick, touch.js), turned into movement once per frame: relative to the camera's shot,
-// with "onwards" along the route.
+// Keyboard state (and the touch stick, touch.js, and a controller, main.js), turned into movement once per frame:
+// relative to the camera's shot, with "onwards" along the route.
 import * as THREE from 'three';
 
 const KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
@@ -17,9 +17,8 @@ export const PAD = { dead: 0.2, run: 0.6, key: 0.44 };
 export class Input {
   constructor() {
     this.enabled = true;
-    this.gamepad = { held: new Set(), careful: false, jump: false, mute: false, look: null, zoom: 0 };
-    this.padIndex = null;
-    this.padButtons = [];
+    // a controller this step (main.js reads it, kit/gamepad.js): the keys its stick and D-pad stand for, and its presses
+    this.gamepad = { held: new Set(), careful: false, jump: false, mute: false };
     this.keys = new Set();
     this.pressed = new Set();     // pressed since the last read()
     this.move = new THREE.Vector3();
@@ -41,50 +40,6 @@ export class Input {
     this.pressed.clear();
     this.stick = null;
     this.axis = null;
-  }
-
-  // Poll once per simulation step, including while the title has disabled movement.
-  // Keep controller state separate from keyboard and touch state.
-  pollGamepad() {
-    const empty = () => ({ held: new Set(), careful: false, jump: false, mute: false, look: null, zoom: 0 });
-    let pads = [];
-    try {
-      if (document.hasFocus() && !document.hidden) pads = Array.from(navigator.getGamepads?.() ?? []);
-    } catch { /* Unsupported or blocked by the page's Permissions Policy. */ }
-    const pad = pads.find(p => p?.connected && p.mapping === 'standard' && p.index === this.padIndex)
-      ?? pads.find(p => p?.connected && p.mapping === 'standard');
-    const state = this.gamepad = empty();
-    if (!pad) {
-      this.padIndex = null;
-      this.padButtons = [];
-      return { active: false, start: false };
-    }
-    if (pad.index !== this.padIndex) this.padButtons = [];
-    this.padIndex = pad.index;
-    const down = i => !!pad.buttons[i]?.pressed;
-    const edge = i => down(i) && !this.padButtons[i];
-    const axis = i => Math.max(-1, Math.min(1, pad.axes[i] || 0));
-    const x = axis(0), y = -axis(1), push = Math.hypot(x, y);
-    if (push >= PAD.dead) {
-      if (Math.abs(x / push) > PAD.key) state.held.add(x > 0 ? 'KeyD' : 'KeyA');
-      if (Math.abs(y / push) > PAD.key) state.held.add(y > 0 ? 'KeyW' : 'KeyS');
-      state.careful = push < PAD.run;
-    }
-    for (const [button, key] of [[12, 'KeyW'], [13, 'KeyS'], [14, 'KeyA'], [15, 'KeyD']]) {
-      if (down(button)) state.held.add(key);
-    }
-    state.careful ||= down(4); // LB / L1
-    state.jump = edge(0);     // A / cross
-    state.mute = edge(8);     // View / Share
-    const dead = value => Math.abs(value) < PAD.dead ? 0 :
-      Math.sign(value) * (Math.abs(value) - PAD.dead) / (1 - PAD.dead);
-    state.look = { x: dead(axis(2)), y: dead(axis(3)) };
-    state.zoom = Number(down(7)) - Number(down(6)); // RT zooms out, LT zooms in
-    const start = edge(9) || edge(0);
-    const active = state.held.size > 0 || state.careful || state.look.x !== 0 ||
-      state.look.y !== 0 || state.zoom !== 0 || pad.buttons.some(b => b.pressed);
-    this.padButtons = pad.buttons.map(b => b.pressed);
-    return { active, start };
   }
 
   // For tests: hold or release a key as if it were typed.
@@ -152,7 +107,8 @@ export class Input {
       return target.lengthSq() > 0 ? target.normalize() : target;
     };
     direction(held, this.move);
-    const frame = { move: this.move, held, direction, careful: this.held('ShiftLeft', 'ShiftRight') || gentle || this.gamepad.careful,
+    const frame = { move: this.move, held, direction,
+      careful: this.held('ShiftLeft', 'ShiftRight') || gentle || this.gamepad.careful,
       jump: this.pressed.has('Space') || this.gamepad.jump, mute: this.pressed.has('KeyM') || this.gamepad.mute };
     this.pressed.clear();
     this.frame = frame;           // the last one, for the bots
