@@ -151,7 +151,7 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
   listed one to :peak-mnot: 10 to 15 s on every one; with every crack open from the start (`k.state = 'open'` and
   `field.holes`), or with every crack's `hold` near 0 so that it drops into them, it still finishes them all, the
   long way round.
-- `tools/check_emoji_replays.js` (on 5280, no score server, as the downhill's): the bot's run on field 6 raced as a
+- `tools/check_emoji_replays.js` (on 5280, no score server, as the downhill's): the bot's run on field 11 raced as a
   ghost and watched back, its sounds and Mnot on the recording, jumps in time, the finish, the Hall's buttons.
   `node --test tools/check_emoji_analytics.mjs` checks the goals, `tools/check_gamepad.js` plays it with a
   controller, and `python -m unittest discover server` checks the server's side with real runs

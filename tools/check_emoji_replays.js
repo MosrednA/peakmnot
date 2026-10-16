@@ -21,7 +21,7 @@ async (page) => {
   await page.route('**/api/emoji/run**', route => route.abort());
 
   // The runs to play: the autopilot's on a board field, and the server tests' run with everything in it.
-  await page.goto(`${base}/emoji.html?manual&seed=6`);
+  await page.goto(`${base}/emoji.html?manual&seed=11`);
   await page.waitForFunction(() => !!window.emoji?.player, null, { timeout: 60000, polling: 50 });
   const { replay, pits, same } = await page.evaluate(async () => {
     const d = window.emoji;
@@ -37,7 +37,7 @@ async (page) => {
   const end = replay.samples.at(-1)[0] / 1000;
   const takes = replay.events.filter(e => e[1] === 'take').length;
   const flagged = (run, flag) => run.samples.filter(s => s[8] & flag).length;
-  check('The autopilot fetches the list and :peak-mnot:', replay.seed === 6 && replay.samples.length > 300
+  check('The autopilot fetches the list and :peak-mnot:', replay.seed === 11 && replay.samples.length > 300
     && takes === 5 && flagged(replay, FLAG.finish) === 1, { samples: replay.samples.length, end, takes });
   check('The tests\' recorded run is on this field\'s rules (else export the route and the fixtures again)', same,
     { route: pits.route });
@@ -87,7 +87,7 @@ async (page) => {
       chip: document.querySelector('.replay-chip')?.textContent };
   });
   check('Watch run plays by itself on the run\'s field, without the title', live.ready && live.playing
-    && live.time > 0.3 && !live.title && live.seed === 6 && /^Replay: Demo Can/.test(live.chip), live);
+    && live.time > 0.3 && !live.title && live.seed === 11 && /^Replay: Demo Can/.test(live.chip), live);
   await page.click('.replay-button >> text=Back to Hall');
   await page.waitForFunction(() => new URL(location.href).searchParams.get('hall') === '1'
     && !new URL(location.href).searchParams.has('replay') && !!document.querySelector('.sc-panel.open .sc-list li'),
@@ -222,7 +222,7 @@ async (page) => {
       status: d.replays.status.textContent };
   });
   check('The ghost is a see-through Mnot of its own, on its run\'s field', ghostLook.ready && ghostLook.inScene
-    && ghostLook.meshes > 5 && ghostLook.seeThrough && ghostLook.seed === 6 && ghostLook.counted, ghostLook);
+    && ghostLook.meshes > 5 && ghostLook.seeThrough && ghostLook.seed === 11 && ghostLook.counted, ghostLook);
   await page.keyboard.press('Space');
   const race = await page.evaluate(() => {
     const d = window.emoji, g = d.ghost;

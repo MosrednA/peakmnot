@@ -36,7 +36,7 @@ PICKS = [
     "toiletrol-voor", "badum", "caravan", "clippy", "cursor", "broken-wifi", "bitcoin", "terminal", "kurk",
     "fishing-pole", "fluit", "alarm", "raptor", "axolotl", "birb", "spaghetti-monster", "cubimal_chick", "party-poop",
     "this-is-fine", "upvote", "dont-panic", "1337", "yolo", "vlammenwerper-2", "wesp", "police", "cone-of-shame",
-    "nerdbier", "mnot",
+    "nerdbier", "mnot", "chefskiss",
     # parrots: alike on purpose, for the hard levels
     "partyparrot", "christmasparrot", "hardhat-parrot", "nerd-parrot", "headset-parrot", "sadparrot", "wineparrot",
     "nederland-parrot",
