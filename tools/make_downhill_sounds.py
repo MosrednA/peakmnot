@@ -195,6 +195,17 @@ def main():
     loops["brake"] = noise(2, 250, 2800, True) * (0.85 + 0.08 * np.sin(2 * np.pi * 9 * t))
     loops["scrape"] = noise(2, 750, 3200, True) * (0.7 + 0.22 * np.sin(2 * np.pi * 8 * t)) + 0.2 * np.sin(2 * np.pi * 190 * t)
     loops["swivel"] = noise(2, 250, 1500, True) * 0.25 + np.sin(2 * np.pi * 240 * t) * (0.7 + 0.1 * np.sin(2 * np.pi * 3 * t))
+    # Added after all older random draws so the existing palette stays byte-for-byte reproducible.
+    t = time(0.48)
+    clips["branches"] = noise(0.48, 550, 5200) * np.sin(np.pi * t / 0.48)**1.3 * (0.7 + 0.3*np.sin(t*91)**2)
+    clips["branches"] += snow(0.48) * 0.18
+    bird = np.zeros(round(0.58 * RATE))
+    for at, first, last, length in [(0, 1900, 3200, 0.095), (0.14, 2700, 2100, 0.11), (0.31, 2200, 3700, 0.15)]:
+        t = time(length)
+        freq = np.linspace(first, last, len(t)) + 90*np.sin(2*np.pi*31*t)
+        phase = 2*np.pi*np.cumsum(freq)/RATE
+        add(bird, (np.sin(phase) + 0.12*np.sin(2*phase))*np.sin(np.pi*t/length)**1.5, at)
+    clips["bird"] = bird
     metadata, prepared = [], {}
     for name, x in clips.items():
         info, samples = save(name, x)
@@ -215,7 +226,7 @@ def main():
     gap = np.zeros(round(0.13 * RATE))
     preview = []
     for name in ["lift", "land-soft", "land-hard", "crash-rock", "crash-tree", "crash-metal", "crash-desk",
-                 "crash-printer", "wheel", "snowman", "chair", "cooler", "ficus", "photo", "pit", "strike", "crowd", "bonus", "lost", "splash", "wrecked", "finish"]:
+                 "crash-printer", "wheel", "snowman", "chair", "cooler", "ficus", "branches", "bird", "photo", "pit", "strike", "crowd", "bonus", "lost", "splash", "wrecked", "finish"]:
         preview.extend([prepared[name] * 0.55 * 0.65, gap])
     for name in loops:
         x = np.tile(prepared[name], 2) * 0.55 * 0.3
