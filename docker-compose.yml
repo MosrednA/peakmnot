@@ -1,5 +1,5 @@
-# Peak Mnot on MosDeploy (peakmnot.mosredna.eu): one container serves the game and /api/peak. See server/README.md,
-# "Production".
+# Peak Mnot on MosDeploy (peakmnot.mosredna.eu): one container serves the games and their APIs, and the arena's room
+# server runs beside it. See server/README.md, "Production".
 services:
   app:
     build: .
@@ -19,12 +19,40 @@ services:
       ALLOWED_ORIGINS: https://peakmnot.mosredna.eu
       # the reverse proxy reaches the container from Docker's networks; its X-Forwarded-For is believed, nobody else's
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-127.0.0.1/32,::1/128,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16}
+      # the arena's room server (the service below, on this one's network): /arena/ws and /arena/health go there
+      ARENA_UPSTREAM: 127.0.0.1:5298
     volumes:
       - peakmnot-data:/data
     labels:
       - com.mosdeploy.project=peakmnot
     mem_limit: 256m
     cpus: 1.0
+
+  # Mnot Arena's room server (peak/arena/README.md, "Live"). It shares the app's network, so it needs no port or
+  # network of its own: only the score server reaches it, at 127.0.0.1:5298, and passes the page's WebSocket on.
+  # When the app's container starts again (a crash, a restart), it has a new network: the room server notices that
+  # the score server is gone (BESIDE), stops, and comes back beside it (restart).
+  arena:
+    build:
+      context: .
+      dockerfile: arena/Dockerfile
+    restart: unless-stopped
+    network_mode: service:app
+    depends_on:
+      app:
+        condition: service_started
+        restart: true
+    environment:
+      HOST: 127.0.0.1
+      PORT: "5298"
+      # the score server, on the same network
+      BESIDE: 127.0.0.1:8080
+      # the pages that may connect; the visitor's address comes from the score server (X-Forwarded-For)
+      ARENA_ORIGINS: https://peakmnot.mosredna.eu
+    labels:
+      - com.mosdeploy.project=peakmnot
+    mem_limit: 128m
+    cpus: 0.5
 
 volumes:
   peakmnot-data:

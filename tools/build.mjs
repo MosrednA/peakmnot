@@ -24,12 +24,13 @@ import { gzipSync } from 'node:zlib';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const OUT = path.join(ROOT, 'dist');
 // The games, one page each: a new game is one more line here (and its page in STATIC in server/peak_scores.py).
-// Then the page of all the games and the viewer, at /games and /viewer (PAGES in server/peak_scores.py).
-// A page's name (without .html) names its code: peak.html loads assets/peak-HASH.js.
+// Then the arena, the page of all the games and the viewer, at /arena, /games and /viewer (PAGES in
+// server/peak_scores.py). A page's name (without .html) names its code: peak.html loads assets/peak-HASH.js.
 const PAGES = [
   'peak.html',
   'downhill.html',
   'emoji.html',
+  'arena.html',
   'games.html',
   'index.html',
 ];

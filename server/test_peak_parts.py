@@ -133,7 +133,8 @@ class StaticFiles(unittest.TestCase):
             self.assertIn(self.server.request("GET", path).status, (404, 418), path)
 
     def test_every_page_has_its_route(self):
-        for path, file in (("/downhill", "downhill.html"), ("/games", "games.html"), ("/viewer", "index.html")):
+        for path, file in (("/downhill", "downhill.html"), ("/games", "games.html"), ("/viewer", "index.html"),
+                           ("/arena", "arena.html")):
             r = self.server.request("GET", path)
             self.assertEqual((r.status, r.headers["Content-Type"]), (200, "text/html; charset=utf-8"), path)
             self.assertIn(b"<title>", r.data)

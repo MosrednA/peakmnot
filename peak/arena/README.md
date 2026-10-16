@@ -1,14 +1,14 @@
 # Mnot Arena
 
-A proof of concept, local only: not in the build's `PAGES`, not on `/games`, not live.
+A proof of concept, on the site at `/arena` (with a push, see "Live"), but not on `/games` yet.
 
 A plaza in the snow, a little way up the mountain, where every visitor is a can. Type a name and you're in: walk
 about, say something (it shows in the log and over your can), wave, dance, jump, and bump into the others; a hard
 bump sends both cans reeling. Up to 12 cans; everyone else watches until a spot frees up. It's the first online
 piece of the games: one server decides where every can is, and every page shows the same plaza.
 
-It's built on the mini game kit (`peak/kit/`) and shares the climb's look and Mnot. No title, party, scores,
-sounds of its own or `?perf` yet: those come when it becomes a game (the `mini-game` skill).
+It's built on the mini game kit (`peak/kit/`) and shares the climb's look and Mnot, with sounds and music of its
+own. No title, party, scores or `?perf` yet: those come when it becomes a game (the `mini-game` skill).
 
 | Key | |
 |---|---|
@@ -38,7 +38,9 @@ The page and the room server are two things:
 
 A page from a local dev server talks to the room server on this computer, port 5298; anywhere else, to its own host.
 `?server=host:port` points it at another one; `?lag=200` holds every message 100 ms each way, to play as if the
-server were far away.
+server were far away. To try it as it runs live, through the score server (see "Live"): `npm run build`, the room
+server, then `ARENA_UPSTREAM=127.0.0.1:5298 SITE_DIR=dist python -X utf8 server/peak_scores.py --static --port 8080`
+and <http://127.0.0.1:8080/arena?server=127.0.0.1:8080>.
 
 To fill the room: `node bots.mjs 5` in `arena/` (count, then the server's address if it isn't the local one). The
 bots wander, run at someone to bump them, jump, wave, dance and say something now and then. Ctrl+C takes them home.
@@ -54,11 +56,15 @@ bots wander, run at someone to bump them, jump, wave, dance and say something no
 | `peak/arena/net.js` | The page's WebSocket: comes back when it drops, the round trip, `?lag` |
 | `peak/arena/cans.js` | The cans: Mnot's model cloned and painted one of 12 colours, its clips, the name tags and chat bubbles |
 | `peak/arena/plaza.js` | The plaza: the floor, the snow wall, three snowmen with glasses, the sign |
+| `peak/arena/sfx.js`, `music.js` | Can foley within 7 m, bounded crowd cues and the 96 BPM Pocket Altitude plaza loop; `audio/arena/README.md` covers the assets, rebuilding them and their checks |
 | `arena/server.mjs` | The room server: a WebSocket at `/arena/ws`, the steady clock, the limits per connection |
 | `arena/room.mjs` | The room: who's in, joining, chat, the step and its snapshot. Knows nothing of sockets |
 | `arena/words.mjs` | Names and chat lines made safe and polite (the score server's word lists) |
 | `arena/bots.mjs` | Cans that aren't people, for testing |
 | `arena/room.test.mjs` | The room's tests |
+| `arena/server.test.mjs` | The room server over real sockets: who may connect, and how many from one address |
+| `arena/Dockerfile` | The room server's container, live (see "Live") |
+| `server/arena.py` | The score server passing `/arena/ws` and `/arena/health` on to the room server, live |
 | `tools/check_arena.mjs` | The page with several visitors at once, in headless Chromium |
 
 ## How it plays online
@@ -79,25 +85,45 @@ bots wander, run at someone to bump them, jump, wave, dance and say something no
   smoothly however the snapshots arrive.
 - **The limits** (`LIMITS` in `room.mjs`, `server.mjs`): 12 cans, 48 connections in all, names 16 characters and
   chat lines 140 (rude words fizz), 4 lines in a row then one every 1.5 s, 120 messages a second a connection, 2 KB a
-  message, 5 minutes without walking or talking and a can goes back to watching. Only pages from local hosts and
-  `ARENA_ORIGINS` may connect.
+  message, 5 minutes without walking or talking and a can goes back to watching, 4 connections from one address
+  (`PER_ADDRESS`; this computer's has none). Only pages from local hosts and `ARENA_ORIGINS` may connect.
 - **Joining a full room** costs no hitch: the warm-up draws twice (three.js builds the shadows' shaders before it
   counts the lights), so a can coming in builds no new shader.
 
 ## Checks
 
 - `npm test` in `arena/`: the room (joining, names, a full room, chat, walking, late and bursty inputs, emotes,
-  bumps, the wall, idling, the wire, and the page's prediction against the server).
+  bumps, the wall, idling, the wire, and the page's prediction against the server), and the room server on a port
+  of its own (the pages that may connect, the limit per address).
+- The score server's tests (`server/test_arena.py`): the WebSocket passed on both ways with the visitor's address,
+  `/arena/health`, the room server down, too many lines at once, the page's policy.
 - `node --test tools/check_arena.mjs`: four visitors in headless Chromium against a room server of its own, on free
   ports: the join card, joining, a name taken, chat, walking (my can and what the others see agree), jumping, waving,
   dancing, a bump both pages agree on, playing from far away (`?lag=200`), a full room and a spot freeing up,
   leaving, and the line dropping and coming back. About 80 s. Set `PLAYWRIGHT` to Playwright's `index.mjs` if it
   isn't installed here, and `CHROME` to a browser if Playwright's own doesn't match.
+- The sounds: `python tools/check_arena_audio.py`, and `npm run build`, then `node --test tools/check_arena_audio.mjs`.
 
-## Going live (not done)
+## Live
 
-- The room server as a second service next to the score server, behind the same host at `/arena/ws`, so the page
-  needs no other address. The proxy in front has to pass the WebSocket upgrade on that path.
-- `ARENA_ORIGINS` set to the site, a limit on connections per address, and a line in `PAGES` in `tools/build.mjs`.
-- Then the rest of a game: a title, sounds (Codex), the card on `/games`, a viewer tab, Plausible goals, `?perf`,
-  phones checked (the `mini-game` skill).
+The page is at <https://peakmnot.mosredna.eu/arena> (`PAGES` in `tools/build.mjs` and in `server/peak_scores.py`),
+and talks to its own host, `wss://peakmnot.mosredna.eu/arena/ws`. On the way in:
+
+- Cloudflare and the proxy on the server pass the WebSocket upgrade on, to the one port MosDeploy gives the site:
+  the score server's container. MosDeploy routes a host, not a path.
+- The score server passes `/arena/ws` and `/arena/health` on to the room server (`server/arena.py`, at most 64 lines
+  at once), with the visitor's address in `X-Forwarded-For` (as `TRUSTED_PROXIES` reads it), for the limit per
+  address. `ARENA_UPSTREAM` says where; without it, both are 404.
+- The room server runs in a container of its own (`arena/Dockerfile`, the `arena` service in `docker-compose.yml`)
+  on the score server's network (`network_mode: service:app`): no port of its own, only the score server reaches
+  it, on 127.0.0.1:5298. `ARENA_ORIGINS` is the site. A deploy builds and starts both. When the score server's
+  container starts again (a crash, a restart), it has a new network; the room server notices that the score server
+  at `BESIDE` no longer answers, stops, and Docker starts it again beside it, a few seconds later. Only recreating
+  the score server's container alone (`docker compose up -d --force-recreate app`) leaves it stopped: then
+  `docker compose up -d` brings it back.
+- The page's policy lets it connect to `wss://` its own host (older Safari doesn't count that as `'self'`).
+
+<https://peakmnot.mosredna.eu/arena/health> says who's in, and from how many addresses (none shown).
+
+Still to come before it's a game: a title, the card on `/games`, a viewer tab, Plausible goals,
+`?perf`, phones checked (the `mini-game` skill).

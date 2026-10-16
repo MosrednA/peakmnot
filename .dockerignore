@@ -8,7 +8,7 @@ data
 docs
 tools/*
 !tools/build.mjs
-node_modules
+**/node_modules
 dist
 **/__pycache__
 **/*.md

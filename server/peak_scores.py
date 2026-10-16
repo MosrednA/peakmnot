@@ -9,7 +9,7 @@ games themselves (production, one origin). Python's standard library only. See s
     python server/peak_scores.py --showcase FILE --as NAME      # a recorded climb shown by link only, not on the board
 
 Settings come from the environment: DATA_DIR, PEAK_SECRET (and PEAK_SECRET_OLD while rotating), ALLOWED_ORIGINS,
-TRUSTED_PROXIES; the command line overrides HOST and PORT.
+TRUSTED_PROXIES, ARENA_UPSTREAM (the arena's room server, arena.py); the command line overrides HOST and PORT.
 """
 import argparse
 import base64
@@ -28,6 +28,7 @@ from urllib.parse import parse_qs, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import api as api_module            # noqa: E402
+import arena                        # noqa: E402
 from db import Database             # noqa: E402
 import games                        # noqa: E402
 import names                        # noqa: E402
@@ -40,10 +41,11 @@ SITE = Path(os.environ.get("SITE_DIR") or ROOT).resolve()     # what --static se
 STATIC = re.compile(r"^/((" + "|".join(games.NAMES) + r")\.html|sounds\.js|music\.js|favicon\.(png|ico)|share(-[a-z]+)?\.jpg|"
                     r"manifest\.webmanifest|peak/([a-z]+/)?[a-z0-9_-]+\.(js|css|jpg|webp)|models/mnot\.glb|"
                     r"audio/([a-z]+/)?[a-z0-9_-]+\.(wav|mp3|m4a)|audio/music/[a-z0-9_-]+\.mp3)$")
-# the pages: the first game's at /, every other game's at /<game> too, the page of all the games at /games and the
-# viewer (index.html, the model and every game's moves) at /viewer; a route names its file, which needs no STATIC
+# the pages: the first game's at /, every other game's at /<game> too, the page of all the games at /games, the
+# viewer (index.html, the model and every game's moves) at /viewer and the arena (arena.py) at /arena; a route names
+# its file, which needs no STATIC
 PAGES = {"/": f"/{games.NAMES[0]}.html", **{f"/{name}": f"/{name}.html" for name in games.NAMES[1:]},
-         "/games": "/games.html", "/viewer": "/index.html"}
+         "/games": "/games.html", "/viewer": "/index.html", "/arena": "/arena.html"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".glb": "model/gltf-binary", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".png": "image/png",
          ".m4a": "audio/mp4", ".jpg": "image/jpeg", ".webp": "image/webp", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json"}
@@ -51,11 +53,12 @@ SECURE = {"X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
           "Cross-Origin-Opener-Policy": "same-origin", "X-Frame-Options": "DENY"}
 API_CSP = "default-src 'none'; frame-ancestors 'none'"
 # The page may be shown in an iframe on the podcast's mascot site, and only there: frame-ancestors names it, and the
-# page goes without X-Frame-Options, which can't name a site.
+# page goes without X-Frame-Options, which can't name a site. {sockets}: the site's own wss:// with the arena (older
+# Safari doesn't count a WebSocket to the page's own host as 'self').
 PAGE_CSP = ("default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://stats.mosredna.eu {hashes}; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; "
             "img-src 'self' data: blob:; media-src 'self' blob:; "
-            "connect-src 'self' https://cdn.jsdelivr.net https://stats.mosredna.eu; worker-src 'self' blob:; "
+            "connect-src 'self'{sockets} https://cdn.jsdelivr.net https://stats.mosredna.eu; worker-src 'self' blob:; "
             "object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors https://mnot.nl https://*.mnot.nl")
 DRAIN = 4 * 1024 * 1024               # bytes of an oversized body read (and dropped) before saying no
 INLINE_SCRIPT = re.compile(rb"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", re.S | re.I)
@@ -70,12 +73,12 @@ BUILD_FILES = ("*.js", "peak/**/*", "audio/**/*")    # what loads through v/BUIL
 HASHED = re.compile(r"^/assets/[a-z0-9_-]+-[A-Z2-7]{8}\.(js|css|m4a|mp3|wav|jpg|webp)$")
 
 
-def page_csp(html):
+def page_csp(html, sockets=()):
     """The page's policy, with a hash for each of its inline scripts (the import map and the dev reload check), so
-    nothing else inline can run."""
+    nothing else inline can run; sockets: the WebSocket origins it may connect to besides 'self'."""
     hashes = " ".join(f"'sha256-{base64.b64encode(hashlib.sha256(m).digest()).decode()}'"
                       for m in INLINE_SCRIPT.findall(html))
-    policy = PAGE_CSP.format(hashes=hashes)
+    policy = PAGE_CSP.format(hashes=hashes, sockets="".join(f" {s}" for s in sockets))
     # a built page brings three.js along in its own code, so it needs nothing from the CDN
     return policy if b"cdn.jsdelivr.net" in html else policy.replace(" https://cdn.jsdelivr.net", "")
 
@@ -160,6 +163,8 @@ class Handler(BaseHTTPRequestHandler):
         app = self.server.app
         url = urlsplit(self.path)
         path = url.path
+        if app.arena and method == "GET" and path in (arena.WS, arena.HEALTH):
+            return self.door(path)
         if method in ("GET", "HEAD") and app.static:
             versioned = VERSIONED.match(path)
             routed = PAGES.get(path)
@@ -184,6 +189,22 @@ class Handler(BaseHTTPRequestHandler):
         ip = client_ip(self.client_address[0], self.headers.get("X-Forwarded-For"), app.trusted)
         headers = {k: self.headers.get(k) for k in ("Origin", "Content-Type", "X-Mnot-Sig")}
         self.answer(*app.api.handle(method, path, parse_qs(url.query), headers, body, ip))
+
+    def door(self, path):
+        """The arena's two paths, passed on to its room server (arena.py)."""
+        app = self.server.app
+        if path == arena.HEALTH:
+            return self.answer(*app.arena.health())
+        text = {"Content-Type": "text/plain; charset=utf-8"}
+        if (self.headers.get("Upgrade") or "").lower() != "websocket":
+            return self.answer(426, {**text, "Upgrade": "websocket"}, b"The arena's room speaks WebSocket only.\n")
+        ip = client_ip(self.client_address[0], self.headers.get("X-Forwarded-For"), app.trusted)
+        self.close_connection = True                # the line is the room server's now, or it's over
+        how = app.arena.splice(self.path, self.headers, ip, self.connection, self.rfile)
+        if how == "busy":
+            self.answer(503, text, b"The arena is full of lines; try again in a moment.\n", close=True)
+        elif how == "down":
+            self.answer(502, text, b"The arena's room server isn't answering.\n", close=True)
 
     def drain(self, size):
         while size > 0:
@@ -257,9 +278,9 @@ class Handler(BaseHTTPRequestHandler):
 
 class App:
     def __init__(self, data_dir, keys, origins, trusted, static=False, route=None, clock=None, quiet=False,
-                 downhill_route=None, levels=None, emoji_route=None):
+                 downhill_route=None, levels=None, emoji_route=None, arena=None):
         """route, downhill_route, emoji_route: a game's route instead of its file's; levels: the games' other levels, as
-        games.load() takes them (tests)."""
+        games.load() takes them (tests); arena: the arena's room server (arena.door()), or None."""
         self.db = Database(Path(data_dir) / "peak.sqlite3")
         kwargs = {"clock": clock} if clock else {}
         self.store = Store(self.db, keys, **kwargs)                 # the climb's; .for_game() for another's
@@ -271,6 +292,9 @@ class App:
         self.api = api_module.Api(self.store, self.games.values(), origins,
                                   perf=PerfLog(Path(data_dir) / "perf.jsonl", quiet), **kwargs)
         self.trusted, self.static, self.quiet = trusted, static, quiet
+        self.arena = arena
+        # the arena's page connects to its own host (peak/arena/net.js), so the site's https origins as wss
+        self.sockets = [f"wss://{o[len('https://'):]}" for o in origins if o.startswith("https://")] if arena else []
         self.build = build_id() if static else ""
         self.page_cache = {}
         self.lock = threading.Lock()
@@ -282,7 +306,7 @@ class App:
             cached = self.page_cache.get(str(file))
             if cached is None or cached[0] != stat.st_mtime_ns:
                 html = PAGE_CODE.sub(rb"\1v/" + self.build.encode() + rb"/\2", file.read_bytes())
-                cached = self.page_cache[str(file)] = (stat.st_mtime_ns, (html, page_csp(html)))
+                cached = self.page_cache[str(file)] = (stat.st_mtime_ns, (html, page_csp(html, self.sockets)))
             return cached[1]
 
     def serve(self, host, port):
@@ -311,7 +335,8 @@ def main(argv=None):
     dev = ",".join(f"http://{host}:{port}" for port in (5280, 5293) for host in ("127.0.0.1", "localhost"))
     origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", dev).split(",") if o.strip()]
     trusted = networks(os.environ.get("TRUSTED_PROXIES", "127.0.0.1/32,::1/128"))
-    app = App(data_dir, server_keys(data_dir), origins, trusted, static=args.static)
+    app = App(data_dir, server_keys(data_dir), origins, trusted, static=args.static,
+              arena=arena.door(os.environ.get("ARENA_UPSTREAM")))
     if args.backup:
         app.db.backup(args.backup)
         print(f"Backed up {app.db.path} to {args.backup}")
@@ -325,7 +350,8 @@ def main(argv=None):
     server = app.serve(args.host, args.port)
     boards = ", ".join(f"/api/{name} (route {game.route.fingerprint[:12]})" for name, game in app.games.items())
     print(f"Peak Mnot scores on http://{args.host}:{args.port}: {boards} (data in {data_dir}, "
-          f"{'serving the games' if args.static else 'API only'})", flush=True)
+          f"{'serving the games' if args.static else 'API only'}"
+          f"{f', the arena passed on to {app.arena}' if app.arena else ''})", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -369,6 +369,13 @@ the page of all the games (`games.html`) and the viewer (`index.html`), the favi
 `STATIC`). The server serves only those files (an allowlist), with a
 Content-Security-Policy that hashes the page's inline scripts.
 
+The arena (`/arena`, `peak/arena/README.md`) has a room server of its own, in Node: the `arena` service in
+`docker-compose.yml` (`arena/Dockerfile`), on this container's network (`network_mode: service:app`), with no port
+of its own. MosDeploy routes the host to one port, this server's, so it passes `/arena/ws` (the page's WebSocket,
+byte for byte, with the visitor's address in `X-Forwarded-For`) and `/arena/health` on to `ARENA_UPSTREAM`
+(`arena.py`; `127.0.0.1:5298` in the compose file). Without `ARENA_UPSTREAM` both are 404. With it, the pages'
+policy lets them connect to `wss://` each `https://` origin in `ALLOWED_ORIGINS`.
+
 In `assets/` every file is named after its content (`peak-HASH.js`, `three-HASH.js`, `fall-HASH.m4a`), so it is
 served as immutable, and only the page itself is checked on every visit. Run from the source (no `SITE_DIR`), the
 server sends the page's links into `peak/` through `v/BUILD/` instead, a path that changes with the code. To try
@@ -383,7 +390,8 @@ the image's site without Docker: `npm ci`, `npm run build`, then
    reverse proxy reaches the container from.
 3. Deploy. Without MosDeploy: `PEAK_SECRET=... docker compose up -d --build`, with a TLS proxy in front of the port
    that sets `X-Forwarded-For`.
-4. Check `https://peakmnot.mosredna.eu/api/peak/health`: `{"ok":true,"route":"…","db":2}`.
+4. Check `https://peakmnot.mosredna.eu/api/peak/health`: `{"ok":true,"route":"…","db":2}`, and the arena's
+   `https://peakmnot.mosredna.eu/arena/health`: `{"ok":true,"playing":0,…}`.
 
 If a CDN ever sits in front of the proxy, add its address ranges to `TRUSTED_PROXIES`, or every visitor shares the
 CDN's addresses and its rate limits.

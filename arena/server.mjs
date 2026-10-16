@@ -1,7 +1,10 @@
 // The arena's room server: one Room (room.mjs) behind a WebSocket at /arena/ws, stepped TICK at a time on a steady
 // clock, and /arena/health for a look at who's in. `node server.mjs`, or `npm start`; PORT (5298) and HOST
 // (127.0.0.1) say where it listens, ARENA_ORIGINS (comma separated) which pages may connect besides local ones.
+// Live, the score server passes the page's WebSocket on to it (server/arena.py), with the visitor's address, and
+// BESIDE (host:port) is that score server, whose network this shares (see "Beside the score server" below).
 import http from 'node:http';
+import net from 'node:net';
 import { WebSocketServer } from 'ws';
 import { TICK } from '../peak/arena/sim.js';
 import { PATH } from '../peak/arena/protocol.js';
@@ -11,17 +14,31 @@ const PORT = Number(process.env.PORT ?? 5298);
 const HOST = process.env.HOST ?? '127.0.0.1';
 const ORIGINS = new Set((process.env.ARENA_ORIGINS ?? 'https://peakmnot.mosredna.eu').split(',').map(s => s.trim()));
 const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+const LOOPBACK = /^(127\.|::1$|::ffff:127\.)/;
+const BESIDE = process.env.BESIDE ?? '';
 
 const HEARTBEAT = 20;           // s between pings; a connection that didn't answer the last one is gone
 const SNAPSHOT_BACKLOG = 64 * 1024;   // bytes waiting to go out before a slow connection skips snapshots
 const MESSAGES = { second: 120 };     // messages a connection may send in a second (inputs are 30)
+const PER_ADDRESS = 4;                // connections from one address (players and watchers); this computer has none
+const KNOCK = { every: 2, missed: 3 };   // s between knocks on BESIDE, and knocks in a row unanswered before stopping
 
 const room = new Room();
+const addresses = new Map();          // connections open, by address
+
+// Who's at the other end. Live, that's the score server on this container's network, which passes the visitor's
+// address on in X-Forwarded-For (server/arena.py): believed from this computer only, and only its last entry.
+function addressOf(req) {
+  const peer = req.socket.remoteAddress ?? '';
+  const forwarded = req.headers['x-forwarded-for']?.split(',').at(-1).trim();
+  return LOOPBACK.test(peer) && forwarded ? forwarded : peer;
+}
 
 const server = http.createServer((req, res) => {
   if (req.url === '/arena/health') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify({ ok: true, playing: room.playing, watching: room.watching, max: room.max }));
+    res.end(JSON.stringify({ ok: true, playing: room.playing, watching: room.watching, max: room.max,
+      addresses: addresses.size }));
     return;
   }
   res.writeHead(404, { 'Content-Type': 'text/plain' });
@@ -31,12 +48,22 @@ const server = http.createServer((req, res) => {
 const sockets = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: 2048 });
 
 server.on('upgrade', (req, socket, head) => {
-  const origin = req.headers.origin ?? '';
-  if (new URL(req.url, 'http://x').pathname !== PATH || !(LOCAL.test(origin) || ORIGINS.has(origin))) {
-    socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+  const origin = req.headers.origin ?? '', address = addressOf(req), open = addresses.get(address) ?? 0;
+  const refuse = status => {
+    socket.write(`HTTP/1.1 ${status}\r\nConnection: close\r\n\r\n`);
     socket.destroy();
-    return;
+  };
+  if (new URL(req.url, 'http://x').pathname !== PATH || !(LOCAL.test(origin) || ORIGINS.has(origin))) {
+    return refuse('403 Forbidden');
   }
+  if (open >= PER_ADDRESS && !LOOPBACK.test(address)) return refuse('429 Too Many Requests');
+  // counted from here until the line closes, whether the upgrade goes through or not
+  addresses.set(address, open + 1);
+  socket.once('close', () => {
+    const left = addresses.get(address) - 1;
+    if (left > 0) addresses.set(address, left);
+    else addresses.delete(address);
+  });
   sockets.handleUpgrade(req, socket, head, ws => sockets.emit('connection', ws, req));
 });
 
@@ -88,7 +115,35 @@ function loop() {
 }
 loop();
 
-server.listen(PORT, HOST, () => console.log(`Mnot arena: ws://${HOST}:${PORT}${PATH}, up to ${room.max} cans`));
+// Beside the score server: live, this runs on the score server's container's network (docker-compose.yml). When that
+// container starts again (a crash, a restart) it gets a new network, and this would stay behind in the old one, out
+// of reach. So once the score server has answered here, KNOCK.missed knocks in a row that it doesn't answer stop this
+// too, and Docker starts it again, beside the score server in its new network.
+if (BESIDE) {
+  const [, host, port] = BESIDE.match(/^\[?(.*?)\]?:(\d+)$/);
+  let seen = false, missed = 0;
+  setInterval(() => {
+    const knock = net.connect({ host, port: Number(port), timeout: 1000 });
+    let done = false;
+    const heard = answered => {
+      if (done) return;
+      done = true;
+      knock.destroy();
+      if (answered) { seen = true; missed = 0; }
+      else if (seen && ++missed >= KNOCK.missed) {
+        console.log(`Mnot arena: the score server at ${BESIDE} is gone; stopping, to start again beside it`);
+        process.exit(1);
+      }
+    };
+    knock.once('connect', () => heard(true));
+    knock.once('error', () => heard(false));
+    knock.once('timeout', () => heard(false));
+  }, KNOCK.every * 1000).unref();
+}
+
+server.listen(PORT, HOST, () => {
+  console.log(`Mnot arena: ws://${HOST}:${server.address().port}${PATH}, up to ${room.max} cans`);
+});
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
