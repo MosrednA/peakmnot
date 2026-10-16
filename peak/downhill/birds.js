@@ -24,6 +24,8 @@ export class Birds {
     this.group = world.group;
     this.puffs = bursts(world);
     this.perch = null;       // set by main.js: Mnot's head
+    /** @type {(() => void)|null} */
+    this.onTakeoff = null;   // the game's sound cue, when a perched bird leaves Mnot's head
     this.flying = [];
     this.spare = [];
     this.made = 0;
@@ -134,6 +136,7 @@ export class Birds {
     u.phase = 'fly';
     u.flight = 0;
     u.daze = 0.4;
+    this.onTakeoff?.();
   }
 
   // Free in the air: dazed a moment (sagging, fluttering every which way), then a climb, still wobbling a little.

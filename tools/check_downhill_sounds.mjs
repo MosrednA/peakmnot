@@ -45,9 +45,9 @@ test('motion cannot send invalid or unbounded gain and pitch to Web Audio', () =
   assert.ok(mix({ speed: 28 }).get('wind').gain > mix({ speed: 6 }).get('wind').gain);
 });
 
-test('all thirty-one PCM masters are non-silent, bounded, small and seam-safe', async () => {
+test('all thirty-three PCM masters are non-silent, bounded, small and seam-safe', async () => {
   const dir = new URL('../audio/downhill/', import.meta.url), manifest = JSON.parse(await readFile(new URL('manifest.json', dir), 'utf8'));
-  assert.equal(manifest.sounds.length, 31);
+  assert.equal(manifest.sounds.length, 33);
   let total = 0, loops = 0;
   for (const sound of manifest.sounds) {
     const file = await readFile(new URL(`${sound.id}.wav`, dir)); total += file.length;

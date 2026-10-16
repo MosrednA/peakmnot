@@ -18,7 +18,7 @@ async page => {
   await page.waitForFunction(() => sfxCheck.ready || sfxCheck.error, null, { timeout: 30000 });
   let result = await page.evaluate(() => ({ state: sfxCheck.state, buffers: sfxCheck.buffers.size,
     sameContext: sfxCheck.sounds.context === downhill.sounds.context }));
-  check('Real gesture decodes all thirty-one effects on the shared context', result.buffers === 31 && result.sameContext && !result.state.error, result);
+  check('Real gesture decodes all thirty-three effects on the shared context', result.buffers === 33 && result.sameContext && !result.state.error, result);
   const decodedLoops = await page.evaluate(() => ['roll-piste', 'roll-ice', 'roll-bank', 'roll-powder', 'wind', 'brake', 'swivel', 'scrape']
     .map(id => {
       const buffer = sfxCheck.buffers.get(id), samples = buffer.getChannelData(0);
@@ -74,7 +74,8 @@ async page => {
     { type: 'jump' }, { type: 'land', impact: 2, air: 0.1 }, { type: 'land', impact: 10, air: 2 },
     ...['rock', 'tree', 'wall', 'cabinet', 'desk', 'printer', 'pole'].map(kind => ({ type: 'crash', kind, impulse: 7 })),
     { type: 'wheel', cause: 'landing', left: 3 },
-    ...['snowman', 'pin', 'knockoff', 'photographer', 'cooler', 'ficus'].map(kind => ({ type: 'bump', kind })),
+    ...['snowman', 'pin', 'knockoff', 'photographer', 'cooler', 'ficus', 'tree'].map(kind => ({ type: 'bump', kind })),
+    { type: 'bird' },
     { type: 'bowling', down: 10 }, { type: 'flight', distance: 70, kLine: 50 },
     ...['photo', 'pit', 'lost', 'splash', 'wrecked', 'finish'].map(type => ({ type })),
   ];
@@ -86,7 +87,7 @@ async page => {
   result = await page.evaluate(() => sfxCheck.state);
   check('Every material/event cue reaches its decoded sound', ['lift', 'land-soft', 'land-hard', 'crash-rock', 'crash-tree',
     'crash-metal', 'crash-desk', 'crash-printer', 'wheel', 'snowman', 'chair', 'photographer', 'cooler', 'ficus',
-    'strike', 'crowd', 'photo', 'pit', 'lost', 'splash', 'wrecked', 'finish'].every(id => result.counts[id] > 0), result);
+    'strike', 'crowd', 'photo', 'pit', 'lost', 'splash', 'wrecked', 'finish', 'branches', 'bird'].every(id => result.counts[id] > 0), result);
   result = await page.evaluate(() => {
     const before = sfxCheck.counts.get('crowd');
     sfxCheck.cue({ type: 'flight', distance: 60, kLine: 80 });
@@ -115,6 +116,38 @@ async page => {
   result = await page.evaluate(() => sfxCheck.state);
   check('Restart/respawn clears voices and ground-contact requests', result.voices === 0 && result.loops.length === 0
     && Object.values(result.targets).every(t => t.gain === 0), result);
+  await page.waitForFunction(() => downhill.sfx.ready);
+  result = await page.evaluate(() => {
+    const before = downhill.sfx.counts.get('branches') ?? 0, trunks = downhill.sfx.counts.get('crash-tree') ?? 0;
+    downhill.ride.emit('bump', { kind: 'tree' });
+    return { rustles: (downhill.sfx.counts.get('branches') ?? 0) - before,
+      trunks: (downhill.sfx.counts.get('crash-tree') ?? 0) - trunks };
+  });
+  check('The live branch bump rustles without a trunk impact', result.rustles === 1 && result.trunks === 0, result);
+  result = await page.evaluate(() => {
+    const { birds } = downhill.obstacles, V = downhill.THREE.Vector3;
+    birds.reset();
+    window.birdCountBefore = downhill.sfx.counts.get('bird') ?? 0;
+    const at = downhill.rider.perch.getWorldPosition(new V());
+    birds.launch(at, new V(0, 0, 1), new V(0, 0, 10));
+    birds.update(.35); birds.update(1.69);
+    return { phase: birds.flying[0].userData.phase, chirps: (downhill.sfx.counts.get('bird') ?? 0) - birdCountBefore };
+  });
+  check('A perched bird stays quiet while dazed', result.phase === 'sit' && result.chirps === 0, result);
+  result = await page.evaluate(() => {
+    const { birds } = downhill.obstacles;
+    birds.update(.02);
+    const phase = birds.flying[0].userData.phase;
+    for (let i = 0; i < 30; i++) birds.update(.02);
+    const chirps = (downhill.sfx.counts.get('bird') ?? 0) - birdCountBefore;
+    birds.reset();
+    birds.launch(downhill.rider.perch.getWorldPosition(new downhill.THREE.Vector3()),
+      new downhill.THREE.Vector3(0, 0, 1), new downhill.THREE.Vector3(0, 0, 10));
+    birds.reset(); birds.update(5);
+    return { phase, chirps, afterReset: (downhill.sfx.counts.get('bird') ?? 0) - birdCountBefore };
+  });
+  check('Takeoff chirps exactly once, with no delayed chirp after reset', result.phase === 'fly'
+    && result.chirps === 1 && result.afterReset === 1, result);
   await page.route('**/audio/downhill/lift.m4a', route => route.fulfill({ status: 404, body: 'Missing test asset' }));
   await page.evaluate(() => { window.failedSfx = new sfxCheck.constructor(downhill.sounds); });
   await page.waitForFunction(() => !!failedSfx.error);

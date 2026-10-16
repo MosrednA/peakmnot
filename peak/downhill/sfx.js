@@ -3,14 +3,14 @@
 import { unpadLoop } from '../../sounds.js';
 /** @typedef {'piste'|'ice'|'bank'|'powder'} Surface */
 /** @typedef {'rock'|'tree'|'wall'|'cabinet'|'desk'|'printer'|'pole'} CrashKind */
-/** @typedef {'snowman'|'pin'|'knockoff'|'photographer'|'cooler'|'ficus'} BumpKind */
+/** @typedef {'snowman'|'pin'|'knockoff'|'photographer'|'cooler'|'ficus'|'tree'} BumpKind */
 /** @typedef {'lift'|'land-soft'|'land-hard'|'crash-rock'|'crash-tree'|'crash-metal'|'crash-desk'|'crash-printer'|
- * 'wheel'|'snowman'|'chair'|'photographer'|'cooler'|'ficus'|'strike'|'crowd'|'photo'|'pit'|'lost'|'splash'|'wrecked'|'finish'|'bonus'} ShotId */
+ * 'wheel'|'snowman'|'chair'|'photographer'|'cooler'|'ficus'|'strike'|'crowd'|'photo'|'pit'|'lost'|'splash'|'wrecked'|'finish'|'bonus'|'branches'|'bird'} ShotId */
 /** @typedef {'roll-piste'|'roll-ice'|'roll-bank'|'roll-powder'|'wind'|'brake'|'swivel'|'scrape'} LoopId */
 /** @typedef {ShotId|LoopId} SoundId */
 /** @typedef {{active: boolean, speed: number, grounded: boolean, surface: Surface, brake: number,
  * spin: number, missing: number}} RideAudioState */
-/** @typedef {{type: 'jump'|'photo'|'pit'|'lost'|'splash'|'wrecked'|'finish'} |
+/** @typedef {{type: 'jump'|'photo'|'pit'|'lost'|'splash'|'wrecked'|'finish'|'bird'} |
  * {type: 'land', impact: number, air: number} | {type: 'crash', impulse: number, kind: CrashKind} |
  * {type: 'wheel', cause: string, left: number} | {type: 'bump', kind: BumpKind} |
  * {type: 'bowling', down: number} | {type: 'flight', distance: number, kLine: number} | {type: 'bonus', seconds: number}} DownhillCue */
@@ -20,13 +20,13 @@ import { unpadLoop } from '../../sounds.js';
 /** @type {ReadonlyArray<ShotId>} */
 const SHOTS = ['lift', 'land-soft', 'land-hard', 'crash-rock', 'crash-tree', 'crash-metal', 'crash-desk',
   'crash-printer', 'wheel', 'snowman', 'chair', 'photographer', 'cooler', 'ficus', 'strike', 'crowd', 'photo',
-  'pit', 'lost', 'splash', 'wrecked', 'finish', 'bonus'];
+  'pit', 'lost', 'splash', 'wrecked', 'finish', 'bonus', 'branches', 'bird'];
 /** @type {ReadonlyArray<LoopId>} */
 const LOOPS = ['roll-piste', 'roll-ice', 'roll-bank', 'roll-powder', 'wind', 'brake', 'swivel', 'scrape'];
 /** @type {Readonly<Record<CrashKind, ShotId>>} */
 const CRASH = { rock: 'crash-rock', wall: 'crash-rock', tree: 'crash-tree', cabinet: 'crash-metal', pole: 'crash-metal', desk: 'crash-desk', printer: 'crash-printer' };
 /** @type {Readonly<Record<BumpKind, ShotId>>} */
-const BUMP = { snowman: 'snowman', pin: 'chair', knockoff: 'chair', photographer: 'photographer', cooler: 'cooler', ficus: 'ficus' };
+const BUMP = { snowman: 'snowman', pin: 'chair', knockoff: 'chair', photographer: 'photographer', cooler: 'cooler', ficus: 'ficus', tree: 'branches' };
 const clamp = (/** @type {number} */ x, /** @type {number} */ lo, /** @type {number} */ hi) =>
   Number.isFinite(x) ? Math.max(lo, Math.min(hi, x)) : lo;
 /** @returns {RideAudioState} */
@@ -178,6 +178,7 @@ export class DownhillSfx {
       case 'crash': this.play(CRASH[cue.kind], 0.35 + clamp(cue.impulse, 0, 12) / 25); break;
       case 'wheel': this.play('wheel', 0.65); break;
       case 'bump': this.play(BUMP[cue.kind], 0.55); break;
+      case 'bird': this.play('bird', 0.42); break;
       case 'bowling': if (cue.down === 10) this.play('strike', 0.7); break;
       case 'flight': if (cue.distance >= cue.kLine) this.play('crowd', 0.6); break;
       case 'photo': this.play('photo', 0.6); break;

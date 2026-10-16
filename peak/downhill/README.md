@@ -120,7 +120,7 @@ game kit's (`peak/kit/`).
 | `chair.js` | The office chair's model and its pose (the base, the casters, the gas lift, the seat); at a pit stop the fresh casters fly in and pop on |
 | `rider.js` | Mnot on the chair: the sitting pose on top of the clips, flopping legs, braking heels, flailing arms |
 | `obstacles.js` | What stands on the piste (rocks, pines, snowmen, poles, signs, banners) and the debris that flies off it |
-| `birds.js` | A pine's bird: out of the branches onto Mnot's head (the perch in `rider.js`), dazed, then off ahead of the chair; and the needles that cling to Mnot a moment |
+| `birds.js` | A pine's bird: out of the branches onto Mnot's head (the perch in `rider.js`), dazed, then off ahead of the chair with a takeoff chirp; and the needles that cling to Mnot a moment |
 | `office.js` | Office furniture: the knock-off chairs, cabinets, desks, the printer, water coolers and plants |
 | `bowling.js` | The ten knock-off chairs as bowling pins, knocking each other over, and the score |
 | `marks.js` | Paint on the snow: the bowling lane and the ski jump's distance lines (`K_LINE`) |
@@ -134,7 +134,7 @@ game kit's (`peak/kit/`).
 | `perf.js` | The downhill's side of the perf probe (`kit/perf.js`) for `downhill.html?perf`: its spots (the start, the ice, the river, the ski jump, the finish), the chair parked at each; what's in the scene, the thank-you card's words, and the finish party under the card ([docs/performance.md](../../docs/performance.md)) |
 | `analytics.js` | The Plausible goals of public rides (above); excludes development and manual tests |
 | `viewer.js` | The downhill's tab in the animation viewer (`index.html`, `/viewer`): Mnot on the chair, its moves and the party |
-| `sfx.js`, `music.js` | The chair's sounds and the downhill's variant of the climb's tune (Codex) |
+| `sfx.js`, `music.js` | The chair's sounds, including soft pine-branch rustles and the bird's takeoff, and the downhill's variant of the climb's tune; [audio and checks](../../audio/downhill/README.md) |
 
 ## Testing
 

@@ -81,6 +81,7 @@ const chase = new ChaseCamera(camera, track);
 const autopilot = new Autopilot(track, obstacles);
 const sounds = new MnotSounds({ effects: ['wave'] });   // of the climb's effects, only the wave at the finish
 const sfx = new DownhillSfx(sounds);              // the chair's own sounds, through the same switch and unlock
+obstacles.birds.onTakeoff = () => sfx.cue({ type: 'bird' });
 const music = new DownhillMusic(sounds);          // the climb's tune, a little faster
 const party = new Party();                        // the finish party, once the chair has stopped past the line
 // the high scores: the run recorded from the gate, checked by the server at the finish (scores.js)
