@@ -1,7 +1,8 @@
 // The emojis on the field: thick die-cut tokens, each its sticker's outline (sheet.js, traced by tools/emoji_atlas.py)
 // extruded, with the sticker from the sheet (emojis.webp) on both faces and a white rim, inked like the rest of the
 // world. They hover over the snow and spin; one coming close slows down and turns to face Mnot, the next one on the
-// list hops for joy and the others lean back out of reach. The same sheet draws the list in the HUD (cssSticker).
+// list hops for joy and the others lean back out of reach. When the list is done they all twist away and the prize,
+// a big one, drops from the sky into the middle. The same sheet draws the list in the HUD (cssSticker).
 import * as THREE from 'three';
 import { toon } from '../look/look.js';
 import { SHEET, OUTLINES } from './sheet.js';
@@ -17,6 +18,10 @@ const NEAR = [3.6, 1.8];           // m: from here a token starts turning to fac
 const FACE = 5;                    // how fast it turns to face (a second), close by
 const WARP = { out: 0.4, back: 1.1 };   // s: a touched wrong one twisting away, and a blinked one coming back
 const TILT = 1.2;                  // radians a token leans back while the camera peeks from high up, to be read
+const SWEEP = 0.03;                // s a metre from Mnot: the list done, the emojis twist away one after another
+// The prize: how big, how high its middle hovers (m), from how high it drops and in how long (s), how near to
+// touch it (m from Mnot's middle); won, it floats over Mnot's head (held: how big then)
+const PRIZE = { scale: 1.7, height: 1.6, drop: 16, fall: 0.55, touch: 1.2, held: 0.95 };
 const TAU = Math.PI * 2;
 const ease = (from, to, k) => THREE.MathUtils.smoothstep(k, from, to);
 const turn = a => Math.atan2(Math.sin(a), Math.cos(a));
@@ -83,11 +88,7 @@ export class Stickers {
   set(emojis) {
     this.clear();
     for (const [i, e] of emojis.entries()) {
-      if (!this.geometries.has(e.name)) this.geometries.set(e.name, tokenGeometry(e.name));
-      const token = new THREE.Mesh(this.geometries.get(e.name), this.materials);
-      token.name = `:${e.name}:`;
-      token.rotation.order = 'YXZ';               // turned first, then leant back
-      token.castShadow = true;
+      const token = this.token(e.name);
       const holder = new THREE.Group();
       holder.position.copy(e.at).setY(HEIGHT);
       holder.add(token);
@@ -100,6 +101,17 @@ export class Stickers {
   clear() {
     for (const s of this.list) s.holder.removeFromParent();
     this.list = [];
+    this.prize?.holder.removeFromParent();
+    this.prize = null;
+  }
+
+  token(name) {
+    if (!this.geometries.has(name)) this.geometries.set(name, tokenGeometry(name));
+    const token = new THREE.Mesh(this.geometries.get(name), this.materials);
+    token.name = `:${name}:`;
+    token.rotation.order = 'YXZ';               // turned first, then leant back
+    token.castShadow = true;
+    return token;
   }
 
   // The emoji Mnot touches at `pos`, if any (still standing).
@@ -113,16 +125,52 @@ export class Stickers {
 
   // A token going: 'taken' (it hops up, whirls and shrinks away), 'warped' (a wrong one touched: it twists thin and
   // is gone), 'blinked' (a listed one touched too early: it twists away and pops back a moment later) or 'wrong'
-  // (the touch that ends the run: it swells and shakes, and stays).
-  go(s, how) {
+  // (the touch that ends the run: it swells and shakes, and stays); after `wait` s.
+  go(s, how, wait = 0) {
     s.how = how;
-    s.going = 0;
+    s.going = -wait;
+  }
+
+  // The list done: every emoji still standing twists away, one after another from `from` outwards.
+  sweep(from) {
+    for (const s of this.list) {
+      if (s.emoji.taken || s.how === 'taken') continue;
+      if (s.how === 'blinked') s.how = 'warped';  // gone for good, from where it is
+      else this.go(s, 'warped', SWEEP * Math.hypot(s.emoji.at.x - from.x, s.emoji.at.z - from.z));
+    }
+  }
+
+  // The prize: a big token dropping from the sky onto `at` after `wait` s, landing with a bump (land() is called
+  // then). It spins slowly, and turns to face the camera as Mnot comes close.
+  drop(name, at, wait, land) {
+    const token = this.token(name), holder = new THREE.Group();
+    holder.position.copy(at).setY(PRIZE.height + PRIZE.drop);
+    holder.scale.setScalar(PRIZE.scale);
+    holder.visible = false;
+    holder.add(token);
+    this.group.add(holder);
+    this.prize = { at: at.clone(), holder, token, t: -wait, yaw: Math.PI, landed: 0, won: false, to: new THREE.Vector3(),
+      land };
+  }
+
+  // Has Mnot at `pos` reached the prize (landed)?
+  reached(pos) {
+    const p = this.prize;
+    return !!p && p.landed > 0 && !p.won && Math.hypot(pos.x - p.at.x, pos.z - p.at.z) < PRIZE.touch;
+  }
+
+  // The prize won: it floats to `over` (Mnot's head) and stays there, called every frame as Mnot moves.
+  hold(over) {
+    if (!this.prize) return;
+    this.prize.won = true;
+    this.prize.to.copy(over);
   }
 
   // player: where Mnot is; next: the list's next emoji (it hops when Mnot is near); peek: how far the camera has
   // risen to look over the field (0..1), when every token turns to it and leans back, so each one reads from above
   update(dt, camera, player, next, peek = 0) {
     this.time += dt;
+    this.updatePrize(dt, camera, player, peek);
     for (const s of this.list) {
       const { holder, token, emoji } = s;
       if (emoji.taken) continue;
@@ -137,7 +185,8 @@ export class Stickers {
       token.position.y = 0.08 * Math.sin(this.time * 2.1 + s.phase);
       token.rotation.z = 0.06 * Math.sin(this.time * 1.4 + s.phase * 2);
       token.rotation.x = -TILT * peek;
-      if (!s.how) {
+      if (!s.how || s.going < 0) {
+        if (s.how) s.going += dt;                 // going in a moment
         if (emoji === next) token.position.y += 0.22 * near * Math.abs(Math.sin(this.time * 7));    // pick me
         else token.rotation.x -= 0.32 * near * (1 - peek);                    // not me: leaning back, out of reach
         continue;
@@ -168,5 +217,38 @@ export class Stickers {
         token.rotation.z = 0.3 * Math.sin(k * 38) * Math.exp(-k * 2.2);
       }
     }
+  }
+
+  updatePrize(dt, camera, player, peek) {
+    const p = this.prize;
+    if (!p) return;
+    const { holder, token } = p;
+    p.t += dt;
+    holder.visible = p.t > 0;
+    if (p.won) {
+      // over Mnot's head, a little smaller, spinning for joy
+      holder.position.lerp(p.to, 1 - Math.exp(-5 * dt));
+      holder.scale.setScalar(holder.scale.x + (PRIZE.held - holder.scale.x) * (1 - Math.exp(-4 * dt)));
+    } else if (!p.landed) {
+      // falling faster and faster, its shadow on the snow growing under it
+      const f = THREE.MathUtils.clamp(p.t / PRIZE.fall, 0, 1);
+      holder.position.y = PRIZE.height + PRIZE.drop * (1 - f * f);
+      if (f >= 1) {
+        p.landed = 1e-6;
+        p.land?.();
+      }
+    }
+    if (p.landed) p.landed += dt;
+    const near = p.won ? 1 : ease(NEAR[0], NEAR[1], Math.hypot(player.x - p.at.x, player.z - p.at.z));
+    const close = Math.max(near, peek);
+    const face = Math.atan2(camera.position.x - holder.position.x, camera.position.z - holder.position.z);
+    p.yaw += SPIN * (p.won ? 2.5 : 0.6) * dt * (1 - close) + turn(face - p.yaw) * (1 - Math.exp(-FACE * close * dt));
+    token.rotation.y = p.yaw + (p.won ? 0.5 * Math.sin(this.time * 5) : 0);
+    token.rotation.x = -TILT * peek * (p.won ? 0 : 1);
+    token.rotation.z = 0.07 * Math.sin(this.time * 1.3) + (p.won ? 0.12 * Math.sin(this.time * 7) : 0);
+    // bobbing, and squashed by the landing: squashed from below, so it sits down on the bump
+    const k = p.landed ? 0.32 * Math.exp(-p.landed * 5) * Math.cos(p.landed * 17) : 0;
+    token.scale.set(1 + 0.5 * k, 1 - k, 1 + 0.5 * k);
+    token.position.y = 0.1 * Math.sin(this.time * 2.1) - SIZE / 2 * k;
   }
 }

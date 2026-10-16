@@ -40,6 +40,8 @@ PICKS = [
     # parrots: alike on purpose, for the hard levels
     "partyparrot", "christmasparrot", "hardhat-parrot", "nerd-parrot", "headset-parrot", "sadparrot", "wineparrot",
     "nederland-parrot",
+    # the prize at the end of every list, in the middle of the field (never dealt)
+    "peak-mnot",
 ]
 
 # the eight neighbours of a pixel, clockwise from the west, as (dy, dx)

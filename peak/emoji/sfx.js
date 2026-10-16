@@ -11,7 +11,9 @@
 //   fall                       ... and lands flat on its back
 //   bonk    { speed, hard }    into a snow wall (m/s, and 0..1 how hard)
 //   peek    { up }             the camera rising over the field (up true) or coming back down
-//   finish                     the last one fetched: the dance
+//   clear                      the list done: every other emoji twists away, one after another (over ~0.6 s)
+//   peak                       :peak-mnot: lands in the middle of the field with a bump, half a second later
+//   finish                     :peak-mnot: fetched: the clock stops, the dance
 // The state: { speed (m/s), skid (m/s sideways), braking, dizzy (s of stars left), peek (0..1) }
 const LEVEL = 0.32;
 

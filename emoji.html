@@ -49,6 +49,11 @@
   .em.done::after { content: '✓'; background: var(--teal); }
   .em.missed { width: 62px; height: 62px; animation: em-shake 0.5s; }
   .em.missed::after { content: '!'; background: var(--red); }
+  /* the prize at the end of the list, a little apart: dim until its turn, then the biggest of all */
+  .em.peak { margin-left: 8px; opacity: 0.55; }
+  .em.peak::after { background: var(--teal); }
+  .em.peak.now { width: 72px; height: 72px; opacity: 1; }
+  .em.peak.done { opacity: 1; filter: none; }
   @keyframes em-bob { 50% { transform: translateY(-4px) rotate(-4deg); } }
   @keyframes em-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
   #finish.out h1 { color: var(--red); }
@@ -57,6 +62,7 @@
     #list { top: 66px; max-width: calc(100% - 24px); }
     .em { width: 34px; height: 34px; }
     .em.now, .em.missed { width: 46px; height: 46px; }
+    .em.peak.now { width: 54px; height: 54px; }
   }
   @media (max-width: 560px) { .rr-tag { font-size: 13px; } }
 </style>
@@ -93,8 +99,9 @@
       </dl>
       <p>The list at the top says which emojis the thread wants, and in what order. Fetch them from the field one by
         one. Touch any other emoji, or a listed one too early, and it costs one of your three tries: Mnot bumps off
-        it and sees stars for a bit. The third is out. The snow is slippery: Mnot slides on when you let go, drifts
-        wide in a turn and bonks off the walls.</p>
+        it and sees stars for a bit. The third is out. With the list done, every other emoji vanishes and
+        :peak-mnot: drops into the middle of the field: fetch it to stop the clock. The snow is slippery: Mnot slides
+        on when you let go, drifts wide in a turn and bonks off the walls.</p>
     </div>
     <div class="ts-bottom">
       <div class="ts-menu">

@@ -5,6 +5,8 @@
 // The list is `order`: the emojis to fetch, in that order. Every other emoji on the field is a wrong one, and so is a
 // listed one fetched too early. The field is only ever dealt so that each next one on the list can be reached from
 // the one before without passing a cell with a wrong one on it (`clear`), so a run is never lost before it starts.
+// The middle cell is kept free: when the list is done, the prize drops there (main.js). `rate` says how hard a field
+// is to play, so random fields can be dealt alike.
 //
 // The walls cast no shadow while playing: their shadows from the sun and their contact shade are baked into the
 // field's floor once it is dealt (`bake`), soft and clean; Mnot's and the emojis' shadows stay live.
@@ -37,16 +39,18 @@ export function seeded(seed) {
 
 export class Field {
   // cols × rows cells; open: the part of a perfect maze's inner walls knocked through (0 a real maze, 1 no walls);
-  // list: how many emojis to fetch; wrong: how many others stand about; names: the sticker sheet's names
-  constructor({ cols = 9, rows = 7, seed = 1, open = 0.5, list = 5, wrong = 24, names }) {
+  // list: how many emojis to fetch; wrong: how many others stand about; names: the sticker sheet's names; look: false
+  // only plans the field (the maze and the deal) without making its snow and walls, to rate it
+  constructor({ cols = 9, rows = 7, seed = 1, open = 0.5, list = 5, wrong = 24, names, look = true }) {
     Object.assign(this, { cols, rows, seed });
     const rand = seeded(seed);
     this.start = [Math.floor(cols / 2), 0];
+    this.peak = [Math.floor(cols / 2), Math.floor(rows / 2)];
     this.walls = this.maze(rand, open);
     this.deal(rand, names, list, wrong);
     this.group = new THREE.Group();
     this.group.name = 'the emoji field';
-    this.boxes = this.build();
+    if (look) this.boxes = this.build();
   }
 
   // ------------------------------------------------------------------ cells
@@ -123,17 +127,43 @@ export class Field {
     return new Set(emojis.filter((e, i) => i !== keep && !e.taken).map(e => this.key(...e.cell)));
   }
 
+  // The cells to stay off on the way to the list's n-th in a run that goes right: every emoji but that one and the
+  // ones fetched before it.
+  standing(n, emojis = this.emojis) {
+    return new Set(emojis.filter((e, i) => i !== this.order[n] && !(e.listed >= 0 && e.listed < n))
+      .map(e => this.key(...e.cell)));
+  }
+
   // Can the list be fetched in order, from the start, past no wrong emoji?
   clear(emojis) {
     let at = this.start;
     for (let n = 0; n < this.order.length; n++) {
       const goal = emojis[this.order[n]].cell;
-      const blocked = new Set(emojis.filter((e, i) => i !== this.order[n] && !(e.listed >= 0 && e.listed < n))
-        .map(e => this.key(...e.cell)));
-      if (!this.route(at, goal, blocked)) return false;
+      if (!this.route(at, goal, this.standing(n, emojis))) return false;
       at = goal;
     }
     return true;
+  }
+
+  // How hard the field is to play: the cells on the shortest way through the list and on to the middle, each one
+  // that passes right by an emoji to stay off (one in a cell next to it, no wall between) counted twice more, and
+  // each turn on the way half more.
+  rate() {
+    let at = this.start, cells = 0, close = 0, turns = 0;
+    const legs = [...this.order.map((i, n) => [this.emojis[i].cell, this.standing(n)]), [this.peak, new Set()]];
+    for (const [goal, blocked] of legs) {
+      let from = at, heading = null;
+      for (const cell of this.route(at, goal, blocked) ?? []) {
+        const way = `${cell[0] - from[0]},${cell[1] - from[1]}`;
+        if (heading && way !== heading) turns++;
+        heading = way;
+        from = cell;
+        cells++;
+        if ([...this.ways(...cell)].some(([c, r]) => blocked.has(this.key(c, r)))) close++;
+      }
+      at = goal;
+    }
+    return cells + 2 * close + 0.5 * turns;
   }
 
   // The emojis: `list` of them to fetch, spread over the field, then up to `wrong` others, each kept only if the
@@ -143,7 +173,10 @@ export class Field {
     const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
     const near = ([c, r], [a, b]) => Math.abs(c - a) + Math.abs(r - b);
     const cells = [];
-    for (let c = 0; c < this.cols; c++) for (let r = 0; r < this.rows; r++) if (near([c, r], this.start) > FREE) cells.push([c, r]);
+    const peak = this.key(...this.peak);
+    for (let c = 0; c < this.cols; c++) {
+      for (let r = 0; r < this.rows; r++) if (near([c, r], this.start) > FREE && this.key(c, r) !== peak) cells.push([c, r]);
+    }
     shuffle(cells);
     const pool = shuffle([...names]);
     this.emojis = [];
@@ -295,8 +328,8 @@ export class Field {
   dispose() {
     this.group.removeFromParent();
     this.group.traverse(o => o.geometry?.dispose());
-    this.baked.dispose();
-    this.floorMaterial.dispose();
+    this.baked?.dispose();
+    this.floorMaterial?.dispose();
   }
 }
 

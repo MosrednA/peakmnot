@@ -1,12 +1,13 @@
 // The emoji field (emoji.html), a prototype: a list of the community's Slack emoji at the top of the screen, and a
 // snowy field full of them, with knee-high snow walls between (field.js). Mnot fetches the listed ones in the list's
-// order; touching any other, or a listed one too early, is out at once. Seen over Mnot's shoulder, steered like a
-// shopping trolley on fresh snow: it slides, drifts wide in a turn and bonks off the walls, and the wrong emojis are
-// never far. Built on the mini game kit (peak/kit/README.md); no scores, stats, sound of its own or ?perf yet
+// order; touching any other, or a listed one too early, costs one of three tries. With the list done, every other
+// emoji twists away and :peak-mnot: drops into the middle of the field: fetching it stops the clock. Seen over Mnot's
+// shoulder, steered like a shopping trolley on fresh snow: it slides, drifts wide in a turn and bonks off the walls,
+// and the wrong emojis are never far. Built on the mini game kit (peak/kit/README.md); no scores, stats or ?perf yet
 // (README.md, "Not yet").
 // Open emoji.html?manual to stop the loop and step it from the console (window.emoji.step), for tests;
-// emoji.autopilot(true) lets a bot play. ?seed= deals a given field, ?list= how many to fetch (5), ?wrong= how many
-// others stand about (24), ?open= how open the maze is (0 a real maze, 1 no walls at all).
+// emoji.autopilot(true) lets a bot play. ?seed= deals a given field (else it's a random one), ?list= how many to fetch
+// (5), ?wrong= how many others stand about (24), ?open= how open the maze is (0 a real maze, 1 no walls at all).
 import * as THREE from 'three';
 import { MnotSounds } from '../../sounds.js';
 import { buildScenery } from '../look/scenery.js';
@@ -41,6 +42,14 @@ const number = (name, fallback, min, max) => {
   return params.has(name) && Number.isFinite(v) ? THREE.MathUtils.clamp(v, min, max) : fallback;
 };
 const DEAL = { list: number('list', 5, 1, 12), wrong: number('wrong', 24, 0, 50), open: number('open', 0.5, 0, 1) };
+// The prize at the end of every list, never dealt on the field; it drops after `drop` s, while the camera looks over
+// the field for `look` s.
+const PEAK = 'peak-mnot';
+const NAMES = SHEET.names.filter(name => name !== PEAK);
+const FINALE = { drop: 0.5, look: 2 };
+// Random fields, but about as hard as each other: one is dealt from random seeds until one rates (field.js, rate())
+// in BAND, the middle of what the first RATED seeds' fields rate with this DEAL (as parts of them, low to high).
+const RATED = 48, BAND = [0.35, 0.65], TRIES = 60;
 const BODY = 0.38;                                // m: Mnot's round against the walls
 // How Mnot gets about: A and D turn it (turn radians a second at most, reached at `steer` a second), W runs (top m/s),
 // S brakes. Its speed only slowly follows where it faces (grip, a second), so a sharp turn drifts wide; let go and it
@@ -105,15 +114,17 @@ const clock = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')
 const toast = toaster($('toast'));
 soundSwitch(sounds, $('sound'));
 
-// The list: the listed emojis in order, the one to fetch now big and bobbing, the fetched ones ticked off.
+// The list: the listed emojis in order, the one to fetch now big and bobbing, the fetched ones ticked off, and the
+// prize at the end.
 function drawList() {
-  hud.list.replaceChildren(...field.order.map((i, n) => {
-    const em = document.createElement('i');
-    em.className = 'em';
-    em.dataset.n = n + 1;
-    cssSticker(em, field.emojis[i].name);
-    return em;
-  }));
+  const em = (name, n, kind = 'em') => {
+    const el = document.createElement('i');
+    el.className = kind;
+    el.dataset.n = n;
+    cssSticker(el, name);
+    return el;
+  };
+  hud.list.replaceChildren(...field.order.map((i, n) => em(field.emojis[i].name, n + 1)), em(PEAK, '\u25b2', 'em peak'));
   markList();
 }
 function drawLives() {
@@ -122,21 +133,40 @@ function drawLives() {
 }
 function markList() {
   [...hud.list.children].forEach((em, n) => {
-    em.classList.toggle('done', n < player.next);
-    em.classList.toggle('now', n === player.next && !player.out);
+    em.classList.toggle('done', n < player.next || player.done);
+    em.classList.toggle('now', n === player.next && !player.out && !player.done);
     em.classList.toggle('missed', n === player.next && player.out);
   });
 }
 
 // ------------------------------------------------------------------ the field and a run on it
 
-let field = null, seed = params.has('seed') ? number('seed', 1, 0, 2 ** 31) : Math.floor(Math.random() * 1e6);
+const plan = s => new Field({ seed: s, names: NAMES, ...DEAL, look: false });
+let band = null;
+function randomSeed() {
+  if (!band) {
+    const rates = Array.from({ length: RATED }, (_, i) => plan(i + 1).rate()).sort((a, b) => a - b);
+    band = BAND.map(k => rates[Math.floor(k * (RATED - 1))]);
+  }
+  let best = 0, off = Infinity;
+  for (let i = 0; i < TRIES; i++) {
+    const s = 1 + Math.floor(Math.random() * 1e6), rate = plan(s).rate();
+    if (rate >= band[0] && rate <= band[1]) return s;
+    const o = Math.max(band[0] - rate, rate - band[1]);
+    if (o < off) [best, off] = [s, o];
+  }
+  return best;
+}
+// N (and X on a controller): a new field; after a ?seed=, the next seed, so a test or a shared link stays put
+const another = () => deal(params.has('seed') ? seed + 1 : randomSeed());
+
+let field = null, seed = params.has('seed') ? number('seed', 1, 0, 2 ** 31) : randomSeed();
 let playing = manual, time = 0, autopilot = false, ouch = 0, said = 0;
 
 function deal(next = seed) {
   seed = next;
   field?.dispose();
-  field = new Field({ seed, names: SHEET.names, ...DEAL });
+  field = new Field({ seed, names: NAMES, ...DEAL });
   scene.add(field.group);
   hud.seed.textContent = `field ${seed}`;
   restart();
@@ -181,7 +211,22 @@ function take(s) {
   player.next++;
   markList();
   pop(hud.list.children[player.next - 1]);
-  if (player.next === field.order.length) finish();
+  if (player.next === field.order.length) toThePeak();
+}
+// The list done: every other emoji twists away, from Mnot outwards, the camera rises to watch, and :peak-mnot: drops
+// into the middle of the field with a bump. The clock runs on: fetching it is the finish.
+const _peak = new THREE.Vector3();
+function toThePeak() {
+  stickers.sweep(player.pos);
+  stickers.drop(PEAK, field.centre(...field.peak, _peak), FINALE.drop, () => {
+    puffs.snow(_peak, { puffs: 8, flakes: 18, up: 1.4 });
+    sounds.play('land-hard');
+    sfx.cue({ type: 'peak' });
+    pad.rumble('bump');
+  });
+  follow.intro = FINALE.look;
+  sfx.cue({ type: 'clear' });
+  toast(`All ${field.order.length}!`, 'Now :peak-mnot:, in the middle of the field. The clock is running.');
 }
 // A wrong one touched: it costs a try. It warps away (a listed one too early pops back in a moment later), and Mnot
 // bumps back off it, reeling, and sees stars for a while. The third is out.
@@ -224,6 +269,7 @@ function wrong(s, early) {
 }
 function finish() {
   player.done = true;
+  toast.left = 0;                                 // the card says it all
   sounds.play('wave');
   confetti(puffs, player.pos);
   pad.rumble('cheer');
@@ -233,7 +279,9 @@ function finish() {
   const wrongs = LIVES - player.lives, plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
   const after = wrongs ? ` ${plural(wrongs, 'wrong one')} in between, but who reads a whole thread?`
     : player.bonks ? ` ${plural(player.bonks, 'bonk')}, but nobody noticed.` : ' Not one bonk, not one slip.';
-  showCard('Thread complete!', `${field.order.length} reactions, in order.${after}`);
+  markList();
+  pop(hud.list.lastElementChild);
+  showCard('Thread complete!', `${field.order.length} reactions in order, and :peak-mnot: on top.${after}`);
 }
 function showCard(head, verdict) {
   hud.card.querySelector('h1').textContent = head;
@@ -247,7 +295,7 @@ addEventListener('keydown', e => {
   if (title.visible || e.target.closest?.('input, textarea')) return;
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'KeyR' && !e.repeat) restart();
-  if (e.code === 'KeyN' && !e.repeat) deal(seed + 1);
+  if (e.code === 'KeyN' && !e.repeat) another();
   begin();
 });
 
@@ -294,7 +342,7 @@ function readPad(dt) {
     return;
   }
   if (pad.fresh.has(BUTTON.y)) restart();
-  if (pad.fresh.has(BUTTON.x)) deal(seed + 1);
+  if (pad.fresh.has(BUTTON.x)) another();
   if (pad.used) begin();
 }
 const held = (...codes) => input.held(...codes) || codes.some(c => padKeys.has(c));
@@ -321,12 +369,13 @@ function controls() {
   }
 }
 
-// The bot: the shortest way to the list's next one past every other emoji (field.route), a cell at a time, steering
-// for it and easing off in the turns, so it doesn't drift into a wrong one.
+// The bot: the shortest way to the list's next one past every other emoji (field.route), then to the prize in the
+// middle, a cell at a time, steering for it and easing off in the turns, so it doesn't drift into a wrong one.
 const _to = new THREE.Vector3();
 function autoSteer(w) {
-  const n = player.next, goal = field.emojis[field.order[n]];
-  const way = field.route(field.cellAt(player.pos), goal.cell, field.blocked(n));
+  const n = player.next, last = n === field.order.length;
+  const goal = last ? { cell: field.peak, at: field.centre(...field.peak) } : field.emojis[field.order[n]];
+  const way = field.route(field.cellAt(player.pos), goal.cell, last ? new Set() : field.blocked(n));
   const to = way?.length > 1 ? field.centre(...way[0], _to) : _to.copy(goal.at);
   const off = turn(Math.atan2(to.x - player.pos.x, to.z - player.pos.z) - player.yaw);
   const dist = Math.hypot(to.x - player.pos.x, to.z - player.pos.z);
@@ -502,10 +551,16 @@ function step(dt) {
   const sideways = slide(dt);
   if (playing && !player.done && !player.out) {
     player.time += dt;
-    const s = stickers.touched(player.pos);
-    if (s?.emoji.listed === player.next) take(s);
-    else if (s && player.safe <= 0) hit(s);
+    if (player.next === field.order.length) {
+      if (stickers.reached(player.pos)) finish();
+    } else {
+      const s = stickers.touched(player.pos);
+      if (s?.emoji.listed === player.next) take(s);
+      else if (s && player.safe <= 0) hit(s);
+    }
   }
+  // won, the prize floats over Mnot's head, a little behind it, where the camera in front sees both
+  if (player.done) stickers.hold(_peak.copy(player.pos).addScaledVector(ahead(player.yaw, _to), -0.9).setY(2.4));
   player.safe -= dt;
   player.dizzy = Math.max(0, player.dizzy - dt);
   input.pressed.clear();

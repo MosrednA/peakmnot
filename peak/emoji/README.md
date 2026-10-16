@@ -8,7 +8,8 @@ stickers, spinning over the snow between knee-high snow walls: a loose maze you 
 shopping trolley on fresh snow, so it drifts wide in the turns, glides on when you let go and bonks off the walls,
 and the wrong emoji are never far. Touch one, or a listed one too early, and it warps away while Mnot bumps back
 off it and sees stars for a bit; the third time it slips and goes over flat on its back: the thread is ruined. Fetch
-the last one and it dances.
+the last one and every other emoji twists away, the camera rises, and a big :peak-mnot: drops into the middle of the
+field; fetch that one and the clock stops, and Mnot dances with it over its head.
 
 It's built on the mini game kit (`peak/kit/`) and shares the climb's look and Mnot.
 
@@ -37,11 +38,19 @@ one.
   on it warps away for good, a listed one too early warps away and pops back a moment later. Mnot bumps back off it,
   reels for half a second and sees stars for two more, its steering wandering a little; for a moment after, no other
   emoji counts. The third is out.
-- The clock runs from the first move to the last emoji, peeking included.
-- A field is dealt from a seed (`?seed=`, shown in the HUD): R brings the same one back, N the next. It's only ever
-  dealt so that each next listed one can be reached from the one before past no wrong one (`Field.clear`), so a run
-  is never lost before it starts. `?wrong=` sets how many others stand about (24), `?open=` how open the maze is (0 a
-  real maze, 1 no walls; 0.5).
+- With the list done (the ▲ at its end), every other emoji twists away, one after another from Mnot outwards, and
+  :peak-mnot: drops into the middle cell (kept free of emoji), while the camera looks over the field for two seconds;
+  Mnot can steer on meanwhile. Fetching it is the finish.
+- The clock runs from the first move to :peak-mnot:, peeking included.
+- A field is dealt from a seed (shown in the HUD): R brings the same one back, N a new one. A new one is random, but
+  about as hard as any other: random seeds are rated (`Field.rate`: the cells on the shortest way through the list
+  and on to the middle, those right by an emoji to stay off counted twice more, turns half more) until one lands in
+  the middle of what the first 48 seeds' fields rate (35% to 65% of the way from easiest to hardest; `RATED`, `BAND`
+  in `main.js`). The bot's times on such fields are within a few seconds of each other. `?seed=` deals that one,
+  and N then the next seed, so a test or a shared link stays put.
+- It's only ever dealt so that each next listed one can be reached from the one before past no wrong one
+  (`Field.clear`), so a run is never lost before it starts. `?wrong=` sets how many others stand about (24), `?open=`
+  how open the maze is (0 a real maze, 1 no walls; 0.5).
 
 ## The emoji
 
@@ -54,7 +63,8 @@ python tools/emoji_atlas.py --src ../mnot-emojis
 
 It cuts each pick out with a white rim into a 128 px cell of `emojis.webp`, traces its outline, and writes both the
 names and the outlines to `sheet.js`; the game extrudes each outline into a token (`stickers.js`). The picks are in
-`PICKS` in the script: snacks, things and a handful of parrots that look alike on purpose (for harder levels). No
+`PICKS` in the script: snacks, things and a handful of parrots that look alike on purpose (for harder levels), and
+:peak-mnot:, the prize at the end of every list (never dealt on the field). No
 photos of real people and no politics, but a few are someone else's character or logo (Clippy, the bitcoin coin), and
 the repository is public: which emoji go live is a choice to make before it does.
 
@@ -66,8 +76,8 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
 | Module | What |
 |---|---|
 | `main.js` | The page: the stage, Mnot on the snow (steering, sliding, bonks, the fall), the camera over the shoulder and the peek, the list, the controls, the test bot and the loop |
-| `field.js` | The field from a seed: the maze, the emoji dealt on it, the ways round (`route`), the walls to bonk into. The walls cast no live shadow: their shadows and contact shade are baked into the floor once a field is dealt (`bake`, a canvas texture as its `aoMap`), so they stay clean; Mnot's and the emojis' shadows stay live |
-| `stickers.js` | The emoji as spinning extruded tokens, what they do near Mnot, taken and wrong; the list's stickers in CSS |
+| `field.js` | The field from a seed: the maze, the emoji dealt on it, the ways round (`route`), how hard it is (`rate`), the walls to bonk into. The walls cast no live shadow: their shadows and contact shade are baked into the floor once a field is dealt (`bake`, a canvas texture as its `aoMap`), so they stay clean; Mnot's and the emojis' shadows stay live |
+| `stickers.js` | The emoji as spinning extruded tokens, what they do near Mnot, taken and wrong, swept away; the prize dropping in, and held up; the list's stickers in CSS |
 | `sheet.js`, `emojis.webp` | Made by `tools/emoji_atlas.py`: the stickers and their outlines |
 | `dizzy.js` | The stars circling over Mnot's head after a wrong one |
 | `sfx.js`, `music.js` | The game's own sounds (cued by `main.js`: the list of cues is at the top of `sfx.js`) and its tune; Codex's. Only a placeholder buzzer for a wrong one so far |
@@ -78,7 +88,8 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
 - `emoji.html` opens on the title; `emoji.html?manual` skips it and stops the frame loop. In the console,
   `emoji.step(seconds, dt)` steps it and `emoji.render()` draws a frame.
 - `emoji.autopilot(true)` lets the test bot play: the shortest way to the next listed one past every other
-  (`field.route`), steering and braking for the corners. It finishes fields 1 to 14 without a bonk.
+  (`field.route`), then to :peak-mnot:, steering and braking for the corners. It finishes fields 1 to 12 without a
+  bonk or a wrong one.
 - A local server of its own: the `emoji` entry in `.claude/launch.json` (port 5296).
 
 ## Not yet
