@@ -24,6 +24,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-X", "utf8", "-c", "import os, runpy, sys; os.environ.setdefault('DATA_DIR', 'data/local'); sys.argv = ['peak_scores.py', '--static', '--port', '5294']; runpy.run_path('server/peak_scores.py', run_name='__main__')"],
       "port": 5294
+    },
+    {
+      "name": "emoji",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-c", "import sys; sys.path.insert(0, 'tools'); import dev_server as d; d.DevServer(('127.0.0.1', 5296), d.DevHandler).serve_forever()"],
+      "port": 5296
     }
   ]
 }

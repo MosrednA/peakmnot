@@ -1,0 +1,132 @@
+<!doctype html>
+<!-- The emoji field, a prototype mini game (peak/emoji/README.md). The kit's (peak/kit/kit.css, peak/kit/README.md)
+     and the title's (peak/ui/title.css) ids and classes are what the modules look for. No stats tracker or link
+     preview yet: they come with the game's name (README.md, "Not yet"). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reaction Run</title>
+<meta name="description" content="Mnot fetches the thread's emoji reactions from a snowy field, in the list's order, and touches nothing else.">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="peak/scores/scores.css">
+<link rel="stylesheet" href="peak/ui/title.css">
+<link rel="stylesheet" href="peak/ui/preload.css">
+<link rel="preload" href="models/mnot.glb" as="fetch" crossorigin>
+<link rel="stylesheet" href="peak/kit/kit.css">
+<link rel="stylesheet" href="peak/kit/pad.css">
+<style>
+  /* The HUD is the kit's (peak/kit/kit.css); the game's own parts go here, and its logo's style. */
+  .rr-tag { margin: 0.1em 0 0; padding: 2px 12px; border-style: dashed; border-radius: 9px; font-size: 15px;
+    font-weight: 600; transform: rotate(-2deg); }
+  .rr-tag b { color: var(--red); }
+  #stats #seed { color: var(--muted); font-weight: 500; }
+  /* the list: the emojis to fetch, in order; the one to fetch now big and bobbing, the fetched ones ticked off */
+  /* holding it peeks over the field (main.js), so it takes the pointer */
+  #list { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 330px);
+    padding: 4px 12px 8px; text-align: center; pointer-events: auto; touch-action: none; user-select: none; }
+  #list .say { font-size: 12px; font-weight: 600; color: var(--muted); }
+  #list-row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: center;
+    margin-top: 2px; }
+  .em { position: relative; display: block; width: 44px; height: 44px; flex: none;
+    transition: width 0.2s, height 0.2s, opacity 0.3s, filter 0.3s; }
+  .em::after { content: attr(data-n); position: absolute; left: -5px; top: -3px; min-width: 16px; height: 16px;
+    border-radius: 8px; background: var(--ink); color: #fff; font: 700 11px/16px Fredoka, sans-serif; }
+  .em.now { width: 62px; height: 62px; animation: em-bob 1.1s ease-in-out infinite; }
+  .em.now::after { background: var(--gold); color: var(--ink); }
+  .em.done { opacity: 0.4; filter: grayscale(0.8); }
+  .em.done::after { content: '✓'; background: var(--teal); }
+  .em.missed { width: 62px; height: 62px; animation: em-shake 0.5s; }
+  .em.missed::after { content: '!'; background: var(--red); }
+  @keyframes em-bob { 50% { transform: translateY(-4px) rotate(-4deg); } }
+  @keyframes em-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+  #finish.out h1 { color: var(--red); }
+  #finish:not(.out) h1 { color: var(--teal); text-shadow: 0 2px 0 #c9f2e6; }
+  @media (max-width: 760px) {
+    #list { top: 66px; max-width: calc(100% - 24px); }
+    .em { width: 34px; height: 34px; }
+    .em.now, .em.missed { width: 46px; height: 46px; }
+  }
+  @media (max-width: 560px) { .rr-tag { font-size: 13px; } }
+</style>
+</head>
+<body class="preloading">
+<div id="preload" role="status" aria-label="Loading">
+  <div class="pl-can"><i></i><i></i></div>
+  <div class="pl-shadow"></div>
+  <div class="pl-name">Reaction Run</div>
+  <div class="pl-bar card"><i></i></div>
+</div>
+<div id="hud">
+  <div id="title" class="card"><b>Reaction Run</b>
+    <div id="stats"><span id="time">0:00.0</span><span id="seed"></span></div>
+  </div>
+  <div id="list" class="card"><div class="say">React in this order</div><div id="list-row"></div></div>
+  <button id="sound" class="card" aria-pressed="true">Sound</button>
+  <div id="scores-hud"></div>
+  <div id="toast"><b></b><small class="card"></small></div>
+  <div id="help"><kbd>A</kbd><kbd>D</kbd> steer · <kbd>W</kbd> run · <kbd>S</kbd> brake · hold <kbd>Space</kbd> peek · <kbd>R</kbd> again · <kbd>N</kbd> new field</div>
+  <div id="title-screen" hidden>
+    <div class="ts-top">
+      <h1 class="ts-logo">Reaction Run</h1>
+      <div class="rr-tag card">The thread wants its reactions. <b>In order.</b></div>
+    </div>
+    <div class="ts-howto card" id="title-howto" hidden>
+      <h2>How to play</h2>
+      <dl>
+        <dt><kbd>A</kbd> <kbd>D</kbd> or arrows</dt><dd>steer</dd>
+        <dt><kbd>W</kbd> / <kbd>S</kbd></dt><dd>run / brake</dd>
+        <dt>hold <kbd>Space</kbd></dt><dd>peek over the whole field (Mnot stops to look)</dd>
+        <dt><kbd>R</kbd> / <kbd>N</kbd></dt><dd>this field again / a new field</dd>
+        <dt>touch</dt><dd>drag sideways to steer, up to run, down to brake; hold the list to peek</dd>
+      </dl>
+      <p>The list at the top says which emojis the thread wants, and in what order. Fetch them from the field one by
+        one. Touch any other emoji, or a listed one too early, and you're out. The snow is slippery: Mnot slides on
+        when you let go, drifts wide in a turn and bonks off the walls.</p>
+    </div>
+    <div class="ts-bottom">
+      <div class="ts-menu">
+        <button type="button" class="card ts-start" id="title-start">Start</button>
+        <button type="button" class="card" id="title-help" aria-expanded="false" aria-controls="title-howto">How to play</button>
+        <button type="button" class="card" id="title-sound" aria-pressed="true">Sound on</button>
+      </div>
+      <p class="ts-press"><span class="key">Press any key to start</span><span class="tap">Tap anywhere to start</span></p>
+      <p class="ts-tip card" id="title-tip" aria-live="polite"></p>
+    </div>
+  </div>
+  <div id="finish" class="card panel" hidden>
+    <h1>Done!</h1>
+    <div class="time">0:00.0</div>
+    <div class="verdict"></div>
+    <div><kbd class="key-only">R</kbd><i class="pg pg-y pad-only"></i> again · <kbd class="key-only">N</kbd><i class="pg pg-x pad-only"></i> new field</div>
+  </div>
+</div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+<script type="module" src="peak/emoji/main.js"></script>
+<script>
+// The local development server disables caching and watches code, models and sound assets.
+if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && !location.search.includes('manual')) {
+  let version;
+  async function checkUpdates() {
+    try {
+      const response = await fetch('/__dev_version', { cache: 'no-store' });
+      if (!response.ok) return;
+      const update = await response.json();
+      if (version !== undefined && update.version !== version) location.reload();
+      version = update.version;
+    } catch { /* The game stays playable while the development server restarts. */ }
+  }
+  checkUpdates();
+  setInterval(checkUpdates, 750);
+}
+</script>
+</body>
+</html>
