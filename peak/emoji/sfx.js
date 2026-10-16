@@ -17,22 +17,26 @@
 //                              give way one after another over the next ~0.7 s (a `hole` cue each, finale true)
 //   peak                       :peak-mnot: lands in the middle of the field with a bump, 0.6 s later, in a beam
 //   finish                     :peak-mnot: fetched: the clock stops, the dance
-//   crack                      Mnot steps on a cracked passage: the snow creaks, and holds for half a second
-//   hole    { under, finale }  ... then gives way into a hole, behind Mnot (made it) or right under it (under true);
-//                              finale: one of the passages giving way at the end of the list, not stepped on
+//   crack                      Mnot steps on a cracked passage: it ticks, then creaks harder and harder as it holds
+//                              for two seconds
+//   hole    { under, finale }  ... then gives way into a hole, its chunks thudding in, behind Mnot (made it) or right
+//                              under it (under true); finale: one of the passages giving way at the end, not stepped on
+//   teeter                     Mnot caught at a hole's edge, arms wheeling, for up to 1.1 s (till steady or pit)
+//   steady                     ... and saved, back from the edge
 //   pit     { fresh }          Mnot drops into a hole up to its glasses (fresh: it gave way under it just now)
 //   climb                      ... and lands back on the snow after a hop out, on the side it came from
 // The state: { speed (m/s), skid (m/s sideways), braking, dizzy (s of stars left), peek (0..1) }
 import { unpadLoop } from '../../sounds.js';
-/** @typedef {'start'|'take'|'wrong'|'early'|'out'|'fall'|'bonk'|'peek-up'|'peek-down'|'clear'|'peak'|'finish'|'crack'|'quake'|'hole'|'pit'|'climb'|'slide'|'skid'} SoundId */
-/** @typedef {{type:'start'|'out'|'fall'|'clear'|'peak'|'finish'|'crack'|'climb'} | {type:'take', n:number, of:number} |
+/** @typedef {'start'|'take'|'wrong'|'early'|'out'|'fall'|'bonk'|'peek-up'|'peek-down'|'clear'|'peak'|'finish'|'crack'|'quake'|'hole'|'pit'|'climb'|'slide'|'skid'|'teeter'|'steady'} SoundId */
+/** @typedef {{type:'start'|'out'|'fall'|'clear'|'peak'|'finish'|'crack'|'climb'|'teeter'|'steady'} |
+ * {type:'take', n:number, of:number} |
  * {type:'wrong'|'early', lives:number} | {type:'bonk', speed:number, hard:number} | {type:'peek', up:boolean} |
  * {type:'quake', holes:number} | {type:'hole', under:boolean, finale:boolean} | {type:'pit', fresh:boolean}} EmojiCue */
 /** @typedef {{speed:number, skid:number, braking:boolean, dizzy:number, peek:number}} Motion */
 /** @typedef {{source:AudioBufferSourceNode, gain:GainNode}} Voice */
 /** @type {ReadonlyArray<SoundId>} */
 const IDS = ['start', 'take', 'wrong', 'early', 'out', 'fall', 'bonk', 'peek-up', 'peek-down', 'clear',
-  'peak', 'finish', 'crack', 'quake', 'hole', 'pit', 'climb', 'slide', 'skid'];
+  'peak', 'finish', 'crack', 'quake', 'hole', 'pit', 'climb', 'slide', 'skid', 'teeter', 'steady'];
 const clamp = (/** @type {number} */ n, /** @type {number} */ hi) => Number.isFinite(n) ? Math.max(0, Math.min(hi, n)) : 0;
 
 export class EmojiSfx {
@@ -51,6 +55,8 @@ export class EmojiSfx {
     this.voices = new Set();
     /** @type {Map<SoundId, Voice>} */
     this.loops = new Map();
+    /** @type {Voice|null} the teeter's wheeling arms, cut short when Mnot is saved or drops in */
+    this.teetering = null;
     /** @type {Map<SoundId, number>} */
     this.counts = new Map();
     /** @type {Map<SoundId, number>} */
@@ -129,14 +135,28 @@ export class EmojiSfx {
         case 'wrong': case 'early': rate = event.lives === 0 ? .88 : 1; break;
         case 'bonk': level = .18 + .4*clamp(event.hard, 1); rate = 1.15-.3*clamp(event.speed/10, 1); break;
         case 'hole': level = event.under ? .6 : .38; break;
-        case 'pit': level = event.fresh ? .28 : .48; break;
+        case 'pit': level = event.fresh ? .28 : .48; this.settle(); break;
+        case 'out': this.settle(); break;
         case 'finish': level = .24; break; // the music owns the longer victory answer
         case 'crack': level = .4; break;
+        case 'teeter': level = .42; this.settle(); break;
+        case 'steady': level = .4; this.settle(); break;
       }
       if (!IDS.includes(id) || id === 'slide' || id === 'skid') return;
       if (context.currentTime-(this.last.get(id) ?? -Infinity) < (id === 'bonk' ? .12 : .045)) return;
-      if (this.play(id, level, rate, false)) this.last.set(id, context.currentTime);
+      const voice = this.play(id, level, rate, false);
+      if (voice) this.last.set(id, context.currentTime);
+      if (voice && id === 'teeter') this.teetering = voice;
     } catch (error) { this.fail(error); }
+  }
+
+  // The teeter's sound stops quickly once it's over, either way.
+  settle() {
+    const voice = this.teetering, context = this.sounds.context;
+    this.teetering = null;
+    if (!voice || !context || !this.voices.has(voice)) return;
+    voice.gain.gain.setTargetAtTime(0, context.currentTime, .03);
+    voice.source.stop(context.currentTime+.15);
   }
 
   mix() {
@@ -171,6 +191,7 @@ export class EmojiSfx {
   stop() {
     this.pending.length = 0;
     this.loops.clear();
+    this.teetering = null;
     const context = this.sounds.context;
     if (!context) return;
     for (const voice of this.voices) {

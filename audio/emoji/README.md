@@ -13,7 +13,9 @@ FluidSynth / GeneralUser GS renderer and SoundFont license. Music PCM masters st
 | `bonk` | A dull rubber/snow bump, stronger and lower at speed; limited to one every 120 ms |
 | `peek { up }` | Quiet up/down glissandi |
 | `clear`, `peak`, `finish` | A ripple of disappearing stickers, the prize's snow thump, a small bright pop under the music answer |
-| `crack`, `quake`, `hole`, `pit`, `climb` | Three dry ticks, a low snowy rumble, collapse, a muffled drop and a hop back out |
+| `crack`, `quake`, `hole` | Three dry ticks, then two seconds of creaking and crackling, harder and quicker as the hold runs out; a low snowy rumble; the collapse, its chunks thudding into the hole |
+| `teeter`, `steady` | At a hole's edge: whooshes of the wheeling arms and a wavering "whoa" that rocks with Mnot, cut short when it's saved or drops in; saved, two quick steps and a "phew" |
+| `pit`, `climb` | A muffled drop and a hop back out |
 | `slide`, `skid` | Two-second seamless snow loops; speed controls level/rate, lateral slip and braking raise the skid, peeking quietens both |
 
 `peak/emoji/sfx.js` and `music.js` use `MnotSounds.context`, its master, saved Sound preference and pause state.
@@ -29,6 +31,10 @@ Rebuild with:
 python tools/make_emoji_audio.py --fluidsynth PATH --soundfont PATH
 python tools/compress_audio.py audio/emoji
 ```
+
+`--foley` instead of the two paths renders the effects alone and keeps the music as it is (no FluidSynth needed).
+The effects share one seeded random generator, so a new one goes after the others in `foley()`, leaving them as
+they were.
 
 The helper reuses the downhill's MIDI reader and deterministic foley primitives. WAV effects are editable masters;
 runtime uses AAC `.m4a`. `manifest.json` marks `slide` and `skid` for 200 ms codec padding on both ends, removed by

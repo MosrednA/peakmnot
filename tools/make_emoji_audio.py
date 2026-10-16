@@ -1,6 +1,7 @@
 """Render Reaction Run's original foley and Pocket Altitude arrangement locally.
 
-Needs NumPy, SciPy, SoundFile, FFmpeg, FluidSynth and GeneralUser GS, as the downhill does.
+Needs NumPy, SciPy, SoundFile, FFmpeg, FluidSynth and GeneralUser GS, as the downhill does; the effects alone
+(--foley, keeping the music as it is) need only the first three.
 """
 import argparse
 import json
@@ -12,13 +13,24 @@ import numpy as np
 import soundfile as sf
 
 from make_downhill_music import Note, read_score, variable
-from make_downhill_sounds import add, hit, noise, snow, time, tone
+from make_downhill_sounds import RNG, add, hit, noise, snow, time, tone
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "audio/emoji"
 WORK = ROOT / ".mnot-qa/emoji"
 RATE, BPM, BARS = 44100, 112, 32
 TEMPO = round(60_000_000 / BPM)
+
+
+def creak(seconds, first, last, pitch):
+    """Snow crust under strain: stick-slip pulses, `first` to `last` a second, each ringing a short resonance."""
+    x = np.zeros(round(seconds * 22050))
+    ring = time(.025)
+    at = 0.0
+    while at < seconds:
+        add(x, np.sin(2*np.pi*pitch*RNG.uniform(.9, 1.1)*ring) * np.exp(-ring/.005), at, RNG.uniform(.6, 1))
+        at += RNG.uniform(.8, 1.2) / (first + (last-first)*at/seconds)
+    return x
 
 
 def foley():
@@ -35,7 +47,7 @@ def foley():
         "clear": np.zeros(round(.75 * 22050)),
         "peak": snow(.5, True) + hit(.5, 390, "wood") * .25,
         "finish": tone(.4, 880, 1320, .12),
-        "crack": np.zeros(round(.46 * 22050)),
+        "crack": np.zeros(round(2 * 22050)),
         "quake": noise(1.1, low=45, high=550) * np.sin(np.pi*time(1.1)/1.1)**1.4,
         "hole": snow(.65, True) + noise(.65, high=1300) * np.exp(-time(.65) / .18) * .4,
         "pit": tone(.45, 210, 80, .15) + snow(.45) * .3,
@@ -48,6 +60,38 @@ def foley():
     for name, low, high in [("slide", 120, 1900), ("skid", 450, 3400)]:
         t = time(2)
         clips[name] = noise(2, low=low, high=high, periodic=True) * (1 + .12*np.sin(2*np.pi*3*t))
+    # The rest come after the snow loops, so the effects above stay as they were (one shared random generator).
+    # A crack holds for two seconds once stepped on (cracks.js): after its ticks the snow creaks and crackles, harder
+    # and quicker as the hold runs out, up to the moment it gives way (hole).
+    t = time(2)
+    clips["crack"] += creak(2, 18, 70, 520) * (t/2)**1.6 * (.6 + .4*np.sin(2*np.pi*1.3*t)**2) * .3
+    clips["crack"] += noise(2, low=50, high=240) * (t/2)**3 * .2
+    at = .42
+    while at < 1.96:
+        add(clips["crack"], hit(.06, RNG.uniform(380, 900), "wood"), at, .13 + .2*(at/2)**2)
+        at += RNG.uniform(.05, .2) * (1.15 - at/2)
+    # ... and the slab drops into the hole in chunks over 0.75 s (FALL in cracks.js), each thud lower and further down
+    clips["hole"] = np.concatenate([clips["hole"], np.zeros(round(.3 * 22050))])
+    for k, at in enumerate([.1, .22, .36, .5, .66]):
+        thud = tone(.22, 150 - 14*k, 60, .045) + noise(.22, high=700) * np.exp(-time(.22)/.025) * .6
+        add(clips["hole"], thud, at + RNG.uniform(0, .03), .55 * .8**k)
+    # Caught at a hole's edge (teeter.js): the arms wheeling, two turns to the Teeter clip's 0.8 s loop, a whoosh each
+    # (the right arm a little behind), and a wavering "whoa" rocking with the body, for up to 1.1 s
+    t = time(1.1)
+    turn = 2*np.pi*2.5*t
+    arms = sum((.5 + .5*np.cos(turn - lag))**3 for lag in (0, .6))
+    pitch = 400 + 70*np.sin(2*np.pi*t/.8) + 22*np.sin(2*np.pi*7*t)
+    whoa = sum(np.sin(h*2*np.pi*np.cumsum(pitch)/22050) / h**1.5 for h in (1, 2, 3))
+    whoa *= .75 + .25*np.sin(2*np.pi*t/.8)
+    clips["teeter"] = ((noise(1.1, low=350, high=2200) * arms * .5 + whoa * .35)
+                       * np.minimum(1, t/.06) * np.minimum(1, (1.1-t)/.25) * (.6 + .4*t/1.1))
+    # Saved, back from the edge: two quick steps on the snow and a relieved "phew"
+    clips["steady"] = np.zeros(round(.42 * 22050))
+    add(clips["steady"], snow(.2), 0, .8)
+    add(clips["steady"], snow(.2), .11, .6)
+    add(clips["steady"], tone(.3, 620, 410, .1), .05, .4)
+    t = time(.34)
+    add(clips["steady"], noise(.34, low=900, high=3000) * np.minimum(1, t/.05) * np.exp(-t/.11), .07, .25)
     rows = []
     for name, x in clips.items():
         loop = name in ["slide", "skid"]
@@ -135,15 +179,22 @@ def music(synth, font):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--fluidsynth", type=Path, required=True)
-    parser.add_argument("--soundfont", type=Path, required=True)
+    parser.add_argument("--fluidsynth", type=Path)
+    parser.add_argument("--soundfont", type=Path)
+    parser.add_argument("--foley", action="store_true", help="render the effects only, keeping the music as it is")
     args = parser.parse_args()
+    if not args.foley and not (args.fluidsynth and args.soundfont):
+        parser.error("the music needs --fluidsynth and --soundfont (or --foley for the effects alone)")
     OUT.mkdir(parents=True, exist_ok=True)
-    WORK.mkdir(parents=True, exist_ok=True)
-    manifest = {"sounds": foley(), "music": music(args.fluidsynth, args.soundfont),
-                "theme": "Pocket Altitude — Reaction Run", "soundfont": "GeneralUser GS 2.0.3"}
+    if args.foley:
+        manifest = json.loads((OUT/"manifest.json").read_text(encoding="utf-8"))
+        manifest["sounds"] = foley()
+    else:
+        WORK.mkdir(parents=True, exist_ok=True)
+        manifest = {"sounds": foley(), "music": music(args.fluidsynth, args.soundfont),
+                    "theme": "Pocket Altitude — Reaction Run", "soundfont": "GeneralUser GS 2.0.3"}
     (OUT/"manifest.json").write_text(json.dumps(manifest, indent=2)+"\n", encoding="utf-8")
-    print(f"Rendered {len(manifest['sounds'])} effects and two music arrangements")
+    print(f"Rendered {len(manifest['sounds'])} effects" + ("" if args.foley else " and two music arrangements"))
 
 
 if __name__ == "__main__":

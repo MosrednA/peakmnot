@@ -63,7 +63,7 @@
     {
       "name": "crack",
       "loop": false,
-      "seconds": 0.46
+      "seconds": 2.0
     },
     {
       "name": "quake",
@@ -73,7 +73,7 @@
     {
       "name": "hole",
       "loop": false,
-      "seconds": 0.6499773242630386
+      "seconds": 0.9499773242630386
     },
     {
       "name": "pit",
@@ -94,6 +94,16 @@
       "name": "skid",
       "loop": true,
       "seconds": 2.0
+    },
+    {
+      "name": "teeter",
+      "loop": false,
+      "seconds": 1.1
+    },
+    {
+      "name": "steady",
+      "loop": false,
+      "seconds": 0.42
     }
   ],
   "music": [

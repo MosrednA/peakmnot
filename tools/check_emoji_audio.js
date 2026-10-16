@@ -11,7 +11,7 @@ async page => {
   await page.evaluate(() => { emoji.sounds.setEnabled(true); emoji.music.start(); });
   await page.waitForFunction(() => emoji.sfx.ready && emoji.music.ready, null, {timeout:30000});
   check('Shared trusted unlock decodes all effects and both scores', await page.evaluate(() =>
-    emoji.sfx.buffers.size === 19 && emoji.music.buffers.size === 2 && emoji.music.state.playing));
+    emoji.sfx.buffers.size === 21 && emoji.music.buffers.size === 2 && emoji.music.state.playing));
   const pcm = await page.evaluate(() => {
     const loops = ['slide','skid'].map(id => {
       const b = emoji.sfx.buffers.get(id), x = b.getChannelData(0);
@@ -28,7 +28,7 @@ async page => {
   const cues = [{type:'start'}, {type:'take',n:1,of:5}, {type:'wrong',lives:2}, {type:'early',lives:1},
     {type:'out'}, {type:'fall'}, {type:'bonk',speed:8,hard:.8}, {type:'peek',up:true}, {type:'peek',up:false},
     {type:'clear'}, {type:'peak'}, {type:'finish'}, {type:'crack'}, {type:'quake',holes:4}, {type:'hole',under:true,finale:true},
-    {type:'pit',fresh:false}, {type:'climb'}];
+    {type:'teeter'}, {type:'steady'}, {type:'pit',fresh:false}, {type:'climb'}];
   for (const cue of cues) {
     const result = await page.evaluate(event => {
       emoji.sfx.cue(event); return emoji.sfx.state;
@@ -37,6 +37,22 @@ async page => {
     check(`Cue ${id} plays`, result.counts[id] >= 1 && !result.error, result);
     await page.waitForTimeout(55);
   }
+  const settled = await page.evaluate(async () => {
+    const s = emoji.sfx, wait = ms => new Promise(r => setTimeout(r, ms));
+    await wait(60);
+    s.cue({type:'teeter'});
+    const caught = s.teetering;
+    s.cue({type:'steady'});
+    const saved = !!caught && s.teetering === null;
+    await wait(60);
+    s.cue({type:'teeter'});
+    const again = s.teetering;
+    s.cue({type:'pit',fresh:false});
+    await wait(300);
+    return {saved, dropped:!!again && again !== caught && s.teetering === null, gone:!s.voices.has(caught)
+      && !s.voices.has(again)};
+  });
+  check('Steady or a drop cuts the teeter short', settled.saved && settled.dropped && settled.gone, settled);
   const moving = await page.evaluate(() => {
     emoji.sfx.update(1/60, {speed:8,skid:4,braking:true,dizzy:0,peek:0});
     return emoji.sfx.state;

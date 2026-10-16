@@ -22,7 +22,7 @@ def decode(path, rate):
 class EmojiAudio(unittest.TestCase):
     def test_effects(self):
         rows = json.loads((OUT/"manifest.json").read_text())["sounds"]
-        self.assertEqual(len(rows), 19)
+        self.assertEqual(len(rows), 21)
         for row in rows:
             with self.subTest(name=row["name"]):
                 wav, rate = sf.read(OUT/f"{row['name']}.wav")
