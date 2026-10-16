@@ -109,9 +109,11 @@ const OUCH = ['Bonk.', 'Ow. My glasses.', 'That wall wasn\'t there.', 'Snow in t
 // The camera: over Mnot's right shoulder (back, h, side m), looking ahead of it (ahead m, at look m high), swinging
 // round after where Mnot faces a little late (swing, a second), so a turn shows. Space (or holding the list) peeks:
 // the camera rises to look over the whole field from behind Mnot, and Mnot stops to look. At the start it peeks by
-// itself for `intro` seconds. When it's over, the camera comes round to the front (front: dist, h m).
+// itself for `intro` seconds (from the title, rising into it as it leaves the title's shot), then cranes down behind
+// Mnot over `land` seconds. When it's over, the camera comes round to the front (front: dist, h m).
 const VIEW = { back: 4.4, h: 2.4, side: 0.55, ahead: 3.4, look: 0.8, swing: 3.2, fov: 56,
-  peek: { h: 18, back: 7, toward: 0.4, fov: 50, rate: 4, rush: 8 }, intro: 1.6, front: { dist: 4, h: 1.6, look: 0.9 },
+  peek: { h: 18, back: 7, toward: 0.4, fov: 50, rate: 4, rush: 8, land: 1.2 }, intro: 1.6,
+  front: { dist: 4, h: 1.6, look: 0.9 },
   shake: 0.3 };
 const turn = a => Math.atan2(Math.sin(a), Math.cos(a));
 const ahead = (yaw, to = new THREE.Vector3()) => to.set(Math.sin(yaw), 0, Math.cos(yaw));
@@ -756,14 +758,15 @@ function pose(dt, sideways) {
 
 // ------------------------------------------------------------------ the camera
 
-const follow = { look: new THREE.Vector3(), fov: VIEW.fov, yaw: 0, peek: 0, up: false, intro: 0, rush: 0, shake: 0,
-  jolt: new THREE.Vector3() };
+// pos and look: where the game's camera is and looks, its own (the title's glide and the shake go on top);
+// land: the peek coming down is the one at the start, craning down
+const follow = { pos: new THREE.Vector3(), look: new THREE.Vector3(), fov: VIEW.fov, yaw: 0, peek: 0, up: false,
+  intro: 0, rush: 0, shake: 0, land: false, jolt: new THREE.Vector3() };
 const _seat = new THREE.Vector3(), _look = new THREE.Vector3(), _high = new THREE.Vector3(), _highLook = new THREE.Vector3();
 function placeCamera(dt, snap = false) {
   const far = THREE.MathUtils.clamp(1.3 / camera.aspect, 1, 1.6);   // a tall screen: further back
-  const at = player.pos;
-  camera.position.sub(follow.jolt);               // last frame's shake off
-  follow.yaw += turn(player.yaw - follow.yaw) * (snap ? 1 : 1 - Math.exp(-VIEW.swing * dt));
+  const at = player.pos, settle = snap || title.visible;   // on the title it waits where the run starts
+  follow.yaw += turn(player.yaw - follow.yaw) * (settle ? 1 : 1 - Math.exp(-VIEW.swing * dt));
   ahead(follow.yaw, _ahead);
   _side.set(-_ahead.z, 0, _ahead.x);              // Mnot's right
   if (player.done || (player.out && player.fall > 0.3)) {
@@ -777,15 +780,21 @@ function placeCamera(dt, snap = false) {
     _seat.copy(at).addScaledVector(_ahead, -VIEW.back * far).addScaledVector(_side, VIEW.side).setY(VIEW.h * far);
     _look.copy(at).addScaledVector(_ahead, VIEW.ahead).setY(VIEW.look);
   }
-  // the peek: high over the field from behind Mnot, so left stays left. The one at the start waits for the title's
-  // glide into the shoulder view to finish.
+  // the peek: high over the field from behind Mnot, so left stays left. The one at the start counts from the end of
+  // the title's glide up into it, and comes down slowly, an even crane down (the player's own come and go quicker).
   if (!title.glide) follow.intro -= dt;
   const p = VIEW.peek;
-  const up = !player.done && !player.out && ((follow.intro > 0 && !title.glide) || (playing && peeking()));
+  const up = !player.done && !player.out && (follow.intro > 0 || (playing && peeking()));
   if (up !== follow.up && !snap) sfx.cue({ type: 'peek', up });
   follow.up = up;
+  if (follow.intro > 0) follow.land = true;
+  else if (up || follow.peek <= 0) follow.land = false;
   follow.rush -= dt;                              // at the end of the list, up and back down quicker
-  follow.peek += ((up ? 1 : 0) - follow.peek) * (snap ? 1 : 1 - Math.exp(-(follow.rush > 0 ? p.rush : p.rate) * dt));
+  if (!up && follow.land && follow.rush <= 0) follow.peek = Math.max(0, follow.peek - (snap ? 1 : dt / p.land));
+  else {
+    const rate = follow.rush > 0 ? p.rush : p.rate;
+    follow.peek += ((up ? 1 : 0) - follow.peek) * (snap ? 1 : 1 - Math.exp(-rate * dt));
+  }
   const k = THREE.MathUtils.smoothstep(follow.peek, 0, 1);
   if (k > 1e-3) {
     const pfar = THREE.MathUtils.clamp(1.5 / camera.aspect, 1, 1.8);
@@ -795,18 +804,18 @@ function placeCamera(dt, snap = false) {
     _look.lerp(_highLook, k);
   }
   follow.fov = VIEW.fov + (p.fov - VIEW.fov) * k;
-  if (snap) {
-    camera.position.copy(_seat);
+  if (settle) {
+    follow.pos.copy(_seat);
     follow.look.copy(_look);
   } else {
-    camera.position.lerp(_seat, 1 - Math.exp(-7 * dt));
+    follow.pos.lerp(_seat, 1 - Math.exp(-7 * dt));
     follow.look.lerp(_look, 1 - Math.exp(-9 * dt));
   }
   // the snow shaking as it gives way at the end: the camera with it, dying down
   follow.shake = Math.max(0, follow.shake - dt);
   const shake = VIEW.shake * Math.min(1, follow.shake / 0.3);
   follow.jolt.set(Math.sin(time * 53), Math.sin(time * 61 + 1), Math.sin(time * 47 + 2)).multiplyScalar(shake);
-  camera.position.add(follow.jolt);
+  camera.position.copy(follow.pos).add(follow.jolt);
   camera.lookAt(follow.look);
   if (Math.abs(camera.fov - follow.fov) > 0.01 && !title.visible) {
     camera.fov = follow.fov;

@@ -2,7 +2,8 @@
 // start, a menu (Start, Hall of Fame, How to play, Sound), the tips going round, and "press any key". It never stands
 // in the way: a movement key starts the game on the very frame it's read (the game reads it as it begins), and a
 // tap on the scene, the Start button or any other key start it too. However it starts, the camera glides from the
-// title's shot into the game's own camera, riding along with the player, while the title slides away and the HUD
+// title's shot into the game's own camera, riding along with the player (straight there, or round the player for a
+// shot from the front, which would go right past it), while the title slides away and the HUD
 // fades in (title.css hides it while body has the class `title-up`). ?manual never shows it (the game doesn't call
 // show()), and a respawn never brings it back.
 //
@@ -26,9 +27,10 @@ const _a = new THREE.Vector3(), _b = new THREE.Vector3();
 export class TitleScreen {
   // camera: the scene's; dom: the canvas (a tap there starts); tips: the lines that go round; moves: the key codes
   // that move the player (they start it on this frame); anchor(): where the player is (the glide rides along with
-  // it); follow(): the game camera's { look, fov } this frame, which the glide ends in
-  constructor({ camera, dom, tips = [], moves = [], anchor, follow }) {
-    Object.assign(this, { camera, tips, anchor, follow });
+  // it); follow(): the game camera's { look, fov } this frame, which the glide ends in; round: the glide swings round
+  // the player, its distance and height easing on their own, rather than going straight to the game's camera
+  constructor({ camera, dom, tips = [], moves = [], anchor, follow, round = false }) {
+    Object.assign(this, { camera, tips, anchor, follow, round });
     this.moves = new Set(moves);
     this.visible = false;
     this.time = 0;
@@ -142,8 +144,15 @@ export class TitleScreen {
     if (!g) return;
     // from the title's shot, riding along with the player, into wherever the game's camera has put itself
     const u = Math.min(1, (g.t += dt) / GLIDE), k = ease(u), at = this.anchor(), to = this.follow();
-    const look = _a.copy(g.look).add(at).lerp(to.look, ease(Math.min(1, u / GLIDE_LOOK)));
-    cam.position.lerpVectors(_b.copy(g.from).add(at), cam.position, k);
+    // (round, the look keeps pace with the swing, so the player stays in the shot all the way)
+    const look = _a.copy(g.look).add(at).lerp(to.look, this.round ? k : ease(Math.min(1, u / GLIDE_LOOK)));
+    if (this.round) {
+      const from = g.from, seat = _b.copy(cam.position).sub(at), a = Math.atan2(from.x, from.z);
+      const turn = Math.atan2(seat.x, seat.z) - a, way = a + Math.atan2(Math.sin(turn), Math.cos(turn)) * k;
+      const r = THREE.MathUtils.lerp(Math.hypot(from.x, from.z), Math.hypot(seat.x, seat.z), k);
+      const h = THREE.MathUtils.lerp(from.y, seat.y, k);
+      cam.position.set(at.x + r * Math.sin(way), at.y + h, at.z + r * Math.cos(way));
+    } else cam.position.lerpVectors(_b.copy(g.from).add(at), cam.position, k);
     cam.lookAt(look);
     this.lens(g.fov + (to.fov - g.fov) * k);
     if (u >= 1) this.glide = null;

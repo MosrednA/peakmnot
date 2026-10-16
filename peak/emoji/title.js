@@ -33,7 +33,8 @@ const ease = k => THREE.MathUtils.smootherstep(k, 0, 1);
 
 export class Title extends TitleScreen {
   constructor({ camera, dom, mnot, player, follow }) {
-    super({ camera, dom, tips: TIPS, moves: MOVES, anchor: () => player.pos, follow: () => follow });
+    // from the front round to behind Mnot (and up, for the look over the field at the start), not past its nose
+    super({ camera, dom, tips: TIPS, moves: MOVES, anchor: () => player.pos, follow: () => follow, round: true });
     Object.assign(this, { mnot, player });
     this.fov = SHOT.fov;
   }
