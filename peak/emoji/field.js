@@ -5,14 +5,23 @@
 // The list is `order`: the emojis to fetch, in that order. Every other emoji on the field is a wrong one, and so is a
 // listed one fetched too early. The field is only ever dealt so that each next one on the list can be reached from
 // the one before without passing a cell with a wrong one on it (`clear`), so a run is never lost before it starts.
+//
+// The walls cast no shadow while playing: their shadows from the sun and their contact shade are baked into the
+// field's floor once it is dealt (`bake`), soft and clean; Mnot's and the emojis' shadows stay live.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { toon } from '../look/look.js';
+import { SUN_DIR } from '../look/sky.js';
 
 export const CELL = 3;                    // m a cell
 const WALL = { h: 0.62, t: 0.42 };        // the snow walls: how high, how thick (m); Mnot can't step over them
 const SPREAD = 3;                         // cells (rows and columns added) at least between one listed emoji and the next
 const FREE = 1;                           // cells round the start kept free
+const EDGE = 1.5;                         // m of floor round the outer walls, for their shadows to fall on
+// The baked light: px texels a metre; soft: how soft the walls' shadows are (m); reach, dark: how far the contact
+// shade spreads from a wall's foot and how dark it is there; onSun: how much of it shades the sunlit snow too (on
+// the sky's light it is all); foot: how dark a wall itself is at its foot
+const BAKE = { px: 32, soft: 0.07, reach: 0.3, dark: 0.5, onSun: 0.45, foot: 0.84 };
 
 // mulberry32: a small seeded random, 0..1
 export function seeded(seed) {
@@ -170,15 +179,10 @@ export class Field {
 
   // ------------------------------------------------------------------ the snow
 
-  // The packed snow of the field, its walls (one instanced mesh) and their boxes for walking into.
+  // The packed snow of the field with the walls' light baked in, its walls (one instanced mesh) and their boxes for
+  // walking into.
   build() {
     const w = this.cols * CELL, d = this.rows * CELL;
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w + 1.2, d + 1.2).rotateX(-Math.PI / 2), toon('#eaf1fb'));
-    floor.position.set(0, 0.01, d / 2);
-    floor.receiveShadow = true;
-    floor.name = 'the field';
-    this.group.add(floor);
-
     const boxes = [];
     const along = (x0, z0, x1, z1) => boxes.push({ x0: Math.min(x0, x1), x1: Math.max(x0, x1), z0: Math.min(z0, z1), z1: Math.max(z0, z1) });
     const t = WALL.t / 2, half = CELL / 2;
@@ -194,17 +198,76 @@ export class Field {
     along(-x - t, -t, -x + t, d + t);
     along(x - t, -t, x + t, d + t);
 
+    const width = w + 2 * EDGE, depth = d + 2 * EDGE;
+    this.baked = this.bake(boxes, width, depth);
+    this.floorMaterial = toon('#eaf1fb').clone();
+    this.floorMaterial.aoMap = this.baked;
+    this.floorMaterial.onBeforeCompile = bakedLight;
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(width, depth).rotateX(-Math.PI / 2), this.floorMaterial);
+    floor.position.set(0, 0.01, d / 2);
+    floor.receiveShadow = true;                       // Mnot's and the emojis' shadows
+    floor.name = 'the field';
+    this.group.add(floor);
+
+    // a little darker at the foot, where a wall meets the snow
     const geometry = new RoundedBoxGeometry(1, 1, 1, 2, 0.12);
-    const walls = new THREE.InstancedMesh(geometry, toon('#f7faff'), boxes.length);
+    const y = geometry.attributes.position, shade = new Float32Array(y.count * 3);
+    for (let i = 0; i < y.count; i++) shade.fill(THREE.MathUtils.lerp(BAKE.foot, 1, THREE.MathUtils.smoothstep(y.getY(i), -0.5, 0.2)), i * 3, i * 3 + 3);
+    geometry.setAttribute('color', new THREE.BufferAttribute(shade, 3));
+    const walls = new THREE.InstancedMesh(geometry, toon('#f7faff', { vertexColors: true }), boxes.length);
     const m = new THREE.Matrix4();
     boxes.forEach((b, i) => {
       m.makeScale(b.x1 - b.x0, WALL.h, b.z1 - b.z0).setPosition((b.x0 + b.x1) / 2, WALL.h / 2, (b.z0 + b.z1) / 2);
       walls.setMatrixAt(i, m);
     });
-    walls.castShadow = walls.receiveShadow = true;
+    walls.castShadow = false;                         // baked into the floor instead
+    walls.receiveShadow = true;                       // Mnot's and the emojis' shadows
     walls.name = 'the snow walls';
     this.group.add(walls);
     return boxes;
+  }
+
+  // The walls' light on a floor `width` by `depth` m round the field, as a texture over it: red the contact shade
+  // (1 open snow, darker at a wall's foot), green the sun (0 in a wall's shadow). A wall's shadow is its foot swept
+  // away from the sun as far as its height throws it. Both are painted soft on a canvas: white shapes drawn off the
+  // canvas, brought in as their own blurred shadow (the one blur every browser's canvas has).
+  bake(boxes, width, depth) {
+    const px = Math.min(BAKE.px, 2048 / Math.max(width, depth));
+    const cw = Math.ceil(width * px), ch = Math.ceil(depth * px);
+    const left = -width / 2, near = this.rows * CELL / 2 - depth / 2;
+    const paint = (soft, shapes) => {
+      const canvas = document.createElement('canvas');
+      Object.assign(canvas, { width: cw, height: ch });
+      const g = canvas.getContext('2d', { willReadFrequently: true });
+      Object.assign(g, { fillStyle: '#fff', shadowColor: '#fff', shadowBlur: 2 * soft * px, shadowOffsetX: cw * 2 });
+      g.beginPath();
+      for (const shape of shapes) {
+        shape.forEach(([x, z], k) => g[k ? 'lineTo' : 'moveTo']((x - left) * px - cw * 2, (z - near) * px));
+        g.closePath();
+      }
+      g.fill();
+      return g.getImageData(0, 0, cw, ch).data;
+    };
+    const foot = b => [[b.x0, b.z0], [b.x1, b.z0], [b.x1, b.z1], [b.x0, b.z1]];
+    const sx = -SUN_DIR.x / SUN_DIR.y * WALL.h, sz = -SUN_DIR.z / SUN_DIR.y * WALL.h;
+    const shadow = b => hull([...foot(b), ...foot(b).map(([x, z]) => [x + sx, z + sz])]);
+    const sun = paint(BAKE.soft, boxes.map(shadow)), feet = paint(BAKE.reach / 2, boxes.map(foot));
+
+    const canvas = document.createElement('canvas');
+    Object.assign(canvas, { width: cw, height: ch });
+    const g = canvas.getContext('2d');
+    const image = g.createImageData(cw, ch), out = image.data;
+    for (let i = 0; i < out.length; i += 4) {
+      const close = Math.min(1, 2 * feet[i + 3] / 255);
+      const ao = 1 - BAKE.dark * close * close;
+      out[i] = 255 * ao;
+      out[i + 1] = 255 * (1 - sun[i + 3] / 255) * (1 - BAKE.onSun * (1 - ao));
+      out[i + 3] = 255;
+    }
+    g.putImageData(image, 0, 0);
+    const texture = new THREE.CanvasTexture(canvas);      // its top row the field's near edge (flipY)
+    texture.anisotropy = 8;
+    return texture;
   }
 
   // Keeps a round body of radius r out of the walls (pushed out the shortest way), on the snow. Returns the push, so
@@ -232,5 +295,44 @@ export class Field {
   dispose() {
     this.group.removeFromParent();
     this.group.traverse(o => o.geometry?.dispose());
+    this.baked.dispose();
+    this.floorMaterial.dispose();
   }
+}
+
+// The convex hull of points [x, z], one way round (Andrew's monotone chain), so every shadow winds the same way and
+// they fill as one.
+function hull(points) {
+  const p = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = list => {
+    const h = [];
+    for (const q of list) {
+      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], q) <= 0) h.pop();
+      h.push(q);
+    }
+    h.pop();
+    return h;
+  };
+  return [...half(p), ...half([...p].reverse())];
+}
+
+// The floor's light from its baked texture (the aoMap): the sun through the walls' baked shadows (green), and where
+// a live shadow (Mnot's, an emoji's) falls on a baked one, the darker of the two rather than both; the contact shade
+// (red) on the sky's light, as any aoMap, and part of it on the sun's. The stage's sun is a DirectionalLight.
+const SUN_SHADOW = 'directLight.color *= ( directLight.visible && receiveShadow ) ? getShadow( directionalShadowMap[ i ], directionalLightShadow.shadowMapSize, directionalLightShadow.shadowIntensity, directionalLightShadow.shadowBias, directionalLightShadow.shadowRadius, vDirectionalShadowCoord[ i ] ) : 1.0;';
+const SUN_INFO = 'getDirectionalLightInfo( directionalLight, directLight );';
+function bakedLight(shader) {
+  const chunk = THREE.ShaderChunk.lights_fragment_begin;
+  const at = chunk.indexOf(SUN_INFO);
+  if (at < 0 || !chunk.includes(SUN_SHADOW)) {
+    console.warn('field.js: three\'s sun light changed; the baked shadows are off');
+    return;
+  }
+  const sun = chunk.slice(at)
+    .replace(SUN_INFO, `${SUN_INFO}\n\t\tsunLit = bakedSun;`)
+    .replace(SUN_SHADOW, SUN_SHADOW.replace('directLight.color *= ', 'sunLit = min( sunLit, ').replace(/;$/, ' );'))
+    .replace('RE_Direct(', 'directLight.color *= sunLit;\n\t\tRE_Direct(');
+  shader.fragmentShader = shader.fragmentShader.replace('#include <lights_fragment_begin>',
+    `float bakedSun = texture2D( aoMap, vAoMapUv ).g;\nfloat sunLit;\n${chunk.slice(0, at)}${sun}`);
 }

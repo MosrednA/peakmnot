@@ -66,7 +66,7 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
 | Module | What |
 |---|---|
 | `main.js` | The page: the stage, Mnot on the snow (steering, sliding, bonks, the fall), the camera over the shoulder and the peek, the list, the controls, the test bot and the loop |
-| `field.js` | The field from a seed: the maze, the emoji dealt on it, the ways round (`route`), the walls to bonk into |
+| `field.js` | The field from a seed: the maze, the emoji dealt on it, the ways round (`route`), the walls to bonk into. The walls cast no live shadow: their shadows and contact shade are baked into the floor once a field is dealt (`bake`, a canvas texture as its `aoMap`), so they stay clean; Mnot's and the emojis' shadows stay live |
 | `stickers.js` | The emoji as spinning extruded tokens, what they do near Mnot, taken and wrong; the list's stickers in CSS |
 | `sheet.js`, `emojis.webp` | Made by `tools/emoji_atlas.py`: the stickers and their outlines |
 | `dizzy.js` | The stars circling over Mnot's head after a wrong one |
