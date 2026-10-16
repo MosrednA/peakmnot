@@ -153,5 +153,5 @@ and talks to its own host, `wss://peakmnot.mosredna.eu/arena/ws`. On the way in:
 
 <https://peakmnot.mosredna.eu/arena/health> says who's in, and from how many addresses (none shown).
 
-Still to come before it's a game: a title, the card on `/games`, a viewer tab, Plausible goals,
-`?perf`, phones checked (the `mini-game` skill).
+Still to come before it's a game: a title, the card on `/games`, a viewer tab, `?perf`, phones checked (the
+`mini-game` skill).

@@ -29,8 +29,11 @@ const BEHIND = 3;                                 // steps the others are drawn 
 const VIEW = { up: 4.4, back: 7.4, ahead: 0.8, ease: 5 };   // the camera over the shoulder of your can (m, 1/s)
 const NAME_KEY = 'mnot-arena-name';
 
-const stage = createStage({ manual, fov: 50, fog: [60, 420], shadow: { half: 14, far: 70, back: 40 } });
+// the sun's shadow covers the whole plaza, wherever the camera is: the wall, the snowmen and the sign reach 13.1 m
+// from the middle in the sun's view
+const stage = createStage({ manual, fov: 50, fog: [60, 420], shadow: { half: 15, far: 70, back: 40 } });
 const { renderer, scene, camera, post, render } = stage;
+stage.aimSun(new THREE.Vector3());
 const scenery = buildScenery(scene, new THREE.Vector3(0, 0, 0));
 buildPlaza(scene);
 const world = { group: new THREE.Group(), animated: [], ground: () => ({ top: 0 }) };
@@ -480,7 +483,6 @@ function step(dt) {
   puffs.update(dt);
   placeCamera(dt, mine);
   cans.place(camera, innerWidth, innerHeight);
-  stage.aimSun(mine ?? look);
   scenery.update(camera, time);
   toast.update(dt);
 }
