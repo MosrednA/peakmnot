@@ -11,8 +11,9 @@ off it and sees stars for a bit; the third time it slips and goes over flat on i
 the last one (always out at a side) and every other emoji twists away, the snow shakes and gives way across a few
 passages, and a big :peak-mnot: drops into the middle of the field in a beam of light; find the way round to it and
 fetch it, and the clock stops, and Mnot dances with it over its head. Here and there the snow is
-cracked across a passage: it holds just long enough to run across, then gives way behind Mnot, and that way back is
-gone.
+cracked across a passage: stepped on, it holds for two seconds, plenty to run across, then crumbles into a hole
+behind Mnot, and that way back is gone. Run into a hole's edge and Mnot teeters there, arms wheeling: brake or steer
+away to step back, or in it goes.
 
 It's built on the mini game kit (`peak/kit/`) and shares the climb's look and Mnot.
 
@@ -50,13 +51,21 @@ one.
   shortest way left, so the way there is round them now, about eleven cells (twelve at most), and the middle can
   still be reached from anywhere, every crack gone. Fetching it is the finish.
 - The clock runs from the first move to :peak-mnot:, peeking included.
-- Two or three passages on the way are cracked (`?cracks=` at most, 0 to 6; 3). Stepped on, a crack holds for 0.45 s
-  and then gives way into a hole: at a run Mnot is over by then, and the hole opens behind it. Too slow (or walking
-  into a hole later), Mnot drops in up to its glasses, flails, and hops out on the side it came from, seeing stars
-  for a moment; no try lost, only the time and the way through. A hole is shut both ways for good, so the way back
-  is round. The cracks are only where the shortest way through crosses a passage straight on (a cell's run-up before
-  it), at most twice, a few steps apart, and only so that the field can still be finished from anywhere with every
-  one of them gone (`Field.crack`, `Field.finishable`), at worst the long way round.
+- Two or three passages on the way are cracked (`?cracks=` at most, 0 to 6; 3). Stepped on (within `CRACK.near` of
+  where the hole will be), a crack holds for two seconds (`CRACK.hold`): it creaks, a darker crack runs round the
+  slab both ways from where Mnot stepped on, and the slab trembles harder and harder; when the ends meet, the slab
+  breaks into chunks that tip and sink into the hole. The first crack stepped on in a page says so in a toast. At a
+  run Mnot is long over by then: the run's first hole says "Made it!" with Mnot across it, "Gone!" with it back on
+  the side it came from. Still on it as it goes, Mnot drops in up to its glasses, flails, and hops out on the side it
+  came from, seeing stars for a moment; no try lost, only the time and the way through. A hole is shut both ways for
+  good, so the way back is round. The cracks are only where the shortest way through crosses a passage straight on
+  (a cell's run-up before it), at most twice, a few steps apart, and only so that the field can still be finished
+  from anywhere with every one of them gone (`Field.crack`, `Field.finishable`), at worst the long way round.
+- A hole's edge works like the climb's drops (`teeter.js`, after `peak/mnot/teeter.js`): a step that would take
+  Mnot's middle over an open hole stops it at the edge instead, and so does a hole opening within 0.2 m of its
+  middle while it's slow. It turns to face the hole and teeters, rocking out over it with its arms wheeling (the
+  Teeter clip), for 1.1 s (`TEETER.time`; quicker running on into it): brake or steer away after the first 0.22 s
+  (`TEETER.catch`) and it steps back with a wobble, or in it goes. A wrong one's bump knocks it off the edge.
 - A field is dealt from a seed (shown in the HUD): R brings the same one back, N a new one. A new one is random, but
   about as hard as any other: random seeds are rated (`Field.rate`: the cells on the shortest way through the list
   and on to the middle, round the cracks crossed already and the passages given way at the end, those right by an
@@ -117,7 +126,8 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
 | `main.js` | The page: the stage, Mnot on the snow (steering, sliding, bonks, the fall), the camera over the shoulder and the peek, the list, the controls, the test bot and the loop |
 | `field.js` | The field from a seed: the maze, the emoji dealt on it, the cracks (`crack`) and the passages giving way at the end (`collapse`), the ways round (`route`), how hard it is (`rate`), the walls to bonk into. The walls cast no live shadow: their shadows and contact shade are baked into the floor once a field is dealt (`bake`, a canvas texture as its `aoMap`), so they stay clean; Mnot's and the emojis' shadows stay live |
 | `stickers.js` | The emoji as spinning extruded tokens, what they do near Mnot, taken and wrong, swept away; the prize dropping in, its beacon, and held up; the list's stickers in CSS |
-| `cracks.js` | The cracks in the snow: stepped on, giving way, the holes (flat on the snow, their far wall and bottom shifting with the camera as a pit's would), and the passages cracking by themselves at the end (`quake`); says what happened, and `main.js` drops Mnot in and hops it out |
+| `cracks.js` | The cracks in the snow: stepped on (the crack round the slab and its trembling), giving way (the slab's chunks tipping into the hole), the holes (flat on the snow, their far wall and bottom shifting with the camera as a pit's would), how far a point is from a hole's edge, and the passages cracking by themselves at the end (`quake`); says what happened, and `main.js` drops Mnot in and hops it out |
+| `teeter.js` | Teetering on a hole's edge: how long, when braking or steering saves Mnot, and how far it tips out; `main.js` catches Mnot there and poses it |
 | `sheet.js`, `emojis.webp` | Made by `tools/emoji_atlas.py`: the stickers and their outlines |
 | `dizzy.js` | The stars circling over Mnot's head after a wrong one |
 | `sfx.js`, `music.js` | Cartoon cues and speed/skid snow loops, plus Pocket Altitude at 112 BPM with a finish answer over the continuing tune; all through the shared Sound switch. Assets, rebuild and QA: [audio/emoji/README.md](../../audio/emoji/README.md) |
@@ -136,9 +146,10 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
   `emoji.step(seconds, dt)` steps it and `emoji.render()` draws a frame.
 - `emoji.autopilot(true)` lets the test bot play: the shortest way to the next listed one past every other
   (`field.route`, round the holes), then to :peak-mnot:, steering and braking for the corners, and flat out across a
-  crack. It finishes fields 1 to 12 and random ones without a wrong one or a hole (a bonk at most), the run from the
-  last listed one to :peak-mnot: 10 to 15 s on every one; with every crack open from the start (`k.state = 'open'`
-  and `field.holes`), or with `CRACK.hold` near 0 so that it drops into every one, it still finishes them all, the
+  crack. It finishes fields 1 to 12 and random ones without a wrong one or a hole (a bonk at most; now and then a
+  hole opens just ahead of it on its way back and it teeters on the edge and steps back), the run from the last
+  listed one to :peak-mnot: 10 to 15 s on every one; with every crack open from the start (`k.state = 'open'` and
+  `field.holes`), or with every crack's `hold` near 0 so that it drops into them, it still finishes them all, the
   long way round.
 - `tools/check_emoji_replays.js` (on 5280, no score server, as the downhill's): the bot's run on field 6 raced as a
   ghost and watched back, its sounds and Mnot on the recording, jumps in time, the finish, the Hall's buttons.

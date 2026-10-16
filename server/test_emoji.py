@@ -1,6 +1,7 @@
 """Reaction Run on the shared score server: real runs recorded in the browser (fixtures/emoji/: the route they were
-run on, a run with two wrong ones touched, a drop into a hole and peeks, at a frame rate all over the place; a clean
-one; one with three drops and a bonk), the cheats its checker (emoji.py) turns down, and its board beside the others.
+run on, a run with two wrong ones touched, peeks, teetering on a hole's edge (saved once, over the edge once) and a
+drop into a hole, at a frame rate all over the place; a clean one; one with three drops over a hole's edge and a
+bonk), the cheats its checker (emoji.py) turns down, and its board beside the others.
 
     python -X utf8 -m unittest discover -s server -p "test_*.py"
 """
@@ -62,16 +63,31 @@ class RunTest(unittest.TestCase):
         self.assertTrue(r.json["psst"])
         return c, r, self.server.app.store.for_game("emoji").replay(c.run)[1]
 
-    def quiet(self, replay, around=0, clear=0.9):
-        """A sample on the snow in the middle of the run, with no flag and no wall near it or `around` either side."""
+    def quiet(self, replay, around=0, clear=0.9, running=False, speed=0.0):
+        """A sample on the snow in the middle of the run, with no flag and no wall near it or `around` either side
+        (and running all the while at `speed` m/s at least, if asked)."""
         s = replay["samples"]
         for i in range(len(s) // 3, len(s) - around - 3):
             near = s[i - around - 2:i + around + 3]
             if any(x[MODE] != emoji.SNOW or x[FLAGS] for x in near):
                 continue
+            if running and not all(self.keys(replay, x[T]) & emoji.RUN for x in near):
+                continue
+            if any(math.hypot(x[VX], x[VZ]) / 1000 < speed for x in near):
+                continue
             if all(self.field.wall(x[X] / 1000, x[Z] / 1000) > clear for x in near):
                 return i
         self.fail("no quiet sample")
+
+    @staticmethod
+    def keys(replay, t):
+        """The keys held at t ms."""
+        held = 0
+        for at, keys in replay["inputs"]:
+            if at > t:
+                break
+            held = keys
+        return held
 
     def in_a_wall(self, replay):
         """A sample on the snow put in the middle of the wall nearest it."""
@@ -203,7 +219,7 @@ class Cheats(RunTest):
 
     def test_too_fast(self):
         replay = self.tampered()
-        x = replay["samples"][self.quiet(replay)]
+        x = replay["samples"][self.quiet(replay, running=True, speed=3)]
         x[VX], x[VZ] = x[VX] * 3, x[VZ] * 3
         _, r, verdict = self.shadow(replay)
         self.assertEqual(verdict, "too_fast")
@@ -273,6 +289,66 @@ class Cheats(RunTest):
         claim = dict(self.run["claim"], dents=self.run["claim"]["dents"] - 1)
         self.assertIn(self.shadow(replay, claim)[2], ("drift", "teleport", "hole"))
 
+    def rims(self, replay):
+        """The run's teeters, (the sample it was caught on, the one it ended on: saved or over), by index."""
+        s, out, at = replay["samples"], [], None
+        for i, x in enumerate(s):
+            if at is not None and x[FLAGS] & (emoji.FLAG["steady"] | emoji.FLAG["pit"]):
+                out.append((at, i))
+                at = None
+            if x[FLAGS] & emoji.FLAG["rim"]:
+                at = i
+        self.assertTrue(out, "no teeter in the run")
+        return out
+
+    def test_teetering_where_no_hole_is(self):
+        # caught at an edge out on the snow, on the run, after the hole it names opened and nowhere near it
+        replay = self.tampered()
+        rim = next(e for e in replay["events"] if e[1] == "rim")
+        s, k = replay["samples"], self.field.cracks[rim[2]]
+        i = next(i for i in range(len(s)) if s[i][T] > rim[0] + 2000 and s[i][MODE] == emoji.SNOW
+                 and not any(x[FLAGS] for x in s[i - 2:i + 3]) and k.gap(s[i][X] / 1000, s[i][Z] / 1000) > 1)
+        s[i][FLAGS] |= emoji.FLAG["rim"]
+        replay["events"].append([s[i][T], "rim", rim[2]])
+        replay["events"].sort(key=lambda e: e[0])
+        self.assertEqual(self.shadow(replay)[2], "rim")
+
+    def test_saved_with_no_teeter(self):
+        replay = self.tampered()
+        replay["samples"][self.quiet(replay)][FLAGS] |= emoji.FLAG["steady"]
+        self.assertEqual(self.shadow(replay)[2], "rim")
+
+    def test_saved_too_soon(self):
+        # the save moved up to the sample after the catch, before the moment the game lets it
+        replay = self.tampered()
+        s = replay["samples"]
+        at, end = next((a, b) for a, b in self.rims(replay) if s[b][FLAGS] & emoji.FLAG["steady"])
+        s[end][FLAGS] &= ~emoji.FLAG["steady"]
+        s[at + 1][FLAGS] |= emoji.FLAG["steady"]
+        self.assertEqual(self.shadow(replay)[2], "rim")
+
+    def test_walking_off_the_rim(self):
+        # never saved: it stands on the edge, then walks off as if it hadn't been teetering
+        replay = self.tampered()
+        s = replay["samples"]
+        _, end = next((a, b) for a, b in self.rims(replay) if s[b][FLAGS] & emoji.FLAG["steady"])
+        s[end][FLAGS] &= ~emoji.FLAG["steady"]
+        self.assertEqual(self.shadow(replay)[2], "rim")
+
+    def test_over_the_edge_somewhere_else(self):
+        # off the rim and into the hole 40 cm along it from where it teetered, nearer the hole's middle
+        replay = self.tampered()
+        s = replay["samples"]
+        at, end = next((a, b) for a, b in self.rims(replay) if s[b][FLAGS] & emoji.FLAG["pit"])
+        k = self.field.cracks[next(e[2] for e in replay["events"] if e[1] == "rim" and e[0] == s[at][T])]
+        l, _ = k.frame(s[at][X] / 1000, s[at][Z] / 1000)
+        dl = -400 if l > 0 else 400
+        for x in s[end:]:
+            if x[MODE] == emoji.SNOW:
+                break
+            x[X if k.axis == "z" else Z] += dl
+        self.assertIn(self.shadow(replay)[2], ("rim", "pit"))
+
     def test_a_start_somewhere_else(self):
         replay = self.tampered()
         replay["samples"][0][X] += 1000
@@ -288,7 +364,8 @@ class Cheats(RunTest):
 
     def test_every_rejection_has_words(self):
         for reason in ("edited", "timeline", "too_fast", "teleport", "wall", "drift", "moonwalk", "grab", "dodge",
-                       "hole", "pit", "levitate", "crack", "tries", "practice", "start", "finish", "skipped"):
+                       "hole", "pit", "levitate", "crack", "rim", "tries", "practice", "start", "finish",
+                       "skipped"):
             says = self.server.app.api.shadow_says(self.server.app.api.boards["emoji"], emoji.Rejection(reason))
             self.assertTrue(says, reason)
             self.assertNotIn("Peak Mnot detected", says, reason)

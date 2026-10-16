@@ -5,11 +5,13 @@
 // the samples say, and between two of them on the curve through both positions and velocities, turned as recorded.
 import * as THREE from 'three';
 import { FLAG, MODE } from './record.js';
+import { TEETER } from './teeter.js';
 import { loadMnot } from '../mnot/mnot.js';
 
 const WIDTH = 10;                     // a sample's fields (record.js)
 const MAX_SAMPLES = 30000, MAX_TIME = 60 * 60 * 1000;
-const NAMES = new Set(['take', 'hit', 'crack', 'hole', 'pit', 'bonk']);
+const NAMES = new Set(['take', 'hit', 'crack', 'hole', 'pit', 'bonk', 'rim']);
+const FLAGS = Object.values(FLAG).reduce((all, bit) => all | bit, 0);
 const GHOST = 0.36;                   // the ghost's opacity, as the climb's
 const _a = new THREE.Vector3();
 
@@ -48,7 +50,7 @@ export function validateReplay(replay, fingerprint) {
     if ([x, y, z].some(v => Math.abs(v) > 1e5)) invalid(`samples[${i}] has an out-of-range position`);
     if ([vx, vy, vz].some(v => Math.abs(v) > 2e4)) invalid(`samples[${i}] has an out-of-range velocity`);
     if (mode !== MODE.snow && mode !== MODE.pit) invalid(`samples[${i}] has an unknown mode`);
-    if (flags < 0 || flags >= 512) invalid(`samples[${i}] has invalid flags`);
+    if (flags < 0 || flags > FLAGS) invalid(`samples[${i}] has invalid flags`);
     if (Math.abs(yaw) > 3200) invalid(`samples[${i}] has an invalid yaw`);
     previous = t;
   });
@@ -76,12 +78,17 @@ export class Recording {
     // each sample's events, in the order they happened (each came with its sample's flag)
     this.with = samples.map(() => []);
     for (const [t, name, arg] of this.events) this.with[this.sampleAt(t, FLAG[name])].push([name, arg]);
-    // since when Mnot has been in the hole it's in (s), for each sample in one
+    // since when Mnot has been in the hole it's in (s), for each sample in one; and since when it has been teetering
+    // on a hole's rim, for each sample it is (else -1): from the rim to steadying or dropping in
     this.dropped = new Float64Array(samples.length);
-    let since = 0;
+    this.rimmed = new Float64Array(samples.length).fill(-1);
+    let since = 0, rim = -1;
     samples.forEach((s, i) => {
       if (s[7] === MODE.pit && (i === 0 || samples[i - 1][7] !== MODE.pit)) since = s[0] / 1000;
       this.dropped[i] = since;
+      if (s[8] & (FLAG.steady | FLAG.pit)) rim = -1;
+      if (s[8] & FLAG.rim) rim = s[0] / 1000;
+      this.rimmed[i] = rim;
     });
   }
 
@@ -106,7 +113,8 @@ export class Recording {
   }
 
   // Where Mnot was at t (out: its pos and vel vectors are filled in), between the samples on either side, and
-  // which way it faced and turned; pit: in a hole, since `dropped` s.
+  // which way it faced and turned; pit: in a hole, since `dropped` s; rimmed: teetering on a hole's rim since then (s;
+  // else -1).
   state(t, out) {
     const s = this.samples, ms = t * 1000;
     const lo = Math.max(0, this.after(t) - 1), hi = Math.min(lo + 1, s.length - 1), a = s[lo], b = s[hi];
@@ -130,6 +138,7 @@ export class Recording {
     out.spin = spin;
     out.pit = a[7] === MODE.pit && (b[7] === MODE.pit || hi === lo);
     out.dropped = this.dropped[lo];
+    out.rimmed = this.rimmed[lo];
     return out;
   }
 
@@ -155,7 +164,8 @@ export class Recording {
 }
 
 // The ghost to race: a see-through Mnot where the recording says, running, walking or standing by its speed,
-// sinking into a hole and hopping out of it (pit: main.js's PIT), and dancing at the end. It goes through everything.
+// teetering on a hole's rim, sinking into a hole and hopping out of it (pit: main.js's PIT), and dancing at the end.
+// It goes through everything.
 export class Ghost {
   static async create({ replay, scene, pit }) {
     return new Ghost({ recording: new Recording(replay), scene, pit, mnot: await loadMnot() });
@@ -192,6 +202,11 @@ export class Ghost {
       const k = this.t - st.dropped, sunk = Math.min(1, k / p.down), out = Math.min(1, (k - p.down - p.stay) / p.out);
       m.position.y = out > 0 ? -p.sink * (1 - out) + p.hop * 4 * out * (1 - out) : -p.sink * sunk * sunk;
       anim.play('Teeter', 0.1);
+    } else if (st.rimmed >= 0) {
+      // as main.js's pose() on the rim: rocking forward, out over the hole it faces, and back
+      const age = this.t - st.rimmed, k = Math.min(1, age / TEETER.time);
+      m.rotation.x = (0.06 + 0.16 * k) * (0.7 + 0.3 * Math.sin(2 * Math.PI * age / TEETER.clip));
+      anim.play('Teeter', 0.12);
     } else {
       const along = Math.max(0, st.vel.dot(_a.set(Math.sin(st.yaw), 0, Math.cos(st.yaw))));
       if (along > 0.3) {
@@ -199,6 +214,7 @@ export class Ghost {
         anim.setGaitSpeed(along, { Walk: this.mnot.rig.walk_speed, Run: this.mnot.rig.run_speed });
       } else anim.play('Idle', 0.25);
     }
+    if (st.rimmed < 0) m.rotation.x *= Math.exp(-14 * dt);
     m.rotation.z += (THREE.MathUtils.clamp(-st.spin * st.vel.length() * 0.05, -0.32, 0.32) - m.rotation.z)
       * (1 - Math.exp(-8 * dt));
     anim.update(dt);

@@ -217,6 +217,10 @@ their cracks, `counts()` in `main.js`); a run on any other is practice (`practic
 - a crack is stepped on at its edge and gives way as long after as the snow holds; the passages at the end give way
   after the list, one after another from Mnot out; Mnot is never over a hole on the snow; a drop into a hole hops out
   as long after as the game waits, on the side it came from;
+- caught at a hole's edge (`rim`), Mnot has stopped dead at a hole open by then, no further from its edge than a step
+  at top speed or a hole opening at its toes leaves it; it stands there still until it's saved (`steady`: braking or
+  steering, no sooner than the game lets it), bumped off by a wrong one, or goes over, into that hole just in from
+  where it stood, and never later than the teeter lasts (`rim`);
 - the claim's time is the last sample, and its falls (wrong ones) and dents (drops into a hole) are the replay's.
 
 The least time of a stretch is its straight line, less the emoji's reach, at nine tenths of Mnot's top speed, on the
@@ -327,8 +331,9 @@ the route moves on (one test then skips, saying the fixtures are older than `rou
 board, no spills; `spills`: two), the cheats its checker turns down, and the two games side by side: a board each,
 the house records, one player in both, a run that only its own game knows.
 `test_emoji.py` does it for Reaction Run with the runs in `fixtures/emoji/`, all on the route in `route.json.gz` there
-(`run`: 1:10.44 with two wrong ones, a drop into a hole and peeks, at a frame rate all over the place; `clean`:
-1:02.52; `pits`: three drops and a bonk at 30 frames a second), and the cheats its checker turns down.
+(`run`: 1:28.71 with two wrong ones, peeks, teetering on a hole's edge, saved once and over it once into the hole,
+at a frame rate all over the place; `clean`: 1:02.55; `pits`: three drops over a hole's edge and a bonk at 30 frames
+a second, 1:42.02), and the cheats its checker turns down.
 `test_downhill_give.py` replays honest rides the checker once turned down, each with a copy of the route it was
 ridden on (`fixtures/downhill/honest-<route>.json.gz`: whole runs, and stretches of others), and checks that what
 lets them through still turns down a push further than the obstacle reaches, a sidestep with a landing's flag,

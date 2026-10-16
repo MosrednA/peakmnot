@@ -1,13 +1,14 @@
 // Run with Playwright's browser_run_code_unsafe(filename), with the dev server on 5280.
 // Reaction Run's Hall of Fame replays (peak/emoji/playback.js): a run played by the autopilot and one recorded for the
-// server's tests (server/fixtures/emoji/pits.json.gz: a wrong one, a bonk, cracks, holes and three drops into them),
-// watched (Mnot on the recording, every event told once, jumps in time, pause and speed, the finish) and raced as a
-// ghost. The board and the replay API are routed to them, so no score server is needed.
+// server's tests (server/fixtures/emoji/pits.json.gz: a wrong one, a bonk, cracks, holes, teetering on their edges
+// and three drops into them), watched (Mnot on the recording, every event told once, jumps in time, pause and speed,
+// the finish) and raced as a ghost. The board and the replay API are routed to them, so no score server is needed.
 async (page) => {
   const base = 'http://127.0.0.1:5280';
   const checks = [], errors = [], posts = [], dialogs = [], boards = [];
   const check = (name, pass, evidence) => checks.push({ name, pass: !!pass, evidence });
-  const FLAG = { start: 1, take: 2, hit: 4, crack: 8, hole: 16, pit: 32, climb: 64, bonk: 128, finish: 256 };
+  const FLAG = { start: 1, take: 2, hit: 4, crack: 8, hole: 16, pit: 32, climb: 64, bonk: 128, finish: 256, rim: 512,
+    steady: 1024 };
   page.setDefaultTimeout(15000);
   page.on('pageerror', e => errors.push(String(e)));
   page.on('request', r => {
@@ -48,7 +49,7 @@ async (page) => {
     const body = { replay, name: 'Demo Can', time: Math.round(end * 1000) };
     if (id === 'gone-gone-gone') return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
     if (id === 'not-this-field') body.replay = { ...replay, route: 'f'.repeat(64) };
-    if (id === 'demo-pits-01') Object.assign(body, { replay: pits, name: 'Demo Pits', time: 77933 });
+    if (id === 'demo-pits-01') Object.assign(body, { replay: pits, name: 'Demo Pits', time: 102017 });
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(body) });
   });
   await page.route('**/api/emoji/board**', route => route.fulfill({ contentType: 'application/json',
@@ -121,9 +122,10 @@ async (page) => {
     && watched.done, { off: watched.off, clock: watched.clock });
   const count = name => pits.events.filter(e => e[1] === name).length;
   const want = { start: 1, take: count('take'), hit: count('hit'), crack: count('crack'), hole: count('hole'),
-    pit: count('pit'), climb: flagged(pits, FLAG.climb), bonk: count('bonk'), peak: 1, finish: 1 };
+    pit: count('pit'), climb: flagged(pits, FLAG.climb), bonk: count('bonk'), teeter: count('rim'),
+    steady: flagged(pits, FLAG.steady), peak: 1, finish: 1 };
   const seen = { ...watched.seen, hit: ['early', 'wrong', 'out'].reduce((n, k) => n + (watched.seen[k] ?? 0), 0) };
-  check('Every recorded event is told once', want.hit && want.bonk && want.pit
+  check('Every recorded event is told once', want.hit && want.bonk && want.pit && want.teeter
     && Object.entries(want).every(([k, n]) => (seen[k] ?? 0) === n), { want, seen: watched.seen });
   check('Watching posts nothing', posts.length === 0, [...posts]);
 

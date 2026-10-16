@@ -110,6 +110,7 @@ EMOJI_WORDS = {
     "pit": "Out of a hole it never fell into, or out the wrong side? Bold strategy.",
     "levitate": "Reaction Run detected: Mnot slides on the snow, not above it.",
     "crack": "That crack didn't give way when it should have. The field remembers.",
+    "rim": "Teetering on the edge of a hole, then strolling on as if nothing happened? Mnot steadies or goes in.",
     "tries": "Three wrong ones and you're out. This run touched more and kept going.",
     "practice": "That field isn't one of the board's. Practice runs are fun, but they don't count.",
     "start": "That run didn't start at the start. Helicopters aren't allowed.",

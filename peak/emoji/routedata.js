@@ -1,16 +1,17 @@
 // Reaction Run as plain data, for the score server (server/emoji.json, checked by server/emoji.py): the field's
 // geometry, the deal, the rules a run keeps to (main.js's own: how Mnot gets about, the tries, the holes, the
-// finale), and the board's fields: every seed up to the pool's end that a random deal can give (main.js,
-// counts()), each as its walls, emoji, cracks and the passages giving way at the end. The server checks every run
-// against its field, so this must match the game: routeFingerprint() hashes all of it but the board's fields
-// themselves, for which it takes the first fields the band is set by (dealt as they are, so a change to the deal
-// changes them), the client sends that hash when a run starts, and the server says "route changed" if its copy is
-// stale. To refresh server/emoji.json after changing the field, the deal or the rules, run
+// finale, teetering on a hole's rim), and the board's fields: every seed up to the pool's end that a random deal can
+// give (main.js, counts()), each as its walls, emoji, cracks and the passages giving way at the end. The server
+// checks every run against its field, so this must match the game: routeFingerprint() hashes all of it but the
+// board's fields themselves, for which it takes the first fields the band is set by (dealt as they are, so a change
+// to the deal changes them), the client sends that hash when a run starts, and the server says "route changed" if
+// its copy is stale. To refresh server/emoji.json after changing the field, the deal or the rules, run
 // `python -X utf8 server/export_route.py emoji` and paste the line it prints into the console of emoji.html?manual
 // (it takes a few seconds: every board field is dealt afresh; server/README.md, "Reaction Run").
 import { CELL, WALL } from './field.js';
 import { TOUCH, WARP, PRIZE } from './stickers.js';
 import { CRACK, QUAKE } from './cracks.js';
+import { TEETER } from './teeter.js';
 
 // board (main.js): rules, the numbers; plan(seed), a field planned without its looks; names, the sticker sheet's
 // dealt; rated(), the first fields, which set the band; band(), what they rate, low and high; counts(seed, field):
@@ -32,6 +33,7 @@ export function emojiRoute(board) {
     finale: rules.finale,
     crack: { ...CRACK, wide: CELL },
     quake: QUAKE,
+    teeter: { rim: TEETER.rim, catch: TEETER.catch, time: TEETER.time, over: TEETER.over },
     sample: board.rated().map(f => f.layout()),
   };
 }

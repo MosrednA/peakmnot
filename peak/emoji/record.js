@@ -1,7 +1,7 @@
 // Records a run for the score server (server/emoji.py checks it): from the clock's first step to :peak-mnot:, where
 // Mnot is and how fast it goes every 0.1 s of the run's clock, and on every step something happened (an emoji
 // fetched or a wrong one touched, a crack stepped on or given way, a drop into a hole and the hop out, a bonk, the
-// finish), with what the player asked for and the field's seed.
+// finish, teetering on a hole's rim and steadying), with what the player asked for and the field's seed.
 //
 //   { v: 1, route: fingerprint, phase: 0, seed,
 //     samples: [[t ms, x, y, z mm, vx, vy, vz mm/s, mode, flags, yaw mrad], ...],
@@ -12,9 +12,11 @@
 // Mnot went by (main.js, slide()): 1 run, 2 brake, 4 left, 8 right, and 16 peeking. Each event has its step's
 // sample, the time and the flag of it: take (its place on the list, from 1), hit (a wrong one, or a listed one too
 // early: the emoji's index in the field's), crack (one stepped on: its index, the field's cracks first and then the
-// passages giving way at the end, as cracks.js lists them), hole (one given way), pit (Mnot dropped into one) and
-// bonk (a hard one: cm/s into the wall).
-export const FLAG = { start: 1, take: 2, hit: 4, crack: 8, hole: 16, pit: 32, climb: 64, bonk: 128, finish: 256 };
+// passages giving way at the end, as cracks.js lists them), hole (one given way), pit (Mnot dropped into one), bonk
+// (a hard one: cm/s into the wall) and rim (Mnot caught at a hole's edge, teetering: the crack's index). steady (saved
+// from the rim, back on the snow) has no event, as the hop out of a hole (climb) hasn't.
+export const FLAG = { start: 1, take: 2, hit: 4, crack: 8, hole: 16, pit: 32, climb: 64, bonk: 128, finish: 256,
+  rim: 512, steady: 1024 };
 export const MODE = { snow: 0, pit: 3 };
 export const KEY = { run: 1, brake: 2, left: 4, right: 8, peek: 16 };
 const EVERY = 0.1;                    // seconds of the run's clock between samples

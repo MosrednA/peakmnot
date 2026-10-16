@@ -28,7 +28,7 @@ GAMES = {
                                           "line", "lip", "hard", "pins", "bonus", "fingerprint"},
                  "downhill.html", "(await import('./peak/downhill/routedata.js')).exportRoute(downhill)"),
     "emoji": (HERE / "emoji.json", {"v", "game", "field", "deal", "board", "mnot", "touch", "warp", "prize", "finale",
-                                    "crack", "quake", "fields", "fingerprint"},
+                                    "crack", "quake", "teeter", "fields", "fingerprint"},
               "emoji.html", "(await import('./peak/emoji/routedata.js')).exportRoute(emoji)"),
 }
 

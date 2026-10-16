@@ -1,13 +1,14 @@
 """Checks a recorded Reaction Run (peak/emoji/record.js) against its field and the game's rules (emoji.json, exported
-by peak/emoji/routedata.js from main.js, field.js, stickers.js and cracks.js). Like the other games' checkers it
-doesn't re-run the game; it checks that every step is one Mnot can take on that field. The field is one of the
-board's, by its seed. Mnot starts at the start, never goes through a wall and never faster than its legs; it speeds
-up only with the run key held, and slides the way the snow lets it: let go, straight on, slowing; running, turned by
-where it faces. Every emoji it fetched was the list's next, in reach and standing; every wrong one it touched cost a
-try, and none it ran into let it through. Every crack it stepped on gave way when it should, the passages at the end
-too; it never walked over a hole, and out of one it dropped into, it climbed out on the side it came from. And it
-fetched :peak-mnot: in the middle, once it had landed. The checks every game shares (the replay's shape, the
-timeline, the splits, no teleports) are checks.py's.
+by peak/emoji/routedata.js from main.js, field.js, stickers.js, cracks.js and teeter.js). Like the other games'
+checkers it doesn't re-run the game; it checks that every step is one Mnot can take on that field. The field is one
+of the board's, by its seed. Mnot starts at the start, never goes through a wall and never faster than its legs; it
+speeds up only with the run key held, and slides the way the snow lets it: let go, straight on, slowing; running,
+turned by where it faces. Every emoji it fetched was the list's next, in reach and standing; every wrong one it touched
+cost a try, and none it ran into let it through. Every crack it stepped on gave way when it should, the passages at
+the end too; it never walked over a hole, and out of one it dropped into, it climbed out on the side it came from.
+Caught at a hole's edge, it stood still there until it was saved, braking or steering a moment later at the soonest,
+or went over, just in from where it stood. And it fetched :peak-mnot: in the middle, once it had landed. The checks
+every game shares (the replay's shape, the timeline, the splits, no teleports) are checks.py's.
 
 verify(route, replay, claim, splits) returns None for a good run, or a checks.Rejection. The tolerances are the
 rounding (mm, mm/s, ms, mrad) and the game's own steps (a frame, up to 1/20 s: peak/kit/loop.js), measured on honest
@@ -24,9 +25,10 @@ from checks import Malformed, Rejection  # noqa: F401  (the API catches them fro
 
 ROUTE_FILE = Path(__file__).resolve().parent / "emoji.json"
 SNOW, PIT = 0, 3
-FLAG = {"start": 1, "take": 2, "hit": 4, "crack": 8, "hole": 16, "pit": 32, "climb": 64, "bonk": 128, "finish": 256}
+FLAG = {"start": 1, "take": 2, "hit": 4, "crack": 8, "hole": 16, "pit": 32, "climb": 64, "bonk": 128, "finish": 256,
+        "rim": 512, "steady": 1024}
 RUN, BRAKE, LEFT, RIGHT, PEEK = 1, 2, 4, 8, 16
-FORMAT = checks.Format(FLAG, ("take", "hit", "crack", "hole", "pit", "bonk"), extra=((-3142, 3142),),
+FORMAT = checks.Format(FLAG, ("take", "hit", "crack", "hole", "pit", "bonk", "rim"), extra=((-3142, 3142),),
                        modes=(SNOW, PIT), keys=31, reach=10**5, speed=2 * 10**4)
 
 STEP = 0.05                     # s: the longest step the game takes (a frame, at most this)
@@ -35,6 +37,7 @@ MAX_GAP = 0.155                 # s between samples: one every 0.1 s of the cloc
 SEGMENT_SLACK = 0.9             # a split quicker than this share of the stretch, straight and at top speed, is refused
 CLIMB = {"past": 0.3, "room": 0.4}      # m (cracks.js, outside()): how far past the hole's edge Mnot climbs out, and
                                         # how far short of the ends of the crack
+BRINK = 0.3                     # m (cracks.js, brink()): how far short of the hole's ends Mnot goes over its edge
 TOL = {
     "mm": 0.003,                # m: two positions to the mm, and a little
     "speed": 0.005,             # m/s: a speed from mm/s
@@ -86,6 +89,28 @@ class Crack:
     def over(self, x, z, near=0.0):
         l, c = self.frame(x, z)
         return abs(l) < self.wide / 2 and abs(c) < self.edge(l) + near
+
+    def gap(self, x, z):
+        """m from x, z to the hole's edge, the nearest way (0 over it): to the edge as a line through points every
+        2.5 mm along the crack, which is never nearer than the edge itself and less than a mm further."""
+        if self.over(x, z):
+            return 0.0
+        l, c = self.frame(x, z)
+        c, n = abs(c), round(self.wide / 0.0025)
+        points = [(self.wide * (i / n - 0.5), self.edge(self.wide * (i / n - 0.5))) for i in range(n + 1)]
+        best = math.inf
+        for (l0, c0), (l1, c1) in zip(points, points[1:]):
+            dl, dc = l1 - l0, c1 - c0
+            u = clamp(((l - l0) * dl + (c - c0) * dc) / (dl * dl + dc * dc), 0.0, 1.0)
+            best = min(best, math.hypot(l - l0 - u * dl, c - c0 - u * dc))
+        return best
+
+    def brink(self, x, z, inward):
+        """Where Mnot teetering at x, z goes over the edge (cracks.js, brink()): inward m in, straight across, short of
+        the hole's ends."""
+        l, c = self.frame(x, z)
+        along = clamp(l, BRINK - self.wide / 2, self.wide / 2 - BRINK)
+        return self.place(along, (1 if c >= 0 else -1) * max(0.0, self.edge(along) - inward))
 
     def outside(self, x, z, side):
         """Where Mnot, dropped in at x, z, climbs out on that side (-1 or 1, across)."""
@@ -142,7 +167,7 @@ class Route:
         self.body, self.run, self.bonk, self.lives, self.hit, self.pit = (m[k] for k in
                                                                            ("body", "run", "bonk", "lives", "hit", "pit"))
         self.touch, self.warp, self.prize, self.finale = data["touch"], data["warp"], data["prize"], data["finale"]
-        self.crack, self.quake = data["crack"], data["quake"]
+        self.crack, self.quake, self.teeter = data["crack"], data["quake"], data["teeter"]
         run = self.run
         self.top_speed = run["top"]
         # m/s²: the most the snow changes Mnot's speed by, running into the opposite of where it goes, or braking
@@ -241,6 +266,7 @@ class Checker(checks.Checker):
         self.check_motion()
         self.check_steps()
         self.check_cracks()
+        self.check_teeters()
         self.check_pits()
         self.check_touches()
         self.check_finish()
@@ -319,8 +345,8 @@ class Checker(checks.Checker):
                 continue
             dt = b.t - a.t
             names = self.names(b)
-            if dt <= 0 or "hit" in names or b.mode == PIT:
-                continue                # the bump, the drop into a hole: a speed out of nowhere, checked there
+            if dt <= 0 or "hit" in names or b.mode == PIT or b.has("rim"):
+                continue                # the bump, the drop into a hole, the stop at its edge: checked there
             dvx, dvz = b.vx - a.vx, b.vz - a.vz
             dv = math.hypot(dvx, dvz)
             wall = self.near_wall(a, b, dt)
@@ -486,6 +512,65 @@ class Checker(checks.Checker):
                     if abs(c) < 0.01:
                         sides.update((-1, 1))
         return tuple(sides) or (-1, 1)
+
+    def check_teeters(self):
+        """Caught at a hole's edge (teeter.js), on the snow, stopped dead: at a hole open by then, its middle no
+        further from the edge than a step at top speed or a crack giving way at its toes leaves it. Then it stands
+        where it was caught, still, until it's saved (braking or steering, a moment after at the soonest), bumped off
+        by a wrong one, or goes over: into that hole, just in from where it stood (or into another giving way under
+        it), no later than the teeter lasts."""
+        r, t, cracks = self.route, self.route.teeter, self.field.cracks
+        reach = max(t["rim"], r.top_speed * STEP) + TOL["mm"]
+        on = None                       # (the sample it was caught on, the crack's index)
+        for x in self.samples:
+            if x.has("steady"):
+                if on is None:
+                    self.fail("rim", x, "saved off the rim")
+                at, _ = on
+                self.beyond("catch", t["catch"] - TOL["ms"] - (x.t - at.t), 0, "rim", x, "saved too soon")
+                if not self.keys_held(at.ms, x.ms) & (BRAKE | LEFT | RIGHT):
+                    self.fail("rim", x, "saved without braking or steering")
+                self.check_still(at, x, x.has("hit"))
+                on = None
+            elif on is not None:
+                at, i = on
+                if x.has("pit"):        # check_pits: into one open hole, from the snow
+                    into = next(arg for name, arg in self.with_sample[x.i] if name == "pit")
+                    bx, bz = cracks[i].brink(at.x, at.z, t["over"]) if into == i else (at.x, at.z)
+                    off = math.hypot(x.x - bx, x.z - bz)
+                    self.beyond("brink", off, 2 * TOL["mm"], "rim", x, f"over the edge {off:.3f} m off")
+                    on = None
+                else:
+                    self.check_still(at, x, x.has("hit"))
+                    if x.has("hit"):
+                        on = None
+                if on and x.t - at.t > t["time"] + STEP + TOL["ms"]:
+                    self.fail("rim", x, "on the rim too long")
+            if x.has("rim"):
+                if on is not None:
+                    self.fail("rim", x, "caught at an edge on one")
+                into = [arg for name, arg in self.with_sample.get(x.i, ()) if name == "rim"]
+                if len(into) != 1 or not 0 <= into[0] < len(cracks):
+                    self.fail("edited", x, f"rim {into}")
+                i = into[0]
+                if i not in self.opened or self.opened[i].ms > x.ms:
+                    self.fail("rim", x, f"at hole {i} before it opened")
+                if x.mode != SNOW or x.has("pit") or x.has("climb"):
+                    self.fail("rim", x, "caught at an edge from a hole")
+                if x.speed > TOL["speed"] and not x.has("hit"):
+                    self.fail("rim", x, f"caught at an edge at {x.speed:.2f} m/s")
+                gap = cracks[i].gap(x.x, x.z)
+                if gap <= 0:
+                    self.fail("rim", x, f"caught at the edge of hole {i}, over it")
+                self.beyond("rim", gap, reach, "rim", x, f"caught {gap:.2f} m from hole {i}")
+                on = None if x.has("hit") else (x, i)
+
+    def check_still(self, at, x, bumped):
+        """Teetering, Mnot stands where it was caught, still (bumped by a wrong one, it's off at once)."""
+        moved = math.hypot(x.x - at.x, x.z - at.z)
+        self.beyond("still", moved, TOL["mm"], "rim", x, f"{moved:.3f} m on the rim")
+        if x.mode != SNOW or not bumped and x.speed > TOL["speed"]:
+            self.fail("rim", x, f"going {x.speed:.2f} m/s on the rim")
 
     # ------------------------------------------------------------------ the emoji
 
