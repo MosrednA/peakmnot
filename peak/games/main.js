@@ -8,11 +8,13 @@ hookAnalytics(document);
 const THUMBS = {
   climb: new URL('./climb.jpg', import.meta.url),
   downhill: new URL('./downhill.jpg', import.meta.url),
+  emoji: new URL('./emoji.jpg', import.meta.url),
 };
 for (const img of document.querySelectorAll('img[data-thumb]')) img.src = THUMBS[img.dataset.thumb];
 
-// The routes (/, /downhill, /viewer) are the score server's, live and on 5294 (PAGES in server/peak_scores.py). The
-// dev server (tools/dev_server.py, on 5280 or the downhill's 5293) serves each page by its file, and the viewer at /.
+// The routes (/, /downhill, /emoji, /viewer) are the score server's, live and on 5294 (PAGES in
+// server/peak_scores.py). The dev server (tools/dev_server.py, on 5280 or the downhill's 5293) serves each page by its
+// file, and the viewer at /.
 if ({ 5280: true, 5293: true }[location.port]) {
   for (const a of document.querySelectorAll('a[data-file]')) a.href = a.dataset.file;
 }

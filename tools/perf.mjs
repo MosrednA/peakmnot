@@ -1,6 +1,7 @@
-// Runs a game's perf probe (peak/kit/perf.js: the climb's peak/dev/perf.js, the downhill's peak/downhill/perf.js)
-// headless on this computer, while the dev server is running, and prints its table (docs/performance.md).
-//   node tools/perf.mjs [--game downhill] [--igpu] [--size 1512x945] [--dpr 2] [--out run.json]
+// Runs a game's perf probe (peak/kit/perf.js: the climb's peak/dev/perf.js, the downhill's peak/downhill/perf.js,
+// Reaction Run's peak/emoji/perf.js) headless on this computer, while the dev server is running, and prints its table
+// (docs/performance.md).
+//   node tools/perf.mjs [--game downhill|emoji] [--igpu] [--size 1512x945] [--dpr 2] [--out run.json]
 //     [--url http://127.0.0.1:5280/]
 // --game picks the game's page (peak, the climb, by default). --igpu asks the browser for the low-power GPU (on a
 // laptop or a desktop with an integrated one). Set PLAYWRIGHT to Playwright's index.mjs if it isn't installed here,

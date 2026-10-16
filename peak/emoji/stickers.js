@@ -13,15 +13,15 @@ const THICK = 0.16;                // m through a token, without its bevel
 const BEVEL = 0.035;               // m
 const HEIGHT = 1.05;               // m to a token's middle
 const SPIN = 1.1;                  // radians a second
-const TOUCH = 0.85;                // m from Mnot's middle: touched
+export const TOUCH = 0.85;         // m from Mnot's middle: touched
 const NEAR = [3.6, 1.8];           // m: from here a token starts turning to face Mnot, and at this it does
 const FACE = 5;                    // how fast it turns to face (a second), close by
-const WARP = { out: 0.4, back: 1.1 };   // s: a touched wrong one twisting away, and a blinked one coming back
+export const WARP = { out: 0.4, back: 1.1 };   // s: a touched wrong one twisting away, and a blinked one coming back
 const TILT = 1.2;                  // radians a token leans back while the camera peeks from high up, to be read
 const SWEEP = 0.012;               // s a metre from Mnot: the list done, the emojis twist away one after another
 // The prize: how big, how high its middle hovers (m), from how high it drops and in how long (s), how near to
 // touch it (m from Mnot's middle); won, it floats over Mnot's head (held: how big then)
-const PRIZE = { scale: 1.7, height: 1.6, drop: 9, fall: 0.4, touch: 1.2, held: 0.95 };
+export const PRIZE = { scale: 1.7, height: 1.6, drop: 9, fall: 0.4, touch: 1.2, held: 0.95 };
 // Its beacon, so the way there shows from anywhere: a pale gold beam up from the middle, fading out high up and
 // pulsing, from the moment the prize drops until it's won (fade: s in or out), and a ring rippling out over the snow
 // under it once it's down, every `ripple` s, from `rings[0]` to `rings[1]` m round

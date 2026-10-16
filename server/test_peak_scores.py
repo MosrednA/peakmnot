@@ -55,11 +55,12 @@ class Reply:
 class Server:
     """The score server in a temp folder, on a free port."""
 
-    def __init__(self, route, static=False, downhill_route=None, levels=None):
+    def __init__(self, route, static=False, downhill_route=None, levels=None, emoji_route=None):
         self.tmp = tempfile.TemporaryDirectory()
         self.clock = Clock()
         self.app = App(self.tmp.name, [b"k" * 32], [ORIGIN], networks("127.0.0.1/32"), static=static, route=route,
-                       clock=self.clock, quiet=True, downhill_route=downhill_route, levels=levels)
+                       clock=self.clock, quiet=True, downhill_route=downhill_route, levels=levels,
+                       emoji_route=emoji_route)
         self.httpd = self.app.serve("127.0.0.1", 0)
         self.port = self.httpd.server_address[1]
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
@@ -226,9 +227,10 @@ class TheClimb(ScoreTest):
         try:                                            # a restart runs the migrations and the seeding again: nothing new
             rows = again.db.all("SELECT s.game, COUNT(*) AS n FROM scores s JOIN players p ON p.id = s.player_id "
                                 "WHERE p.house = 1 GROUP BY s.game ORDER BY s.game")
-            self.assertEqual({r["game"]: r["n"] for r in rows}, {"peak": HOUSE, "downhill": len(games.DOWNHILL_HOUSE)})
+            self.assertEqual({r["game"]: r["n"] for r in rows}, {"peak": HOUSE, "downhill": len(games.DOWNHILL_HOUSE),
+                                                         "emoji": len(games.EMOJI_HOUSE)})
             self.assertEqual(again.db.one("SELECT COUNT(*) FROM players WHERE house = 1")[0],
-                             HOUSE + len(games.DOWNHILL_HOUSE))
+                             HOUSE + len(games.DOWNHILL_HOUSE) + len(games.EMOJI_HOUSE))
         finally:
             again.db.close()
 

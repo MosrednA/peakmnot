@@ -6,6 +6,7 @@
 // A new mini game adds its line to GAMES (.claude/skills/mini-game/SKILL.md, "The files").
 const GAMES = [
   { id: 'downhill', label: 'Downhill', load: () => import('../downhill/viewer.js') },
+  { id: 'emoji', label: 'Reaction Run', load: () => import('../emoji/viewer.js') },
 ];
 
 // mnot: the Mnot tab's { show(), hide() }

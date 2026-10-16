@@ -18,7 +18,7 @@ import { toon } from '../look/look.js';
 import { SUN_DIR } from '../look/sky.js';
 
 export const CELL = 3;                    // m a cell
-const WALL = { h: 0.62, t: 0.42 };        // the snow walls: how high, how thick (m); Mnot can't step over them
+export const WALL = { h: 0.62, t: 0.42 }; // the snow walls: how high, how thick (m); Mnot can't step over them
 const SPREAD = 3;                         // cells (rows and columns added) at least between one listed emoji and the next
 const FREE = 1;                           // cells round the start kept free
 const STRIDE = 3;                         // steps at least between two cracks on the way through
@@ -31,6 +31,9 @@ const EDGE = 1.5;                         // m of floor round the outer walls, f
 // shade spreads from a wall's foot and how dark it is there; onSun: how much of it shades the sunlit snow too (on
 // the sky's light it is all); foot: how dark a wall itself is at its foot
 const BAKE = { px: 32, soft: 0.07, reach: 0.3, dark: 0.5, onSun: 0.45, foot: 0.84 };
+// The floor's material, one for every field dealt (only one is in the scene at a time), each with its own baked
+// texture: disposed with a field, its shader would go too, and the next field would build it again as it's dealt.
+let floorMaterial = null;
 
 // shuffled in place, with a random 0..1
 function shuffled(a, rand) {
@@ -361,6 +364,13 @@ export class Field {
       .sort((a, b) => a[0] - b[0]).map(([, cell]) => cell);
   }
 
+  // The field as plain data, for the score server (routedata.js): its walls (wall keys), its emoji in order (column,
+  // row and place on the list, -1 for one that isn't on it), the cracked passages and those giving way at the end.
+  layout() {
+    return { walls: [...this.walls].sort(), emojis: this.emojis.map(e => [...e.cell, e.listed]),
+      cracks: [...this.cracks], finale: [...this.finale] };
+  }
+
   // ------------------------------------------------------------------ the snow
 
   // The packed snow of the field with the walls' light baked in, its walls (one instanced mesh) and their boxes for
@@ -384,10 +394,9 @@ export class Field {
 
     const width = w + 2 * EDGE, depth = d + 2 * EDGE;
     this.baked = this.bake(boxes, width, depth);
-    this.floorMaterial = toon('#eaf1fb').clone();
-    this.floorMaterial.aoMap = this.baked;
-    this.floorMaterial.onBeforeCompile = bakedLight;
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(width, depth).rotateX(-Math.PI / 2), this.floorMaterial);
+    floorMaterial ??= Object.assign(toon('#eaf1fb').clone(), { onBeforeCompile: bakedLight });
+    floorMaterial.aoMap = this.baked;
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(width, depth).rotateX(-Math.PI / 2), floorMaterial);
     floor.position.set(0, 0.01, d / 2);
     floor.receiveShadow = true;                       // Mnot's and the emojis' shadows
     floor.name = 'the field';
@@ -480,7 +489,6 @@ export class Field {
     this.group.removeFromParent();
     this.group.traverse(o => o.geometry?.dispose());
     this.baked?.dispose();
-    this.floorMaterial?.dispose();
   }
 }
 

@@ -38,7 +38,7 @@ import verify                       # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 SITE = Path(os.environ.get("SITE_DIR") or ROOT).resolve()     # what --static serves: the repository, or a build
 STATIC = re.compile(r"^/((" + "|".join(games.NAMES) + r")\.html|sounds\.js|music\.js|favicon\.(png|ico)|share(-[a-z]+)?\.jpg|"
-                    r"manifest\.webmanifest|peak/([a-z]+/)?[a-z0-9_-]+\.(js|css|jpg)|models/mnot\.glb|"
+                    r"manifest\.webmanifest|peak/([a-z]+/)?[a-z0-9_-]+\.(js|css|jpg|webp)|models/mnot\.glb|"
                     r"audio/([a-z]+/)?[a-z0-9_-]+\.(wav|mp3|m4a)|audio/music/[a-z0-9_-]+\.mp3)$")
 # the pages: the first game's at /, every other game's at /<game> too, the page of all the games at /games and the
 # viewer (index.html, the model and every game's moves) at /viewer; a route names its file, which needs no STATIC
@@ -46,7 +46,7 @@ PAGES = {"/": f"/{games.NAMES[0]}.html", **{f"/{name}": f"/{name}.html" for name
          "/games": "/games.html", "/viewer": "/index.html"}
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
          ".glb": "model/gltf-binary", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".png": "image/png",
-         ".m4a": "audio/mp4", ".jpg": "image/jpeg", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json"}
+         ".m4a": "audio/mp4", ".jpg": "image/jpeg", ".webp": "image/webp", ".ico": "image/x-icon", ".webmanifest": "application/manifest+json"}
 SECURE = {"X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer",
           "Cross-Origin-Opener-Policy": "same-origin", "X-Frame-Options": "DENY"}
 API_CSP = "default-src 'none'; frame-ancestors 'none'"
@@ -67,7 +67,7 @@ PAGE_CODE = re.compile(rb'((?:src|href)=")(peak/)')
 BUILD_FILES = ("*.js", "peak/**/*", "audio/**/*")    # what loads through v/BUILD/: the modules and, by music.js, music
 # A built site (tools/build.mjs, dist/) has its code, styles and sounds in assets/, each named by its content, so
 # each is kept for good; its page links them by those names.
-HASHED = re.compile(r"^/assets/[a-z0-9_-]+-[A-Z2-7]{8}\.(js|css|m4a|mp3|wav|jpg)$")
+HASHED = re.compile(r"^/assets/[a-z0-9_-]+-[A-Z2-7]{8}\.(js|css|m4a|mp3|wav|jpg|webp)$")
 
 
 def page_csp(html):
@@ -257,14 +257,14 @@ class Handler(BaseHTTPRequestHandler):
 
 class App:
     def __init__(self, data_dir, keys, origins, trusted, static=False, route=None, clock=None, quiet=False,
-                 downhill_route=None, levels=None):
-        """route, downhill_route: a game's route instead of its file's; levels: the games' other levels, as
+                 downhill_route=None, levels=None, emoji_route=None):
+        """route, downhill_route, emoji_route: a game's route instead of its file's; levels: the games' other levels, as
         games.load() takes them (tests)."""
         self.db = Database(Path(data_dir) / "peak.sqlite3")
         kwargs = {"clock": clock} if clock else {}
         self.store = Store(self.db, keys, **kwargs)                 # the climb's; .for_game() for another's
         self.games = {game.name: game for game in games.load(peak_route=route, downhill_route=downhill_route,
-                                                             levels=levels)}
+                                                             levels=levels, emoji_route=emoji_route)}
         for game in self.games.values():
             self.store.for_game(game.name).house(game.house)
         self.route = self.games["peak"].route

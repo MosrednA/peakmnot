@@ -6,8 +6,11 @@ per line, so a diff shows what changed) and stops.
     python -X utf8 server/export_route.py downhill     # server/downhill.json, from peak/downhill/routedata.js
     python -X utf8 server/export_route.py downhill ice # a level of it (games.py's LEVELS): server/downhill-ice.json,
                                                        # from downhill.html?level=ice&manual
+    python -X utf8 server/export_route.py emoji        # server/emoji.json, from peak/emoji/routedata.js (its board's
+                                                       # fields too: the page takes a few seconds)
 """
 import json
+import re
 import secrets
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -15,7 +18,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "route.json"
-ORIGINS = {f"http://{host}:{port}" for host in ("127.0.0.1", "localhost") for port in (5280, 5293)}
+LOCAL = re.compile(r"^http://(127\.0\.0\.1|localhost):[0-9]{2,5}$")    # the page, on any dev server here
 # game: (the file, the keys it must have, the page, the export in the page's console)
 GAMES = {
     "peak": (OUT, {"v", "rig", "beamSpeed", "solids", "beams", "checkpoints", "summit", "rail", "gusts", "fingerprint",
@@ -24,6 +27,9 @@ GAMES = {
     "downhill": (HERE / "downhill.json", {"v", "game", "g", "feel", "chair", "piste", "features", "river", "floes",
                                           "line", "lip", "hard", "pins", "bonus", "fingerprint"},
                  "downhill.html", "(await import('./peak/downhill/routedata.js')).exportRoute(downhill)"),
+    "emoji": (HERE / "emoji.json", {"v", "game", "field", "deal", "board", "mnot", "touch", "warp", "prize", "finale",
+                                    "crack", "quake", "fields", "fingerprint"},
+              "emoji.html", "(await import('./peak/emoji/routedata.js')).exportRoute(emoji)"),
 }
 
 
@@ -44,7 +50,7 @@ def main(game="peak", port=5289, level=""):
     class Handler(BaseHTTPRequestHandler):
         def cors(self):
             origin = self.headers.get("Origin", "")
-            if origin in ORIGINS:
+            if LOCAL.match(origin):
                 self.send_header("Access-Control-Allow-Origin", origin)
                 self.send_header("Access-Control-Allow-Headers", "Content-Type")
 

@@ -107,7 +107,8 @@ class StaticFiles(unittest.TestCase):
         self.assertEqual(self.server.request("HEAD", "/peak/scores/scores.css").status, 200)
         for path, kind in (("/favicon.png", "image/png"), ("/favicon.ico", "image/x-icon"),
                            ("/manifest.webmanifest", "application/manifest+json"), ("/share.jpg", "image/jpeg"),
-                           ("/share-downhill.jpg", "image/jpeg"), ("/share-games.jpg", "image/jpeg")):
+                           ("/share-downhill.jpg", "image/jpeg"), ("/share-emoji.jpg", "image/jpeg"),
+                           ("/share-games.jpg", "image/jpeg")):
             icon = self.server.request("GET", path)
             self.assertEqual((icon.status, icon.headers["Content-Type"]), (200, kind), path)
 
@@ -166,10 +167,10 @@ class BuiltSite(unittest.TestCase):
         site = Path(self.site.name)
         (site / "assets").mkdir()
         (site / "models").mkdir()
-        for page in ("peak.html", "downhill.html", "games.html", "index.html"):
+        for page in ("peak.html", "downhill.html", "emoji.html", "games.html", "index.html"):
             (site / page).write_bytes(self.PAGE.replace(b"peak-", page.split(".")[0].encode() + b"-"))
         for name in ("peak-ABCD2345.js", "peak-ABCDEFGH.css", "fall-WXYZ2345.m4a", "camp-WXYZ2345.mp3", "loose.js",
-                     "climb-WXYZ2345.jpg"):
+                     "climb-WXYZ2345.jpg", "emojis-WXYZ2345.webp"):
             (site / "assets" / name).write_bytes(b"x")
         (site / "models" / "mnot.glb").write_bytes(b"glTF")
         patch = unittest.mock.patch.object(peak_scores, "SITE", site.resolve())
@@ -187,7 +188,8 @@ class BuiltSite(unittest.TestCase):
         self.assertNotIn("jsdelivr", r.headers["Content-Security-Policy"])  # three.js comes with the code
         self.assertIn("'sha256-", r.headers["Content-Security-Policy"])
         self.assertEqual(self.server.request("GET", "/models/mnot.glb").headers["Cache-Control"], "no-cache")
-        for path, name in (("/downhill", b"downhill"), ("/games", b"games"), ("/viewer", b"index")):
+        for path, name in (("/downhill", b"downhill"), ("/emoji", b"emoji"), ("/games", b"games"),
+                           ("/viewer", b"index")):
             r = self.server.request("GET", path)
             self.assertEqual((r.status, r.data), (200, self.PAGE.replace(b"peak-", name + b"-")), path)
         for path in ("/games.html", "/index.html"):
@@ -196,7 +198,7 @@ class BuiltSite(unittest.TestCase):
     def test_the_hashed_files_are_kept_for_good(self):
         for path, kind in (("/assets/peak-ABCD2345.js", "text/javascript; charset=utf-8"),
                            ("/assets/peak-ABCDEFGH.css", "text/css; charset=utf-8"),
-                           ("/assets/climb-WXYZ2345.jpg", "image/jpeg"),
+                           ("/assets/climb-WXYZ2345.jpg", "image/jpeg"), ("/assets/emojis-WXYZ2345.webp", "image/webp"),
                            ("/assets/fall-WXYZ2345.m4a", "audio/mp4"), ("/assets/camp-WXYZ2345.mp3", "audio/mpeg")):
             r = self.server.request("GET", path)
             self.assertEqual((r.status, r.headers["Content-Type"], r.headers["Cache-Control"]),
@@ -369,12 +371,15 @@ class PerfRuns(unittest.TestCase):
         self.assertEqual(run["game"], "peak")
 
     def test_each_game_its_own(self):
-        # the downhill's ?perf too (peak/downhill/perf.js), in the same file, each run saying which game it's of
+        # the downhill's and Reaction Run's ?perf too (peak/downhill/perf.js, peak/emoji/perf.js), in the same file,
+        # each run saying which game it's of
         down = dict(self.RUN, text="Mnot Downhill perf · a table", game="peak")
+        field = dict(self.RUN, text="Reaction Run perf · a table")
         self.assertEqual(self.server.request("POST", "/api/downhill/perf", down).status, 201)
         self.assertEqual(self.server.request("POST", "/api/peak/perf", self.RUN).status, 201)
+        self.assertEqual(self.server.request("POST", "/api/emoji/perf", field).status, 201)
         self.assertEqual([(run["game"], run["text"]) for run in self.kept()],
-                         [("downhill", down["text"]), ("peak", self.RUN["text"])])
+                         [("downhill", down["text"]), ("peak", self.RUN["text"]), ("emoji", field["text"])])
         self.assertIn("(downhill)", perf.summary(self.kept()[0]))
 
     def test_only_runs(self):

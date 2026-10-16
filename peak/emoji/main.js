@@ -4,12 +4,16 @@
 // emoji twists away and :peak-mnot: drops into the middle of the field: fetching it stops the clock. Seen over Mnot's
 // shoulder, steered like a shopping trolley on fresh snow: it slides, drifts wide in a turn and bonks off the walls,
 // and the wrong emojis are never far. A few passages are cracked (cracks.js): the snow holds just long enough to run
-// across, then gives way, and there's no way back through. Built on the mini game kit (peak/kit/README.md); no
-// scores, stats or ?perf yet (README.md, "Not yet").
+// across, then gives way, and there's no way back through. Built on the mini game kit (peak/kit/README.md), with
+// high scores (scores.js, checked by server/emoji.py), the Hall of Fame's Race ghost and Watch run (playback.js) and
+// Plausible goals (analytics.js).
 // Open emoji.html?manual to stop the loop and step it from the console (window.emoji.step), for tests;
 // emoji.autopilot(true) lets a bot play. ?seed= deals a given field (else it's a random one), ?list= how many to fetch
 // (5), ?wrong= how many others stand about (24), ?open= how open the maze is (0 a real maze, 1 no walls at all),
-// ?cracks= how many cracked passages at most (3).
+// ?cracks= how many cracked passages at most (3), ?finale= how many give way at the end (three to five). Only the
+// board's fields count for the board: those a random deal gives (counts(), below); any other is practice.
+// ?ghost=ID races a run from the Hall of Fame, ?replay=ID watches one (playback.js); ?hall opens the Hall. ?perf times
+// how this computer draws it (perf.js).
 import * as THREE from 'three';
 import { MnotSounds } from '../../sounds.js';
 import { buildScenery } from '../look/scenery.js';
@@ -34,9 +38,26 @@ import { Title } from './title.js';
 import { Dizzy } from './dizzy.js';
 import { EmojiSfx } from './sfx.js';
 import { EmojiMusic } from './music.js';
+import { createScores } from './scores.js';
+import { routeFingerprint } from './routedata.js';
+import { FLAG, KEY } from './record.js';
+import { Ghost, Recording, validateReplay } from './playback.js';
+import { ReplayController } from '../replays/controller.js';
+import { apiBase } from '../scores/scores.js';
+import { hookAnalytics } from './analytics.js';
 
 const params = new URLSearchParams(location.search);
-const manual = params.has('manual');
+const perf = params.has('perf');                  // the perf probe (perf.js) drives the game, as tests do
+const manual = params.has('manual') || perf;
+// the Hall of Fame's Race ghost (?ghost=ID) and Watch run (?replay=ID: no run of its own, so no scores, keys or
+// title); a link with both is an error to show
+const hasGhost = params.has('ghost'), hasReplay = params.has('replay');
+const replayRoute = hasGhost || hasReplay ? {
+  mode: hasGhost && hasReplay ? 'invalid' : hasReplay ? 'replay' : 'ghost',
+  id: hasGhost && hasReplay ? '' : params.get(hasReplay ? 'replay' : 'ghost'),
+} : null;
+const watching = !!replayRoute && replayRoute.mode !== 'ghost';
+const racing = replayRoute?.mode === 'ghost';
 // Made for more than one level from the start (kit/levels.js): '' is the first. ?level= picks one.
 const LEVELS = [''];
 const level = pickLevel(LEVELS);
@@ -44,18 +65,22 @@ const number = (name, fallback, min, max) => {
   const v = Number(params.get(name));
   return params.has(name) && Number.isFinite(v) ? THREE.MathUtils.clamp(v, min, max) : fallback;
 };
-const DEAL = { list: number('list', 5, 1, 12), wrong: number('wrong', 24, 0, 50), open: number('open', 0.5, 0, 1),
-  cracks: number('cracks', 3, 0, 6), finale: params.has('finale') ? number('finale', 3, 0, 8) : null };
+const DEFAULT = { list: 5, wrong: 24, open: 0.5, cracks: 3, finale: null };
+const DEAL = { list: number('list', DEFAULT.list, 1, 12), wrong: number('wrong', DEFAULT.wrong, 0, 50),
+  open: number('open', DEFAULT.open, 0, 1), cracks: number('cracks', DEFAULT.cracks, 0, 6),
+  finale: params.has('finale') ? number('finale', 3, 0, 8) : DEFAULT.finale };
+const practice = Object.keys(DEFAULT).some(k => DEAL[k] !== DEFAULT[k]);     // another deal: nothing for the board
 // The prize at the end of every list, never dealt on the field; it drops after `drop` s. Meanwhile the camera looks
 // over the field for `look` s, and Mnot stops and flails, as the snow shakes for `shake` s and a few passages give
 // way (field.js, collapse()).
 const PEAK = 'peak-mnot';
 const NAMES = SHEET.names.filter(name => name !== PEAK);
 const FINALE = { drop: 0.2, look: 1.2, shake: 0.9 };
-// Random fields, but about as hard as each other: one is dealt from random seeds until one rates (field.js, rate())
-// in BAND, the middle of what the first RATED seeds' fields rate with this DEAL (as parts of them, low to high), and
-// has at least CRACKED cracks and GIVEN passages giving way at the end (or as many as asked for).
-const RATED = 48, BAND = [0.35, 0.65], TRIES = 80, CRACKED = 2, GIVEN = 3;
+// Random fields, but about as hard as each other: one is dealt from random seeds up to POOL until one rates
+// (field.js, rate()) in BAND, the middle of what the first RATED seeds' fields rate with this DEAL (as parts of them,
+// low to high), and has at least CRACKED cracks and GIVEN passages giving way at the end (or as many as asked for).
+// Those are the board's fields (the score server has each one: routedata.js); any other is practice.
+const RATED = 48, BAND = [0.35, 0.65], TRIES = 80, CRACKED = 2, GIVEN = 3, POOL = 2000;
 const BODY = 0.38;                                // m: Mnot's round against the walls
 // How Mnot gets about: A and D turn it (turn radians a second at most, reached at `steer` a second), W runs (top m/s),
 // S brakes. Its speed only slowly follows where it faces (grip, a second), so a sharp turn drifts wide; let go and it
@@ -157,35 +182,51 @@ function markList() {
 // ------------------------------------------------------------------ the field and a run on it
 
 const plan = s => new Field({ seed: s, names: NAMES, ...DEAL, look: false });
-let band = null;
+let rated = null, band = null;
+const rates = () => (rated ??= Array.from({ length: RATED }, (_, i) => plan(i + 1)));
+const banded = () => (band ??= (sorted => BAND.map(k => sorted[Math.floor(k * (RATED - 1))]))(
+  rates().map(f => f.rate()).sort((a, b) => a - b)));
+// how far a field (planned) is from a fair one: 0 in the band with its cracks, else more
+function off(planned) {
+  const rate = planned.rate(), [low, high] = banded();
+  const few = planned.cracks.length < Math.min(CRACKED, DEAL.cracks)
+    || planned.finale.length < Math.min(GIVEN, DEAL.finale ?? GIVEN);
+  return Math.max(low - rate, rate - high, 0) + (few ? 100 : 0);
+}
 function randomSeed() {
-  if (!band) {
-    const rates = Array.from({ length: RATED }, (_, i) => plan(i + 1).rate()).sort((a, b) => a - b);
-    band = BAND.map(k => rates[Math.floor(k * (RATED - 1))]);
-  }
-  let best = 0, off = Infinity;
+  let best = 0, far = Infinity;
   for (let i = 0; i < TRIES; i++) {
-    const s = 1 + Math.floor(Math.random() * 1e6), planned = plan(s), rate = planned.rate();
-    const few = planned.cracks.length < Math.min(CRACKED, DEAL.cracks)
-      || planned.finale.length < Math.min(GIVEN, DEAL.finale ?? GIVEN);
-    const o = Math.max(band[0] - rate, rate - band[1], 0) + (few ? 100 : 0);
+    const s = 1 + Math.floor(Math.random() * POOL), o = off(plan(s));
     if (o === 0) return s;
-    if (o < off) [best, off] = [s, o];
+    if (o < far) [best, far] = [s, o];
   }
   return best;
 }
-// N (and X on a controller): a new field; after a ?seed=, the next seed, so a test or a shared link stays put
-const another = () => deal(params.has('seed') ? seed + 1 : randomSeed());
+// the board's numbers and fields, for the score server (routedata.js) and the scores (scores.js)
+const RULES = { deal: DEFAULT, pool: POOL, rated: RATED, band: BAND, cracked: CRACKED, given: GIVEN, body: BODY,
+  run: RUN, bonk: BONK, lives: LIVES, hit: HIT, pit: { sink: PIT.sink, down: PIT.down, stay: PIT.stay, out: PIT.out },
+  finale: FINALE };
+const board = { rules: RULES, plan, names: NAMES, rated: rates, band: banded,
+  counts: (s, planned) => !practice && Number.isInteger(s) && s >= 1 && s <= POOL && off(planned) === 0 };
+// N (and X on a controller): a new field; after a ?seed=, the next seed, so a test or a shared link stays put; racing
+// a ghost, its field again
+const another = () => deal(racing ? seed : params.has('seed') ? seed + 1 : randomSeed());
 
-let field = null, seed = params.has('seed') ? number('seed', 1, 0, 2 ** 31) : randomSeed();
-let playing = manual, time = 0, autopilot = false, ouch = 0, plop = 0, said = 0;
+let field = null, seed = params.has('seed') ? number('seed', 1, 0, 2 ** 31) : randomSeed(), counted = false;
+// the perf probe (perf.js) keeps Mnot standing where it puts it, as under the title
+let playing = manual && !perf, time = 0, autopilot = false, ouch = 0, plop = 0, said = 0;
+// the high scores: the run recorded from the clock's start, checked by the server at :peak-mnot: (scores.js)
+const scores = createScores({ player, route: () => routeFingerprint(board), field: () => ({ seed, counts: counted }),
+  manual, level, watching, again: () => { another(); begin(); } });
+const mark = (name, arg) => { if (!watching) scores.recorder.mark(name, arg); };
 
 function deal(next = seed) {
   seed = next;
   field?.dispose();
   field = new Field({ seed, names: NAMES, ...DEAL });
   scene.add(field.group);
-  hud.seed.textContent = `field ${seed}`;
+  counted = board.counts(seed, field);
+  hud.seed.textContent = counted || watching ? `field ${seed}` : `field ${seed} · practice`;
   restart();
 }
 function restart() {
@@ -209,12 +250,15 @@ function restart() {
   sfx.reset();
   music.reset();
   if (playing) music.start();
+  scores.reset();
   drawList();
   drawLives();
+  analytics.run();
 }
 function begin() {
   if (playing) return;
   playing = true;
+  analytics.run();
   follow.intro = VIEW.intro;
   sfx.cue({ type: 'start' });
   music.start();
@@ -228,6 +272,8 @@ function take(s) {
   pad.rumble('bump');
   sfx.cue({ type: 'take', n: player.next + 1, of: field.order.length });
   player.next++;
+  mark('take', player.next);
+  scores.take(player.next);
   markList();
   pop(hud.list.children[player.next - 1]);
   if (player.next === field.order.length) toThePeak();
@@ -238,6 +284,7 @@ function take(s) {
 // fetching it is the finish.
 const _peak = new THREE.Vector3();
 function toThePeak() {
+  analytics.listed();
   stickers.sweep(player.pos);
   cracks.quake(player.pos);
   stickers.drop(PEAK, field.centre(...field.peak, _peak), FINALE.drop, () => {
@@ -263,6 +310,8 @@ function toThePeak() {
 // bumps back off it, reeling, and sees stars for a while. The third is out.
 const _off = new THREE.Vector3();
 function hit(s) {
+  mark('hit', field.emojis.indexOf(s.emoji));
+  analytics.wrong();
   player.lives--;
   drawLives();                                    // the heart pops as it goes (emoji.html)
   const early = s.emoji.listed > player.next, name = s.emoji.name;
@@ -287,6 +336,7 @@ function hit(s) {
 function wrong(s, early) {
   const want = field.emojis[field.order[player.next]].name;
   stickers.go(s, 'wrong');
+  analytics.out();
   player.out = true;
   player.fall = 0;
   player.dizzy = 0;
@@ -300,6 +350,8 @@ function wrong(s, early) {
 }
 function finish() {
   player.done = true;
+  mark('finish');
+  analytics.finish();
   toast.left = 0;                                 // the card says it all
   sounds.play('wave');
   confetti(puffs, player.pos);
@@ -313,14 +365,18 @@ function finish() {
     : player.bonks ? ` ${plural(player.bonks, 'bonk')}, but nobody noticed.` : ' Not one bonk, not one slip.';
   markList();
   pop(hud.list.lastElementChild);
-  showCard('Thread complete!', `${field.order.length} reactions in order, and :peak-mnot: on top.${after}`);
+  showCard('Thread complete!', `${field.order.length} reactions in order, and :peak-mnot: on top.${after}`
+    + (counted || watching ? '' : ' A practice field: this one isn\'t on the board.'));
 }
 // The cracks (cracks.js): one stepped on creaks; given way, its passage is shut for good (field.holes, so the bot and
 // the checks go round), the same for those giving way at the end; and Mnot over a hole drops in.
 function crackle(happened) {
   for (const [what, k] of happened) {
-    if (what === 'stepped') sfx.cue({ type: 'crack' });
-    else if (what === 'opened') {
+    if (what === 'stepped') {
+      mark('crack', cracks.list.indexOf(k));
+      sfx.cue({ type: 'crack' });
+    } else if (what === 'opened') {
+      mark('hole', cracks.list.indexOf(k));
       const under = cracks.over(k, player.pos);
       field.holes.add(k.key);
       sounds.play('land-soft');
@@ -336,6 +392,8 @@ function crackle(happened) {
   }
 }
 function fallIn(k) {
+  mark('pit', cracks.list.indexOf(k));
+  analytics.hole();
   const fresh = k.t < 0.1;                        // it gave way under Mnot just now, rather than walked into
   player.pit = { k, t: 0, from: player.pos.clone(), in: cracks.inside(k, player.pos),
     to: cracks.outside(k, player.pos, BODY), hop: false };
@@ -356,7 +414,7 @@ function climb(dt) {
   p.t += dt;
   if (p.t < down + stay) {
     const k = Math.min(1, p.t / down);
-    player.pos.lerpVectors(p.from, p.in, k);
+    if (!watching) player.pos.lerpVectors(p.from, p.in, k);   // a watched run's Mnot is where it was
     m.position.y = -sink * k * k + (p.t > down ? 0.06 * Math.sin((p.t - down) * 13) : 0);
     return;
   }
@@ -365,10 +423,18 @@ function climb(dt) {
     sounds.play('jump');
   }
   const k = Math.min(1, (p.t - down - stay) / out);
-  player.pos.lerpVectors(p.in, p.to, k);
   m.position.y = -sink * (1 - k) + PIT.hop * 4 * k * (1 - k);
-  player.yaw += turn(Math.atan2(p.to.x - p.in.x, p.to.z - p.in.z) - player.yaw) * (1 - Math.exp(-12 * dt));
+  if (!watching) {
+    player.pos.lerpVectors(p.in, p.to, k);
+    player.yaw += turn(Math.atan2(p.to.x - p.in.x, p.to.z - p.in.z) - player.yaw) * (1 - Math.exp(-12 * dt));
+  }
   if (k < 1) return;
+  climbOut();
+}
+// Out of the hole (or, watching a run, when the recording says so): on the snow again, seeing stars.
+function climbOut() {
+  const m = mnot.model;
+  mark('climb');
   player.pit = null;
   m.position.y = 0;
   player.spin = 0;
@@ -388,7 +454,7 @@ function showCard(head, verdict) {
 }
 
 addEventListener('keydown', e => {
-  if (title.visible || e.target.closest?.('input, textarea')) return;
+  if (title.visible || watching || e.target.closest?.('input, textarea')) return;
   if (e.code === 'Space') e.preventDefault();
   if (e.code === 'KeyR' && !e.repeat) restart();
   if (e.code === 'KeyN' && !e.repeat) another();
@@ -399,12 +465,12 @@ addEventListener('keydown', e => {
 // Holding the list peeks.
 const drag = { id: null, x0: 0, y0: 0, x: 0, y: 0 }, touchPeek = new Set();
 renderer.domElement.addEventListener('pointerdown', e => {
-  if (title.visible) return;
+  if (title.visible || watching) return;
   begin();
   Object.assign(drag, { id: e.pointerId, x0: e.clientX, y0: e.clientY, x: 0, y: 0 });
 });
 $('list').addEventListener('pointerdown', e => {
-  if (title.visible) return;
+  if (title.visible || watching) return;
   touchPeek.add(e.pointerId);
   e.preventDefault();
 });
@@ -432,6 +498,7 @@ function readPad(dt) {
   padKeys.clear();
   if (!pad.connected || padMenu.update(dt)) return;
   if (pad.fresh.has(BUTTON.view)) $('sound').click();
+  if (watching) return;                           // a watched run's keys are the recording's
   pad.keys(padKeys);
   if (title.visible) {
     if (padKeys.size) title.start('move');
@@ -442,12 +509,14 @@ function readPad(dt) {
   if (pad.used) begin();
 }
 const held = (...codes) => input.held(...codes) || codes.some(c => padKeys.has(c));
-const peeking = () => held('Space') || touchPeek.size > 0 || pad.down(BUTTON.lb) || pad.down(BUTTON.rb);
+const peeking = () => watching ? peeked
+  : held('Space') || touchPeek.size > 0 || pad.down(BUTTON.lb) || pad.down(BUTTON.rb);
 
 // What the player asks for this step: steer (-1 right .. 1 left), throttle (0..1) and brake (0..1).
 const want = { steer: 0, throttle: 0, brake: 0 };
 function controls() {
   Object.assign(want, { steer: 0, throttle: 0, brake: 0 });
+  if (watching) return;
   if (autopilot) return autoSteer(want);
   if (drag.id !== null && Math.hypot(drag.x, drag.y) > DRAG.dead) {
     const k = v => THREE.MathUtils.clamp((Math.abs(v) - DRAG.dead) / (DRAG.full - DRAG.dead), 0, 1) * Math.sign(v);
@@ -508,6 +577,7 @@ function slide(dt) {
     const daze = Math.min(1, player.dizzy);
     if (daze > 0) want.steer = THREE.MathUtils.clamp(want.steer + HIT.wander * daze * Math.sin(time * 4.3), -1, 1);
   } else Object.assign(want, { steer: 0, throttle: 0, brake: player.out ? 0 : player.done ? 0.4 : player.reel > 0 ? 0.3 : 0.6 });
+  if (!watching) scores.recorder.input(want, peeking());
   // turning: the spin eases to what's asked, so a tap is a nudge and a held key swings it right round
   player.spin += (want.steer * RUN.turn - player.spin) * (1 - Math.exp(-RUN.steer * dt));
   player.yaw += player.spin * dt;
@@ -538,11 +608,16 @@ function bonk(normal) {
   if (into <= 0) return;
   player.vel.addScaledVector(normal, into * (1 + BONK.bounce));
   if (into < BONK.from || player.out) return;
+  mark('bonk', Math.round(into * 100));
+  player.spin += (Math.random() < 0.5 ? -1 : 1) * into * BONK.spin;
+  thud(into, normal);
+}
+// A bonk at `into` m/s against the wall facing `normal`: squashed, reeling, the snow puffing and a line now and then.
+function thud(into, normal) {
   const hard = THREE.MathUtils.clamp((into - BONK.from) / (RUN.top - BONK.from), 0, 1);
   player.wobble.amp = 0.12 + 0.2 * hard;
   player.wobble.t = 0;
   player.reel = BONK.reel * (0.4 + 0.6 * hard);
-  player.spin += (Math.random() < 0.5 ? -1 : 1) * into * BONK.spin;
   player.bonks++;
   puffs.snow(_want.copy(player.pos).addScaledVector(normal, -BODY).setY(0.4), { puffs: 3 + 3 * hard, flakes: 8,
     up: 0.8 });
@@ -654,21 +729,154 @@ function placeCamera(dt, snap = false) {
 
 // the title (title.js); it listens after the controls above, so the key that starts isn't read twice
 const title = new Title({ camera, dom: renderer.domElement, mnot, player, follow });
+// its Plausible goals (analytics.js) hear the start before begin() does; a watched run sends none
+const analytics = hookAnalytics({ title, manual: manual || watching });
 title.on('start', () => begin());
+
+// ------------------------------------------------------------------ watching a run, racing one
+
+// Watching (?replay=ID): the controls (peak/replays/controller.js) move the run's clock, and watcher() the page's own
+// Mnot along the recording on the run's field, telling what happened as it happened, so the sounds, puffs, toasts and
+// the card are the live game's; past the end, the physics let it slide to a stop, dancing. Racing (?ghost=ID): the
+// run's field, and a see-through Mnot on the recording at the player's clock (playback.js).
+const JUMP = 1.5;                                 // s: a move further on than this is a jump in time (controller.js)
+let replays = null, watch = null, ghost = null, peeked = false;
+if (replayRoute) {
+  replays = new ReplayController({ mode: replayRoute.mode, id: replayRoute.id, scene, title,
+    api: apiBase(location, 'emoji', level), fingerprint: routeFingerprint(board), validate: validateReplay,
+    createActor: async ({ replay, ghost: race }) => race ? raceOn(replay) : watch = watcher(replay),
+    snap: () => placeCamera(0, true), done: () => player.done || player.out,
+    isRunActive: () => scores.recorder.recording,
+    words: { ready: 'Start when you’re ready.', finished: clock => `Done · ${clock} on the clock`,
+      leave: 'Leave this run? Your current run will be lost.' } });
+  if (racing) {
+    // the clean title start, but no race before its ghost has loaded and been checked
+    const startTitle = title.start.bind(title);
+    title.start = (how = 'key') => {
+      if (!replays.ready) { replays.status.textContent = 'Wait for the ghost to load before starting.'; return; }
+      startTitle(how);
+    };
+  }
+}
+// The ghost on its field: the player races it there.
+async function raceOn(replay) {
+  ghost = await Ghost.create({ replay, scene, pit: PIT });
+  deal(replay.seed);
+  return ghost;
+}
+
+// The page's own Mnot along a recorded run, on its field: the controls' actor.
+function watcher(replay) {
+  const recording = new Recording(replay);
+  playing = true;
+  deal(recording.seed);
+  const w = { recording, duration: recording.end, phase: 0, root: mnot.root, t: -1, dispose() {},
+    seek(t) {
+      t = THREE.MathUtils.clamp(Number(t) || 0, 0, recording.end);
+      if (t === w.t) return;
+      if (w.t < 0 || t < w.t || t - w.t > JUMP) rewind(recording, t);
+      else tell(recording, w.t, t);
+      put(recording, t);
+      w.t = t;
+    } };
+  return w;
+}
+
+// Mnot where the recording has it at t: going, facing and turning, the clock, and what the player held.
+const _st = { pos: new THREE.Vector3(), vel: new THREE.Vector3() }, _n = new THREE.Vector3();
+function put(rec, t) {
+  const st = rec.state(t, _st), mask = rec.mask(t);
+  player.pos.copy(st.pos).setY(0);
+  player.vel.copy(st.vel);
+  Object.assign(player, { yaw: st.yaw, spin: st.spin, time: Math.min(t, rec.end) });
+  Object.assign(want, { steer: (mask & KEY.left ? 1 : 0) - (mask & KEY.right ? 1 : 0), throttle: mask & KEY.run ? 1 : 0,
+    brake: mask & KEY.brake ? 1 : 0 });
+  peeked = !!(mask & KEY.peek);
+}
+
+// Everything recorded after `from` (0: from the start), up to and with `to`, told as it happened in the live game.
+function tell(rec, from, to) {
+  const s = rec.samples;
+  for (let i = from > 0 ? rec.after(from) : 0; i < s.length && s[i][0] <= to * 1000; i++) told(rec, i);
+}
+function told(rec, i) {
+  const s = rec.samples[i], flags = s[8];
+  put(rec, s[0] / 1000);
+  if (flags & FLAG.start) {
+    sfx.cue({ type: 'start' });
+    toast('Go!', 'Fetch them in the list\'s order.');
+  }
+  if (flags & FLAG.climb && player.pit) climbOut();
+  for (const [name, arg] of rec.with[i]) {
+    const k = cracks.list[arg];
+    if (name === 'bonk') thud(arg / 100, rec.normal(i, _n));
+    else if (name === 'crack' && k && cracks.force(k, 'going')) crackle([['stepped', k]]);
+    else if (name === 'hole' && k && cracks.force(k, 'open')) crackle([['opened', k]]);
+    else if (name === 'pit' && k && !player.pit) fallIn(k);
+    else if (name === 'take' && arg === player.next + 1 && player.next < field.order.length) {
+      take(stickers.list[field.order[player.next]]);
+    } else if (name === 'hit' && stickers.list[arg] && !player.out) hit(stickers.list[arg]);
+  }
+  if (flags & FLAG.finish && !player.done) finish();
+}
+
+// After a jump in the watched run: the field as it was at t, played through from the start without a sound, a little
+// at a time (the emojis twisting away, the cracks giving way, Mnot in and out of the holes), no toast left over from
+// the way there, and the tune where it was.
+const HUSH = [[sounds, 'play'], [sfx, 'cue'], [puffs, 'add'], [pad, 'rumble'], [music, 'reset'], [music, 'start'],
+  [music, 'finish'], [music, 'duck']];
+function rewind(rec, t) {
+  const own = HUSH.map(([o, k]) => Object.hasOwn(o, k) ? o[k] : null);
+  for (const [o, k] of HUSH) o[k] = () => {};
+  try {
+    restart();
+    for (let at = 0; at < t;) {
+      const next = Math.min(t, at + 0.05), dt = next - at;
+      tell(rec, at, next);
+      put(rec, next);
+      player.reel -= dt;
+      player.safe -= dt;
+      player.dizzy = Math.max(0, player.dizzy - dt);
+      if (player.pit) climb(dt);
+      crackle(cracks.update(dt, null, camera));
+      stickers.update(dt, camera, player.pos, field.emojis[field.order[player.next]]);
+      follow.intro -= dt;
+      follow.rush -= dt;
+      follow.shake = Math.max(0, follow.shake - dt);
+      at = next;
+    }
+  } finally {
+    HUSH.forEach(([o, k], i) => { if (own[i]) o[k] = own[i]; else delete o[k]; });
+  }
+  toast.left = 0;
+  toast.update(0);
+  sfx.reset();
+  if (player.done) music.finish();
+  else {
+    if (music.scene === 'finished') music.reset();
+    music.start();
+  }
+}
 
 // ------------------------------------------------------------------ the loop
 
 function step(dt) {
   if (!(dt > 0)) return;
-  time += dt;
+  // watching a run, its clock moves the field (paused, all of it stands still); past its end, Mnot slides on live
+  const from = replays?.time ?? 0;
+  if (watching) replays.update(dt, { gameTime: player.time });
+  const replay = !!watch && (replays.playing || replays.time < replays.duration);
+  const vdt = replay ? Math.max(0, replays.time - from) : dt;
+  time += vdt;
   shaderTime.value = time;
   readPad(dt);
-  player.reel -= dt;
-  const sideways = slide(dt);
-  if (player.pit) climb(dt);
-  const free = playing && !title.visible && !player.done && !player.out && !player.pit;
-  crackle(cracks.update(dt, free ? player.pos : null, camera));
-  if (playing && !player.done && !player.out) player.time += dt;     // on in a hole, too
+  player.reel -= vdt;
+  ahead(player.yaw, _ahead);
+  const sideways = replay ? Math.abs(_ahead.z * player.vel.x - _ahead.x * player.vel.z) : slide(vdt);
+  if (player.pit) climb(vdt);
+  const free = playing && !title.visible && !player.done && !player.out && !player.pit && !watching;
+  crackle(cracks.update(vdt, free ? player.pos : null, camera));
+  if (playing && !player.done && !player.out && !watching) player.time += vdt;     // on in a hole, too
   if (free) {
     if (player.next === field.order.length) {
       if (stickers.reached(player.pos)) finish();
@@ -678,38 +886,53 @@ function step(dt) {
       else if (s && player.safe <= 0) hit(s);
     }
   }
+  if (!watching) {
+    scores.recorder.step();
+    scores.update();
+  }
   // won, the prize floats over Mnot's head, a little behind it, where the camera in front sees both
   if (player.done) stickers.hold(_peak.copy(player.pos).addScaledVector(ahead(player.yaw, _to), -0.9).setY(2.4));
-  player.safe -= dt;
-  player.dizzy = Math.max(0, player.dizzy - dt);
+  player.safe -= vdt;
+  player.dizzy = Math.max(0, player.dizzy - vdt);
   input.pressed.clear();
   title.update(dt);                               // on the title, Mnot's act is the title's (title.js)
   mnot.root.rotation.y = player.yaw;
-  pose(dt, sideways);
-  mnot.animator.update(dt);
-  dizzy.update(dt, player.pos, player.out ? 0 : player.dizzy);
-  stickers.update(dt, camera, player.pos, field.emojis[field.order[player.next]],
+  pose(vdt, sideways);
+  mnot.animator.update(vdt);
+  dizzy.update(vdt, player.pos, player.out ? 0 : player.dizzy);
+  stickers.update(vdt, camera, player.pos, field.emojis[field.order[player.next]],
     THREE.MathUtils.smoothstep(follow.peek, 0.2, 0.9));
-  for (const a of world.animated) a.update(dt);
-  placeCamera(dt);
+  for (const a of world.animated) a.update(vdt);
+  placeCamera(vdt);
   title.place(dt);
   stage.aimSun(field.middle);
   scenery.update(camera, time);
-  toast.update(dt);
-  sfx.update(dt, { speed: player.vel.length(), skid: sideways, braking: want.brake > 0, dizzy: player.dizzy,
-    peek: follow.peek });
+  toast.update(vdt);
+  const still = vdt === 0;                        // a watched run, paused
+  sfx.update(dt, { speed: still ? 0 : player.vel.length(), skid: still ? 0 : sideways,
+    braking: !still && want.brake > 0, dizzy: player.dizzy, peek: follow.peek });
+  if (racing) {
+    replays.update(dt, { gameTime: player.time, titleVisible: title.visible });
+    ghost?.update(dt);
+  }
   hud.time.textContent = clock(player.time);
 }
 
 deal();
 placeCamera(0, true);
-if (!manual) title.show();
+if (!manual && !watching) title.show();
+if (!replayRoute && !manual && params.has('hall')) scores.board?.openHall();   // back from a replay (controller.js)
 step(1 / 60);
 warmUp(scene, render);
 render();
 startLoop({ manual, post, step, render });
+replays?.load();
 
 // for debugging and tests
 expose('emoji', { THREE, renderer, scene, camera, post, stage, mnot, player, sounds, input, title, pad, padMenu,
-  level, puffs, stickers, cracks, follow, sfx, music, dizzy, get field() { return field; }, deal, restart,
-  autopilot(on = true) { autopilot = on; begin(); } }, { step, render });
+  level, puffs, stickers, cracks, follow, sfx, music, dizzy, get field() { return field; }, get seed() { return seed; },
+  get counted() { return counted; }, board, scores, replays, get watch() { return watch; },
+  get ghost() { return ghost; }, deal, restart, toThePeak,
+  // past the title as a key would be, if it's up
+  autopilot(on = true) { autopilot = on; if (title.visible) title.start(); else begin(); } }, { step, render });
+if (perf) import('./perf.js').then(m => m.probe(window.emoji));

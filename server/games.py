@@ -18,9 +18,9 @@ so a game keeps its board when it grows a second level. A level is in LEVELS; th
 import re
 from pathlib import Path
 
-NAMES = ("peak", "downhill")        # the games' pages; the first is the one at /
+NAMES = ("peak", "downhill", "emoji")        # the games' pages; the first is the one at /
 # Each game's levels after its first: ids of a-z and 0-9, in the order the game offers them.
-LEVELS = {"peak": (), "downhill": ()}
+LEVELS = {"peak": (), "downhill": (), "emoji": ()}
 LEVEL = re.compile(r"^[a-z0-9]{1,16}$")
 HERE = Path(__file__).resolve().parent
 
@@ -78,6 +78,46 @@ DOWNHILL_WORDS = {
     "shame_note": "Runs that didn't add up. Their riders were told they came first.",
 }
 
+# Reaction Run's: falls are wrong ones touched (three and you're out), dents drops into a hole.
+EMOJI_HOUSE = (
+    ("house-typing", "Several people are typing…", "Still typing. The list is done; the message isn't.",
+     151000, 1, 2),
+    ("house-here", "@here", "Pinged everyone at every emoji. Nobody came.", 187000, 2, 1),
+    ("house-lgtm", "LGTM Bot", "Approved every emoji it slid past. Even the wrong ones.", 233000, 2, 0),
+    ("house-huddle", "Quick Huddle?", "Stopped for a quick sync at every one. It was never quick.", 298000, 0, 3),
+    ("house-unread", "Mark as Unread", "Fetched them all, then put them back to look at later.", 365000, 1, 4),
+    ("house-snooze", "Snoozed: 1 hour", "Will finish the run in an hour. It said that yesterday.", 444000, 0, 1),
+    ("house-seen", "Seen by 47", "Everyone saw it. Nobody reacted.", 512000, 2, 2),
+)
+
+# What Reaction Run's jokes say instead of the climb's.
+EMOJI_WORDS = {
+    "too_fast_split": "Nice try: that stretch would take {can_ps:.0f} can-lengths a second. Even sliding flat out "
+                      "on the snow, Mnot tops out at about {legs:.0f}.",
+    "skipped_split": "You skipped one on the list. Every emoji on it gets fetched, in order.",
+    "burned": "I'm a teapot. This run is over; it slid off the field with the last cheat.",
+    "expired": "This run went flat: runs expire after a few hours, just like an open can.",
+    "route": "The field has moved since this page loaded. Reload and run the new one.",
+    "oversized": "That payload is bigger than the whole emoji picker. Mnot runs with hand luggage only.",
+    "too_fast": "Nice try: {can_ps:.0f} can-lengths a second. Sliding flat out, Mnot tops out at about {legs:.0f}.",
+    "teleport": "Reaction Run detected: cans don't teleport. Not even in a thread.",
+    "wall": "Straight through a wall? Those are emoji, not ghosts. And the ghost one doesn't count either.",
+    "drift": "That's not how snow slides. Mnot's run has grip; this one had a script.",
+    "moonwalk": "Speeding up without pressing a key? There's no emoji for 'moonwalk'.",
+    "grab": "Fetched from across the field? Mnot's arms are rubber, but not that rubber.",
+    "dodge": "Slid straight through a wrong one and nothing happened? Mnot felt that. Your replay didn't.",
+    "hole": "Skating over a hole that had given way? Even Mnot can't run on thin air.",
+    "pit": "Out of a hole it never fell into, or out the wrong side? Bold strategy.",
+    "levitate": "Reaction Run detected: Mnot slides on the snow, not above it.",
+    "crack": "That crack didn't give way when it should have. The field remembers.",
+    "tries": "Three wrong ones and you're out. This run touched more and kept going.",
+    "practice": "That field isn't one of the board's. Practice runs are fun, but they don't count.",
+    "start": "That run didn't start at the start. Helicopters aren't allowed.",
+    "finish": "Celebrating at the prize while standing somewhere else? Bold strategy.",
+    "skipped": "An emoji on the list went missing from your run. Every one gets fetched.",
+    "shame_note": "Runs that didn't add up. Their runners were told they came first.",
+}
+
 
 class Game:
     """One game's board as the server knows it.
@@ -107,22 +147,28 @@ class Game:
                     claim=self.claim, replay=self.replay, page=self.page, level=level)
 
 
-def load(peak_route=None, downhill_route=None, levels=None):
+def load(peak_route=None, downhill_route=None, levels=None, emoji_route=None):
     """Every game, its route loaded (or the one given, for tests), in NAMES' order, then each game's other levels:
     LEVELS' with their route files, or levels, {game: {level: route}}, for tests."""
     import downhill
+    import emoji
     import route
     import verify
     peak = peak_route or route.Route.load()
     hill = downhill_route or downhill.Route.load()
+    field = emoji_route or emoji.Route.load()
     first = [
         Game("peak", peak, verify.verify, peak.run_speed, house=PEAK_HOUSE, perf=True),
         # the rider's legs and lean follow the keys (heels down to brake, tucked in), so its ghost needs them
         Game("downhill", hill, downhill.verify, hill.top_speed, house=DOWNHILL_HOUSE, words=DOWNHILL_WORDS,
              claim=("time", "clock", "bonus", "falls", "dents"), perf=True,
              replay=("v", "route", "phase", "samples", "events", "inputs")),
+        # the field's seed deals the maze its ghost and its watching run in; the keys lean Mnot and peek the camera
+        Game("emoji", field, emoji.verify, field.top_speed, house=EMOJI_HOUSE, words=EMOJI_WORDS, perf=True,
+             replay=("v", "route", "phase", "seed", "samples", "events", "inputs")),
     ]
-    routes = {"peak": (route.Route, "run_speed"), "downhill": (downhill.Route, "top_speed")}
+    routes = {"peak": (route.Route, "run_speed"), "downhill": (downhill.Route, "top_speed"),
+              "emoji": (emoji.Route, "top_speed")}
     out = list(first)
     for game in first:
         kind, speed = routes[game.name]

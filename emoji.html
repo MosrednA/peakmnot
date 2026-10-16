@@ -1,18 +1,37 @@
 <!doctype html>
-<!-- The emoji field, a prototype mini game (peak/emoji/README.md). The kit's (peak/kit/kit.css, peak/kit/README.md)
-     and the title's (peak/ui/title.css) ids and classes are what the modules look for. No stats tracker or link
-     preview yet: they come with the game's name (README.md, "Not yet"). -->
+<!-- Reaction Run, a prototype mini game (peak/emoji/README.md). The kit's (peak/kit/kit.css, peak/kit/README.md)
+     and the title's (peak/ui/title.css) ids and classes are what the modules look for, and the board's
+     (peak/scores/scores.css, peak/replays/replay.css). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Reaction Run</title>
-<meta name="description" content="Mnot fetches the thread's emoji reactions from a snowy field, in the list's order, and touches nothing else.">
+<title>Reaction Run (prototype)</title>
+<!-- Privacy-friendly analytics by Plausible: views, and the goals of peak/emoji/analytics.js -->
+<script async src="https://stats.mosredna.eu/js/pa-2BZDJF6nKHv_ruimg75Ar.js"></script>
+<script>
+  window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+  plausible.init({ autoCapturePageviews: location.hostname === 'peakmnot.mosredna.eu' && !new URLSearchParams(location.search).has('manual') });
+</script>
+<meta name="description" content="A prototype: Mnot fetches the thread's emoji reactions from a snowy maze, in the list's order, and touches nothing else.">
+<!-- the link preview in Slack, Discord, WhatsApp and the rest (share-emoji.jpg is the title screen with the tagline
+     in place of the menu) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Peak Mnot">
+<meta property="og:title" content="Reaction Run (prototype)">
+<meta property="og:description" content="A prototype: Mnot fetches the thread's emoji reactions from a snowy maze, in the list's order, and touches nothing else.">
+<meta property="og:url" content="https://peakmnot.mosredna.eu/emoji">
+<meta property="og:image" content="https://peakmnot.mosredna.eu/share-emoji.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Mnot, a red soda can with big glasses, in a snowy maze under the Reaction Run logo">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="favicon.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="peak/scores/scores.css">
+<link rel="stylesheet" href="peak/replays/replay.css">
 <link rel="stylesheet" href="peak/ui/title.css">
 <link rel="stylesheet" href="peak/ui/preload.css">
 <link rel="preload" href="models/mnot.glb" as="fetch" crossorigin>
@@ -20,6 +39,9 @@
 <link rel="stylesheet" href="peak/kit/pad.css">
 <style>
   /* The HUD is the kit's (peak/kit/kit.css); the game's own parts go here, and its logo's style. */
+  /* the logo, spelled word by word (peak/kit/title.js): the two words side by side, stacked on a phone */
+  .rr-logo .w { display: flex; gap: 0.02em; }
+  .rr-logo .w + .w { margin-left: 0.3em; }
   .rr-tag { margin: 0.1em 0 0; padding: 2px 12px; border-style: dashed; border-radius: 9px; font-size: 15px;
     font-weight: 600; transform: rotate(-2deg); }
   .rr-tag b { color: var(--red); }
@@ -58,13 +80,25 @@
   @keyframes em-shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
   #finish.out h1 { color: var(--red); }
   #finish:not(.out) h1 { color: var(--teal); text-shadow: 0 2px 0 #c9f2e6; }
+  /* Watching a run from the Hall of Fame (peak/replays/replay.css hides the climb's live HUD): the thread keeps its
+     clock and tries, the sound switch and its toasts; the card sits above the replay's controls, and there's no
+     playing again from it. */
+  body.replay-watch #title { display: block !important; }
+  body.replay-watch #sound { display: inline-block !important; }
+  body.replay-watch #toast { display: flex !important; }
+  body.replay-watch #finish { bottom: calc(120px + env(safe-area-inset-bottom)); }
+  body.replay-watch #finish .again { display: none; }
   @media (max-width: 760px) {
     #list { top: 66px; max-width: calc(100% - 24px); }
     .em { width: 34px; height: 34px; }
     .em.now, .em.missed { width: 46px; height: 46px; }
     .em.peak.now { width: 54px; height: 54px; }
   }
-  @media (max-width: 560px) { .rr-tag { font-size: 13px; } }
+  @media (max-width: 560px) {
+    .rr-logo { flex-direction: column; align-items: center; }
+    .rr-logo .w + .w { margin: -0.1em 0 0; }
+    .rr-tag { font-size: 13px; }
+  }
 </style>
 </head>
 <body class="preloading">
@@ -85,7 +119,7 @@
   <div id="help"><kbd>A</kbd><kbd>D</kbd> steer · <kbd>W</kbd> run · <kbd>S</kbd> brake · hold <kbd>Space</kbd> peek · <kbd>R</kbd> again · <kbd>N</kbd> new field</div>
   <div id="title-screen" hidden>
     <div class="ts-top">
-      <h1 class="ts-logo">Reaction Run</h1>
+      <h1 class="ts-logo rr-logo">Reaction Run</h1>
       <div class="rr-tag card">The thread wants its reactions. <b>In order.</b></div>
     </div>
     <div class="ts-howto card" id="title-howto" hidden>
@@ -108,6 +142,7 @@
     <div class="ts-bottom">
       <div class="ts-menu">
         <button type="button" class="card ts-start" id="title-start">Start</button>
+        <button type="button" class="card" id="hall-of-fame">Hall of Fame</button>
         <button type="button" class="card" id="title-help" aria-expanded="false" aria-controls="title-howto">How to play</button>
         <button type="button" class="card" id="title-sound" aria-pressed="true">Sound on</button>
       </div>
@@ -119,7 +154,7 @@
     <h1>Done!</h1>
     <div class="time">0:00.0</div>
     <div class="verdict"></div>
-    <div><kbd class="key-only">R</kbd><i class="pg pg-y pad-only"></i> again · <kbd class="key-only">N</kbd><i class="pg pg-x pad-only"></i> new field</div>
+    <div class="again"><kbd class="key-only">R</kbd><i class="pg pg-y pad-only"></i> again · <kbd class="key-only">N</kbd><i class="pg pg-x pad-only"></i> new field</div>
   </div>
 </div>
 <script type="importmap">

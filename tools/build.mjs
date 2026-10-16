@@ -29,14 +29,15 @@ const OUT = path.join(ROOT, 'dist');
 const PAGES = [
   'peak.html',
   'downhill.html',
+  'emoji.html',
   'games.html',
   'index.html',
 ];
 // Linked from the pages by name, copied as they are
-const FILES = ['favicon.png', 'favicon.ico', 'share.jpg', 'share-downhill.jpg', 'share-games.jpg',
+const FILES = ['favicon.png', 'favicon.ico', 'share.jpg', 'share-downhill.jpg', 'share-emoji.jpg', 'share-games.jpg',
   'manifest.webmanifest', 'models/mnot.glb'];
 // What the score server serves from assets/ (HASHED in server/peak_scores.py): a name, esbuild's hash, a type
-const TYPES = ['js', 'css', 'm4a', 'mp3', 'wav', 'jpg'];
+const TYPES = ['js', 'css', 'm4a', 'mp3', 'wav', 'jpg', 'webp'];
 const SERVED = new RegExp(`^assets/[a-z0-9_-]+-[A-Z2-7]{8}\\.(${TYPES.join('|')})$`);
 
 const posix = file => file.split(path.sep).join('/');

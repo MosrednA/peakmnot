@@ -1,8 +1,9 @@
 // Run with Playwright's browser_run_code_unsafe(filename), while the dev server is running.
-// A controller in both mini games (peak/kit/gamepad.js, padmenu.js), with a virtual one: navigator.getGamepads,
+// A controller in every mini game (peak/kit/gamepad.js, padmenu.js), with a virtual one: navigator.getGamepads,
 // the page's focus and the frame loop are stubbed, so every step is the same each run. Without a controller the climb
 // runs on; with one, its chip and hints show, A starts without a jump, the sticks walk and look, the buttons do what
-// the card says, two controllers or a lost focus or an unplug don't trip it, and the downhill steers by it.
+// the card says, two controllers or a lost focus or an unplug don't trip it, and the downhill and Reaction Run steer
+// by it.
 async (page) => {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -40,7 +41,10 @@ async (page) => {
     await page.goto(`http://127.0.0.1:5280/${path}`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(ready, null, { polling: 100, timeout: 60000 });
     // the input is what's checked, not the picture: no drawing, which headless takes long over (the disco most)
-    await page.evaluate(() => { (window.peak ?? window.downhill).post.render = () => {}; __step(0.5); });
+    await page.evaluate(() => {
+      (window.peak ?? window.downhill ?? window.emoji).post.render = () => {};
+      __step(0.5);
+    });
   };
   const XBOX = 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)';
   const DUALSENSE = 'DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)';
@@ -282,7 +286,40 @@ async (page) => {
   check('the downhill: Y is a new run from the top', r.again < r.rolled, r);
   check('the downhill\'s card has only the rumble setting', r.card && r.rows.join() === 'rumble', r);
 
-  check('no errors on either page', errors.length === 0, errors);
+  // ------------------------------------------------------------------ Reaction Run
+  await open('emoji.html?seed=6', () => !!window.emoji?.padMenu);
+  r = await page.evaluate(xbox => {
+    const e = emoji, pad = __pad(xbox), p = e.player;
+    __pads = [pad];
+    __tap(pad, 0);
+    __step(2);                                   // past the peek over the field at the start
+    const started = !e.title.visible, from = p.pos.clone();
+    __tilt(pad, [0, -1, 0, 0]);
+    __step(0.6);
+    const ran = p.pos.distanceTo(from);
+    __tilt(pad, [1, -1, 0, 0]);
+    __step(0.3);
+    const spin = p.spin;
+    __tilt(pad, [0, 0, 0, 0]);
+    __press(pad, 4);
+    __step(0.6);
+    const peek = e.follow.peek;
+    __press(pad, 4, false);
+    __step(0.6);
+    __tap(pad, 3);
+    const again = p.pos.distanceTo(e.field.centre(...e.field.start)), clock = p.time;
+    __tap(pad, 2);
+    const seed = e.seed;
+    __tap(pad, 9);
+    const rows = [...document.querySelectorAll('#pad-card .pad-row')].map(row => row.dataset.key);
+    return { started, ran, spin, peek, again, clock, seed, card: e.padMenu.open, rows };
+  }, XBOX);
+  check('Reaction Run: A starts the run, the stick runs and steers, LB looks over the field', r.started && r.ran > 0.5
+    && r.spin < -1 && r.peek > 0.5, r);
+  check('Reaction Run: Y is this field again, X a new one', r.again < 0.01 && r.clock < 0.3 && r.seed === 7, r);
+  check('Reaction Run\'s card has only the rumble setting', r.card && r.rows.join() === 'rumble', r);
+
+  check('no errors on any page', errors.length === 0, errors);
   const failed = checks.filter(c => !c.pass);
   if (failed.length) throw new Error(JSON.stringify(failed, null, 1));
   return `${checks.length} gamepad checks passed`;

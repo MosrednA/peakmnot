@@ -13,7 +13,7 @@ import { CELL, seeded } from './field.js';
 export const CRACK = { depth: 1.05, hold: 0.45, near: 0.15 };
 // the list done: s before the first of the passages giving way cracks, between one and the next (the nearest to Mnot
 // first), and how long each holds
-const QUAKE = { wait: 0.1, apart: 0.08, hold: 0.3 };
+export const QUAKE = { wait: 0.1, apart: 0.08, hold: 0.3 };
 const WIDE = CELL;                                // m along the passage: wall to wall
 const OPEN = 0.22;                                // s the hole takes to open
 const PIT = 0.8;                                  // m deep, as the camera sees it
@@ -134,6 +134,15 @@ export class Cracks {
     const far = k => Math.hypot(k.at.x - pos.x, k.at.z - pos.z);
     this.list.filter(k => k.finale).sort((a, b) => far(a) - far(b)).forEach((k, i) =>
       Object.assign(k, { state: 'going', t: -QUAKE.wait - i * QUAKE.apart, hold: QUAKE.hold }));
+  }
+
+  // Watching a run (main.js): a crack stepped on ('going') or given way ('open') when the recording says, unless it
+  // has already. True if it hadn't.
+  force(k, state) {
+    if (k.state === 'open' || state === 'going' && k.state !== 'whole') return false;
+    Object.assign(k, { state, t: 0 });
+    if (state === 'open') this.burst(k, 7, { puffs: 2, flakes: 6, up: 0.9 });
+    return true;
   }
 
   // Where Mnot (radius r) in the crack's hole climbs out: on the side it came from, clear of the edge.
