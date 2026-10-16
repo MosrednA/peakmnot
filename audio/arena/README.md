@@ -47,6 +47,8 @@ is involved. Thirteen WAV files are editable effects masters; runtime loads thei
 `manifest.json` marks `dance` and `reel` for the compressor's 200 ms codec padding on each side; `unpadLoop()`
 removes it after Web Audio decoding. Each resulting loop is exactly 2.5 seconds.
 
+The temporary servers retry ports that Chromium blocks, for both the page and the room connection.
+
 The Python checks measure decoded levels, finite samples, exact AAC playback lengths, loop seams, the 80-second
 music period and retained theme/harmony. The Chromium checks start their own temporary page and room servers,
 exercise the actual network and animation hooks, distance boundaries, simultaneous chat, voice limits, mute,

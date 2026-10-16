@@ -13,6 +13,17 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.glb': 'model/gltf-binary',
   '.css': 'text/css', '.m4a': 'audio/mp4', '.mp3': 'audio/mpeg', '.json': 'application/json', '.png': 'image/png' };
+// Windows may allocate ports from 1024 up, including ports Chromium refuses (ERR_UNSAFE_PORT).
+const UNSAFE = new Set([1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668,
+  6669, 6679, 6697, 10080]);
+
+async function listen(server) {
+  for (;;) {
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    if (!UNSAFE.has(server.address().port)) return server;
+    await new Promise(r => server.close(r));
+  }
+}
 
 test('plaza audio: real hooks, distance, crowds, the shared switch, phase and cleanup', async t => {
   const pages = http.createServer((req, res) => {
@@ -23,9 +34,8 @@ test('plaza audio: real hooks, distance, crowds, the shared switch, phase and cl
     res.setHeader('Content-Type', types[extname(path)] ?? 'application/octet-stream');
     createReadStream(path).pipe(res);
   });
-  await new Promise(r => pages.listen(0, '127.0.0.1', r));
-  const portProbe = http.createServer();
-  await new Promise(r => portProbe.listen(0, '127.0.0.1', r));
+  await listen(pages);
+  const portProbe = await listen(http.createServer());
   const port = portProbe.address().port;
   await new Promise(r => portProbe.close(r));
   const room = spawn(process.execPath, ['arena/server.mjs'], { cwd: ROOT, env: { ...process.env, PORT: String(port) } });
