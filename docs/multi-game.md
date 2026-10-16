@@ -19,7 +19,7 @@ run the project.
 
 The site's root still opens the climb. `/games` is the shared selection page, with a card and an in-game screenshot
 for each game. `games.html` stores the links and `data-goal`; `peak/games/main.js` supplies the screenshots through
-`THUMBS` and switches links to source filenames on the development servers (5280 and 5293).
+`THUMBS` and switches links to source filenames on the development servers (5280, 5293 and 5296).
 
 The viewer starts with Mnot's rig and clips. Additional tabs show what a game adds: the downhill's chair, rider
 moves and finish party; Reaction Run's emoji, bumps, holes and finale. `peak/viewer/tabs.js` registers these in
