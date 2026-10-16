@@ -46,6 +46,7 @@ shared modules; [the documentation index](README.md) points to each game's rules
 |---|---|---|---|
 | The climb | `peak.html` | `peak/` (the shared modules live here too) | Live at `/` |
 | The downhill, on an office chair | `downhill.html` | [`peak/downhill/`](../peak/downhill/README.md) | A prototype, at `/downhill`, linked from `/games` |
+| Reaction Run, the emoji field | `emoji.html` | [`peak/emoji/`](../peak/emoji/README.md) | A prototype, at `/emoji`, linked from `/games` |
 
 Every game has its card and its shot on the page of all the games (`games.html`, at `/games`), its tab in the
 viewer (`index.html`, at `/viewer`) and its goals in Plausible as `<Game>: <goal>`; a new game adds all three (the
@@ -66,7 +67,9 @@ viewer (`index.html`, at `/viewer`) and its goals in Plausible as `<Game>: <goal
 - **Sounds like family**: the same sound switch, and music that is a variant of "Pocket Altitude".
 - **Has one premise and lives it.** The climb is the nerds digging far too deep into a detail. The downhill is a
   €1,649 ergonomic office chair on a mountain, so knock-off chairs are the bowling pins, the signs talk chair
-  ("Ergonomically certified for 0 km/h.") and an office waits at the bottom. Every prop, sign, toast and tip comes out of the game's premise.
+  ("Ergonomically certified for 0 km/h.") and an office waits at the bottom. Reaction Run is a Slack thread that
+  wants its reactions in order: the field is the community's own emoji, the toasts call each one by its `:name:`, and
+  the prize at the end is :peak-mnot:. Every prop, sign, toast and tip comes out of the game's premise.
 - **Jokes the same way**: short, dry, nerdy and true to the podcast; never grim.
 
 **Shared modules.** A game imports what the others have and keeps its own logic in its own folder. When it needs a
@@ -150,14 +153,16 @@ Every specialist runs the checks for its area. Before a commit, all of these pas
 |---|---|
 | The whole climb | `bots.climb` in `peak.html?manual` reaches the summit ([peak/README.md](../peak/README.md#tuning-with-the-bots)) |
 | The whole downhill | `downhill.autopilot(true)` in `downhill.html?manual` reaches the finish ([peak/downhill/README.md](../peak/downhill/README.md#testing)) |
+| The whole emoji field | `emoji.autopilot(true)` in `emoji.html?manual` fetches the list and :peak-mnot: ([peak/emoji/README.md](../peak/emoji/README.md#testing)) |
 | The score server | `python -m unittest discover server` |
-| The analytics events | `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs tools/check_games_analytics.mjs` |
+| The analytics events | `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs tools/check_games_analytics.mjs tools/check_emoji_analytics.mjs` |
 | The replay motion | `node --test tools/check_replay_playback.mjs`: samples, strides, turns, clip blends and deterministic seeks |
 | The replay controls | `tools/check_replays.js` with `python tools/replay_test_server.py` on 5291: watch, ghost race, scrubbing and moving ledges |
 | The downhill's replays | `tools/check_downhill_replays.js` on 5280, no score server: the autopilot's run raced and watched, events, jumps in time, the finish, the Hall's buttons |
+| Reaction Run's replays | `tools/check_emoji_replays.js` on 5280, no score server: the bot's run on field 6 raced and watched, its sounds, jumps in time, the finish, the Hall's buttons |
 | The animation viewer | `tools/check_controls.js`, deterministic Playwright checks on `index.html` |
 | The gondola | `tools/check_gondola.js`: carried at the pallet's own speed, whatever the frame times |
-| The controller | `tools/check_gamepad.js`: a fake controller plays the climb and the downhill (moving, jumping, the camera, the card, the title's buttons, focus, several controllers, unplugging) |
+| The controller | `tools/check_gamepad.js`: a fake controller plays the climb, the downhill and Reaction Run (moving, jumping, the camera, the card, the title's buttons, focus, several controllers, unplugging) |
 | The console | No errors in the browser console, on the title screen and while playing, in every game the change touches |
 | The docs | The folder's README is updated for what changed |
 | The production build | `npm run build` (after `npm ci` once) finishes, and the built page runs without console errors ([README.md](../README.md#run-it-yourself)) |

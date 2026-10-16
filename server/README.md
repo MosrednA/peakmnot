@@ -1,10 +1,10 @@
 # Peak Mnot's score server
 
 The high-score lists for [Peak Mnot](../peak/README.md) and its other mini games (the office-chair
-[downhill](../peak/downhill/README.md)): a small server, Python's standard library and SQLite only, that takes a run
+[downhill](../peak/downhill/README.md) and [Reaction Run](../peak/emoji/README.md)): a small server, Python's standard library and SQLite only, that takes a run
 from a game, checks it step by step against the route and the game's physics, and only then puts the time on that
 game's board. In production the same server also serves the games, so pages and API share one origin. Below, "a
-climb" is the climb's run; the downhill's works the same way ("Several games", "The downhill").
+climb" is the climb's run; the other games' work the same way ("Several games", "The downhill", "Reaction Run").
 
 The game page's CSP permits the cookieless Plausible tracker and event requests at `https://stats.mosredna.eu`.
 Inline scripts are allowed by their hashes. The [game analytics reference](../peak/README.md#analytics) lists the
@@ -21,11 +21,12 @@ goals and the exclusions for development and manual tests.
 | `checks.py` | What every game's checker shares: the replay's shape and the checks that hold for any run |
 | `downhill.py`, `downhill.json` | The downhill's checker and its route (`peak/downhill/routedata.js`): the piste, the obstacles, the chair's feel |
 | `downhill_give.py` | What the chair's physics does to a step by itself (a push, a landing's snap, the snow's lift), for that checker |
+| `emoji.py`, `emoji.json` | Reaction Run's checker and its route (`peak/emoji/routedata.js`): Mnot on the snow, the rules, the board's fields |
 | `store.py`, `db.py` | The data: runs, players, the board, the Hall of Shame; the schema and its migrations |
 | `names.py`, `eggs.py` | The name filter, and what the server says to people poking at it |
 | `perf.py` | The perf runs that `peak.html?perf` sends, kept as JSON lines ([docs/performance.md](../docs/performance.md)) |
-| `export_route.py` | Refreshes `route.json` (or `downhill.json`) from the game (below) |
-| `test_peak_scores.py`, `test_peak_parts.py`, `test_downhill.py`, `test_downhill_give.py`, `fixtures/` | The tests, and real recorded climbs and rides they replay |
+| `export_route.py` | Refreshes `route.json` (or `downhill.json`, `emoji.json`) from the game (below) |
+| `test_peak_scores.py`, `test_peak_parts.py`, `test_downhill.py`, `test_downhill_give.py`, `test_emoji.py`, `fixtures/` | The tests, and real recorded climbs, rides and runs they replay |
 | `browser_bot.js` | An end-to-end check: a bot that climbs in a real browser and submits like a player |
 
 ## Running it
@@ -62,6 +63,7 @@ python server/peak_scores.py --backup data/backup.sqlite3   # a consistent copy,
 python server/peak_scores.py --reverify RUN_ID              # check a stored replay against today's route
 python server/peak_scores.py --fixture latest --as NAME     # save a stored climb as a test fixture
 python server/peak_scores.py --fixture latest --as NAME --game downhill   # a ride, in fixtures/downhill/
+python server/peak_scores.py --fixture latest --as NAME --game emoji      # a Reaction Run, in fixtures/emoji/
 python server/peak_scores.py --showcase FILE --as NAME      # keep a recorded climb to be played by link only (the climb)
 ```
 
@@ -103,7 +105,8 @@ entries, and rows without a retained replay, have `replayId: null`.
 `GET /api/peak/replay/RUN_ID` returns `{id, name, time, falls, dents, replay}` for that current best, for the Hall
 of Fame's Race ghost and Watch run (`peak/replays/`). The public replay holds only the fields its game's `Game.replay`
 lists (`games.py`): for the climb `v`, `route`, `phase`, `samples` and `events`, without the raw inputs and the rest
-of the run record; the downhill adds its `inputs`, which pose the rider (heels down to brake, tucked in). The route
+of the run record; the downhill adds its `inputs`, which pose the rider (heels down to brake, tucked in), and Reaction
+Run its `inputs` (Mnot leaning into a turn, the camera peeking) and its `seed` (the field its runs are dealt). The route
 fingerprint lets the game check that a stored v1 replay matches its current route before playback.
 Missing, unclaimed, shadow, house, and replaced best runs all return 404; a showcased climb (above) returns 200
 without a board entry. This endpoint uses the same read rate limit as the board.
@@ -120,14 +123,15 @@ and nothing reads them back.
 Each board comes with slow, silly records, put in place (or brought up to date) at every start from `games.py`.
 The climb's five: `while(true) climb()` 3:14.15, `404: Peak Not Found` 4:04.0, `Dial-up Dave` 5:12.0,
 `git push --force` 6:28.3 and `Ctrl+Alt+Defeat` 13:37.0; the downhill's ten, from `Out of Office` 2:42.0 to
-`O(n!) Slalom` 14:40.0. They are marked `house`: they rank by time like everyone else, so any run faster than theirs
+`O(n!) Slalom` 14:40.0; Reaction Run's seven, from `Several people are typing…` 2:31.0 to `Seen by 47` 8:32.0.
+They are marked `house`: they rank by time like everyone else, so any run faster than theirs
 goes above them, but nobody can claim them or take their names, in any game (a look-alike name becomes a Mystery
 Can, with a note why). The games show them as ordinary rows, with their joke as a tooltip.
 
 ## Several games
 
 One server, one database, one API: every game in `games.py` has a board under `/api/<game>/` (`peak` for the climb,
-`downhill`), with the same endpoints, signatures, limits and eggs. What's a game's own is listed there: its route
+`downhill`, `emoji` for Reaction Run), with the same endpoints, signatures, limits and eggs. What's a game's own is listed there: its route
 (what its runs are checked against), its checker, its house records, its words (a game may say the jokes its own
 way) and the numbers its finish sends. A run belongs to the game it was started in: another game's API doesn't know
 it. Players are shared: one player, with one secret and one name, in every game, and a new name in one game is the
@@ -190,6 +194,37 @@ The least time of a stretch is its length at 45 m/s (`downhill.py`, `SEGMENT_FAS
 After changing the piste, the obstacles, the chair's feel or the bonus, export the route again:
 `python -X utf8 server/export_route.py downhill`, and paste the line into the console of
 `http://127.0.0.1:5280/downhill.html?manual`.
+
+## Reaction Run
+
+`emoji.py` checks a run against `emoji.json`: the field's shape, Mnot's moves on the snow and the rules, and every
+field on the board by its seed, as `peak/emoji/routedata.js` exports them. A run carries its seed: the page deals a
+field from it (`field.js`), and only the fields a deal gives count for the board (those of about the same length, with
+their cracks, `counts()` in `main.js`); a run on any other is practice (`practice`). Then every step against
+`main.js`'s physics:
+
+- the run starts at the start, at the first step's speed, and ends at the prize in the middle once the list is done
+  and the prize has dropped; it fetches the list's emoji in order, on the samples their flags are on, and the splits
+  say the same;
+- Mnot is on the snow, never closer to a wall than its body (and a bonk is where a wall is), never faster than it
+  runs, never further from one sample to the next than its speeds say;
+- the snow changes its speed by no more than its grip can (a wall's bounce and a wrong one's bump aside), and speeds
+  it up only with the run key held; let go, it slides on the way it was going; running, its speed across where it
+  faces fades at the snow's grip; and sideways, where it went is what its speeds say, to the millimetre or so;
+- a fetch is within an emoji's reach; a wrong one touched bumps Mnot straight away from it, and only once it's safe
+  again from the last; sliding past a wrong one standing, within its reach, without the bump, is a dodge (`dodge`);
+  the third wrong one is out (`tries`);
+- a crack is stepped on at its edge and gives way as long after as the snow holds; the passages at the end give way
+  after the list, one after another from Mnot out; Mnot is never over a hole on the snow; a drop into a hole hops out
+  as long after as the game waits, on the side it came from;
+- the claim's time is the last sample, and its falls (wrong ones) and dents (drops into a hole) are the replay's.
+
+The least time of a stretch is its straight line, less the emoji's reach, at nine tenths of Mnot's top speed, on the
+shortest of the board's fields: about 1.3, 1.1, 1.1, 1.1, 1.1 and 2.1 s between the start, the list's five and the
+prize; the recorded test runs took about ten seconds a stretch. Every field a deal gives counts, so a player can deal
+again until they like one; they're close enough in length that it saves little. After changing the deal, Mnot's moves
+or the rules, export the route again, `python -X utf8 server/export_route.py emoji`, and paste the line into the
+console of `http://127.0.0.1:5280/emoji.html?manual`.
 
 ## The replay check
 
@@ -291,6 +326,9 @@ the route moves on (one test then skips, saying the fixtures are older than `rou
 `test_downhill.py` does the same for the downhill with the rides in `fixtures/downhill/` (`ride`: 1:31.61 on the
 board, no spills; `spills`: two), the cheats its checker turns down, and the two games side by side: a board each,
 the house records, one player in both, a run that only its own game knows.
+`test_emoji.py` does it for Reaction Run with the runs in `fixtures/emoji/`, all on the route in `route.json.gz` there
+(`run`: 1:10.44 with two wrong ones, a drop into a hole and peeks, at a frame rate all over the place; `clean`:
+1:02.52; `pits`: three drops and a bonk at 30 frames a second), and the cheats its checker turns down.
 `test_downhill_give.py` replays honest rides the checker once turned down, each with a copy of the route it was
 ridden on (`fixtures/downhill/honest-<route>.json.gz`: whole runs, and stretches of others), and checks that what
 lets them through still turns down a push further than the obstacle reaches, a sidestep with a landing's flag,
@@ -306,7 +344,9 @@ const bot = await import('/server/browser_bot.js'); bot.keepFrames(); await bot.
 
 then `python -X utf8 server/peak_scores.py --fixture latest --as NAME`. For a ride, the downhill's autopilot in
 `downhill.html?manual&scores` stepped in real time ([its README](../peak/downhill/README.md#testing)), then
-`--fixture latest --as NAME --game downhill`. `fixtures/climb` is such a climb
+`--fixture latest --as NAME --game downhill`. For a Reaction Run, a run played for real, or the autopilot in
+`emoji.html?manual&scores` (`emoji.autopilot()`, stepped with `emoji.step()` in real time), then `--game emoji`.
+`fixtures/climb` is such a climb
 (1:17.88, no falls); `fixtures/falls` slid into the ring's hole once on purpose (`stumble: ['ring']`, 1:24.04).
 The bot steers like `peak/dev/bots.js`'s `climb()` (round the ring too); teach it a new obstacle there first.
 `keepFrames()` keeps the game going in a tab that's out of sight.
@@ -317,9 +357,9 @@ One container serves the game and the API: `Dockerfile` (python:3.12-slim, a non
 check on `/api/peak/health`), `docker-compose.yml` (the `peakmnot-data` volume, the environment) and `.mosdeploy.yml`
 for MosDeploy at <https://peakmnot.mosredna.eu>. The Dockerfile's first stage (node:24-bookworm-slim) runs
 `npm ci` and the production build, `tools/build.mjs`; so building the image needs the npm registry, and nothing
-else changes on the host. The image holds only what the build wrote, the games' pages (`peak.html`, `downhill.html`),
+else changes on the host. The image holds only what the build wrote, the games' pages (`peak.html`, `downhill.html`, `emoji.html`),
 the page of all the games (`games.html`) and the viewer (`index.html`), the favicons, the web manifest,
-`models/mnot.glb` and `assets/`, and the server. The downhill is at `/downhill`, the page of all the games at
+`models/mnot.glb` and `assets/`, and the server. The downhill is at `/downhill`, Reaction Run at `/emoji`, the page of all the games at
 `/games` and the viewer at `/viewer` (`PAGES` in `peak_scores.py`; a route names its file, so it needs no line in
 `STATIC`). The server serves only those files (an allowlist), with a
 Content-Security-Policy that hashes the page's inline scripts.

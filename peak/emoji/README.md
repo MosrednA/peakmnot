@@ -1,6 +1,6 @@
-# Reaction Run (working title)
+# Reaction Run
 
-A prototype on its own branch (`emoji-maze`), not live and not on the games page yet.
+A prototype, at `/emoji` (`emoji.html`), with its card on the page of all the games (`/games`).
 
 The thread wants its reactions, in order: Mnot slides about a snowy field full of the community's Slack emoji and
 fetches the ones on the list, one after the other, without touching any other. The emoji stand about as thick die-cut
@@ -85,6 +85,28 @@ names and the outlines to `sheet.js`; the game extrudes each outline into a toke
 photos of real people and no politics, but a few are someone else's character or logo (Clippy, the bitcoin coin), and
 the repository is public: which emoji go live is a choice to make before it does.
 
+## High scores, replays and stats
+
+- **The board.** Only the board's fields count: the seeds 1 to 2000 a random deal can give, with the default deal
+  (`counts()` in `main.js`). A `?seed=` past them, or another deal (`?list=` and the rest), is practice: the card says
+  so, and nothing is sent. From the first move the run is recorded (`record.js`); at :peak-mnot: it goes up to the
+  score server, which checks it against that field (`server/emoji.py`,
+  [server/README.md](../../server/README.md#reaction-run)) and ranks it by the time, then the wrong ones touched; the
+  holes dropped into are shown too. The finish card and the Hall of Fame are the climb's (`peak/scores/`), in the
+  thread's words, with seven house records so a fresh board isn't empty.
+- **Race ghost** (`?ghost=ID`) deals the run's field and runs a see-through Mnot along the recording at the player's
+  clock; the start waits until it has loaded. **Watch run** (`?replay=ID`) moves the page's own Mnot along it, its
+  fetches, wrong ones, cracks, holes and bonks told again through the game's own handlers, so the sounds, toasts and
+  finish card are the game's; nothing is recorded or sent. Both are `playback.js`, with the climb's controls
+  (`peak/replays/controller.js`): pause, 2×, scrubbing, Hide ghost.
+- **Stats:** cookieless Plausible, on the public site only (`analytics.js`, on the kit's `goals()`):
+  `Reaction Run: Start` and `Finish` once a page, `List Done` once a page as the list is done, and `Wrong One`, `Out`
+  and `Hole` each time they happen; the games page sends `Games: Play Reaction Run`. Never in `?manual` or a watched
+  run, and only the goal's name: no names, times or scores.
+- **`?perf`** times how this computer draws the field at five spots (`perf.js`: the start, over the field, the
+  middle, the list done, the finish) and sends the run to the server; `node tools/perf.mjs --game emoji` runs it
+  headless ([docs/performance.md](../../docs/performance.md)).
+
 ## Modules
 
 What it shares with the other games, imported and never copied: the kit (`peak/kit/`), the look (`peak/look/`),
@@ -100,6 +122,13 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
 | `dizzy.js` | The stars circling over Mnot's head after a wrong one |
 | `sfx.js`, `music.js` | Cartoon cues and speed/skid snow loops, plus Pocket Altitude at 112 BPM with a finish answer over the continuing tune; all through the shared Sound switch. Assets, rebuild and QA: [audio/emoji/README.md](../../audio/emoji/README.md) |
 | `title.js` | The title screen: the shot at the start, the tips and Mnot's act |
+| `record.js` | The run recorded for the score server: where Mnot is every 0.1 s, the keys and what happened |
+| `scores.js` | The high scores: the run handed out at the clock's start, the fetches reported, the finish card and the Hall of Fame |
+| `routedata.js` | The game as data for the server (`server/emoji.json`: the rules and every board field) and its fingerprint |
+| `playback.js` | Race ghost and Watch run: the recording checked, Mnot moved along it, seeking to any moment |
+| `analytics.js` | The Plausible goals |
+| `perf.js` | Its side of the perf probe, for `emoji.html?perf` |
+| `viewer.js` | Its tab in the viewer (`index.html#emoji`): Mnot in the studio among the tokens, a button for each move (laps, a fetch, too early, a wrong one, out, a bonk, a hole, the title's acts, the finale) |
 
 ## Testing
 
@@ -111,14 +140,16 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
   last listed one to :peak-mnot: 10 to 15 s on every one; with every crack open from the start (`k.state = 'open'`
   and `field.holes`), or with `CRACK.hold` near 0 so that it drops into every one, it still finishes them all, the
   long way round.
-- A local server of its own: the `emoji` entry in `.claude/launch.json` (port 5296).
+- `tools/check_emoji_replays.js` (on 5280, no score server, as the downhill's): the bot's run on field 6 raced as a
+  ghost and watched back, its sounds and Mnot on the recording, jumps in time, the finish, the Hall's buttons.
+  `node --test tools/check_emoji_analytics.mjs` checks the goals, `tools/check_gamepad.js` plays it with a
+  controller, and `python -m unittest discover server` checks the server's side with real runs
+  (`server/fixtures/emoji/`).
+- The production build has it: `emoji.html` in `PAGES` in `tools/build.mjs`, `.webp` in its `TYPES` and in the
+  server's hashed assets.
 
 ## Not yet
 
-- High scores and a Hall of Fame (a board, a checker, replays), analytics, `?perf`.
-- A tab in the viewer, a card on the games page, a share image, the final name.
-- The production build: `emoji.html` in `PAGES` in `tools/build.mjs`, and `.webp` in its `TYPES` (and in the server's
-  hashed assets).
 - Phones: the drag steering and the list peek are untested on a real phone.
 
 ## Ideas

@@ -2,14 +2,15 @@
 
 What the climb costs to draw, how to measure it on any computer, what the first pass found, and what's left to try.
 The office-chair downhill came later, on the same look; [The downhill](#the-downhill) says what it took over and what
-its own pass found.
+its own pass found, and [Reaction Run](#reaction-run) what the third game's did.
 
 ## Measuring
 
 ### In a browser
 
 Every game has it. Open [`peak.html?perf`](https://peakmnot.mosredna.eu/peak.html?perf) for the climb or
-[`downhill.html?perf`](https://peakmnot.mosredna.eu/downhill.html?perf) for the downhill (on the dev server,
+[`downhill.html?perf`](https://peakmnot.mosredna.eu/downhill.html?perf) for the downhill or
+[`emoji.html?perf`](https://peakmnot.mosredna.eu/emoji.html?perf) for Reaction Run (on the dev server,
 `http://127.0.0.1:5280/peak.html?perf` and so on). Each takes about a minute, half that on a fast graphics card and up
 to a minute and a half on a laptop's integrated one: keep the tab in front and leave it be. Add `&by=NAME` to the link
 to say whose computer it was.
@@ -17,22 +18,23 @@ to say whose computer it was.
 At the end the run goes to the score server, `POST /api/<game>/perf` ([server/README.md](../server/README.md)). The
 run holds what the browser says about the computer: graphics chip, screen size, pixel ratio and browser. The server
 keeps no IP address. Once the run is in, a card says thank you, with a nerdy joke and another on request
-([`peak/kit/thanks.js`](../peak/kit/thanks.js)), over the game's own party: Mnot dancing on the summit, or the
-downhill's finish party. **Raw numbers** on the card shows the table, with a **Copy** button. If sending fails, the
-table stays up so the run can be pasted instead.
+([`peak/kit/thanks.js`](../peak/kit/thanks.js)), over the game's own party: Mnot dancing on the summit, the
+downhill's finish party, or Mnot dancing with :peak-mnot: held up. **Raw numbers** on the card shows the table,
+with a **Copy** button. If sending fails, the table stays up so the run can be pasted instead.
 
 The game doesn't start: no title, no scores, no stats, and the pixel ratio stays at its first step, as with
 `?manual`. The probe is the kit's ([`peak/kit/perf.js`](../peak/kit/perf.js)); each game gives it its spots, what's in
 its scene and the card's words: the climb's [`peak/dev/perf.js`](../peak/dev/perf.js), the downhill's
-[`peak/downhill/perf.js`](../peak/downhill/perf.js). `main.js` only loads it for `?perf`. `?manual&perf` (what the
-headless run below uses) sends nothing. On the dev server, `?perf=thanks` shows the card straight away with made-up
-numbers, for working on it, and `&fps=30` shows what a slower computer is told.
+[`peak/downhill/perf.js`](../peak/downhill/perf.js), Reaction Run's [`peak/emoji/perf.js`](../peak/emoji/perf.js).
+`main.js` only loads it for `?perf`. `?manual&perf` (what the headless run below uses) sends nothing. On the dev
+server, `?perf=thanks` shows the card straight away with made-up numbers, for working on it, and `&fps=30` shows
+what a slower computer is told.
 
 ### The runs on the server
 
 Each run is one JSON line in `DATA_DIR/perf.jsonl`, every game's in the one file, with the time, the game (`peak`,
-`downhill`), the name from `by` and the whole table. [`server/perf.py`](../server/perf.py) keeps it, at most 6 runs
-per address every 10 minutes. A file over 8 MB moves to `perf.1.jsonl`, so the newest runs are always kept. The
+`downhill`, `emoji`), the name from `by` and the whole table. [`server/perf.py`](../server/perf.py) keeps it, at most
+6 runs per address every 10 minutes. A file over 8 MB moves to `perf.1.jsonl`, so the newest runs are always kept. The
 server's log gets one line per run: the game, the frame time, the fps, the graphics chip, the canvas and the name.
 
 ### Headless
@@ -43,7 +45,8 @@ With the dev server running:
 node tools/perf.mjs --igpu --size 1512x945 --dpr 2 --out run.json
 ```
 
-- `--game downhill` runs the downhill's (the page `downhill.html`); without it, the climb's.
+- `--game downhill` runs the downhill's (the page `downhill.html`), `--game emoji` Reaction Run's; without it, the
+  climb's.
 - `--size` and `--dpr` set the window. `1512x945` at `--dpr 2` is a 15-inch laptop with a retina screen. The default
   is `1280x760` at dpr 1.
 - `--igpu` asks the browser for the low-power GPU (Chromium's `--force_low_power_gpu`). On a desktop with an
@@ -58,7 +61,8 @@ browser executable to use instead of Playwright's own.
 
 1. **Spots**, a handful in each game, each a jump there. On the climb, base camp, each checkpoint and the summit. On
    the downhill the start, the ice, the river (on its first floe, in the gorge), the ski jump's in-run and past the
-   finish line, where the party plays; the chair stands parked at each, Mnot idling on it, as under the title. At
+   finish line, where the party plays; the chair stands parked at each, Mnot idling on it, as under the title. In
+   Reaction Run the start, high over the field, the middle, the list done and the finish, Mnot standing still. At
    each spot it:
    - notes the first frame's time and how many shaders that frame had to build (it should be none: see the warm-up
      below);
@@ -254,6 +258,26 @@ ratio 1, 4× MSAA), and on the integrated AMD Radeon at a retina laptop's size (
   at some frame rates the autopilot came off a floe into the river, rode on from the pit stop before it and came off
   again, over and over. Now the probe parks the chair at five spots, as the climb puts Mnot at its checkpoints: 32 s
   on the desktop GPU, 88 s on the integrated one (the climb takes 68 s there).
+
+## Reaction Run
+
+Reaction Run (`emoji.html`, [`peak/emoji/`](../peak/emoji/README.md)) came third, on the kit and the same look, and
+it's the lightest of the three: one flat field with its knee-high walls, the emoji standing on it, and Mnot. The
+walls cast no shadow while playing: their shadows from the sun are baked into the field's floor once it's dealt
+(`bake()` in `field.js`), so only Mnot's and the emojis' are live.
+
+Measured in October 2026 with `node tools/perf.mjs --game emoji` on the desktop GPU, headless at 1280×760 (pixel
+ratio 1, 4× MSAA), where the browser draws at 60 fps:
+
+- **Every spot runs at the frame rate**, 60 fps with a 95th-percentile gap of 16.8 ms. A frame takes the GPU
+  0.4–0.7 ms; our JS is `step` 0.13–0.22 ms and `render()` 0.7–1.1 ms, for 59–202 draw calls (the most at the start
+  and over the field, with every emoji in view) and 0.28–0.30 million triangles, a third of them the cloud sea. No one
+  thing in the scene costs as much as 0.1 ms.
+- **A new field built the floor's shader again.** Each field's floor had a material of its own, for its baked light,
+  and it went with the field; three.js lets a shader go with the last material that uses it, so the next field
+  built it again as it was dealt (9 ms on this GPU, more on a phone's). The floor now keeps one material for every
+  field and swaps its texture (`floorMaterial` in `field.js`): from the start to the finish, through holes, the list
+  done and new fields, no shader is built.
 
 ## Not done yet
 

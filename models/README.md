@@ -11,7 +11,7 @@ repository root. For the games, see the [front page](../README.md), [the climb](
 | `models/mnot.blend` | The Blender file, with IK controls for the legs. Animate here. |
 | `tools/build_mnot.py` | Builds both files from scratch (model, rig, weights, clips). |
 | `index.html` | Viewer: toon look with an outline, a button for every clip in the GLB, laps, WASD to walk, Shift to run, Space to jump (or the Jump and High jump buttons), E to wave. |
-| `peak/viewer/`, `peak/<game>/viewer.js` | The viewer's code and its tabs: Mnot first, then one for each mini game with what that game adds (the downhill's: the office chair, its moves and the finish party). `index.html#downhill` opens that tab; live at <https://peakmnot.mosredna.eu/viewer>. |
+| `peak/viewer/`, `peak/<game>/viewer.js` | The viewer's code and its tabs: Mnot first, then one for each mini game with what that game adds (the downhill's: the office chair, its moves and the finish party; Reaction Run's: the emoji, a bump, a hole and the finale). `index.html#downhill` and `#emoji` open those tabs; live at <https://peakmnot.mosredna.eu/viewer>. |
 | `tools/check_controls.js` | 24 deterministic Playwright browser checks for input, movement, jump timing and animation transitions. |
 | `sounds.js` | Web Audio playback synchronized with foot contacts, push-off, flight and touchdown. |
 | [`audio/README.md`](../audio/README.md) | ElevenLabs sound palette, source metadata, processing and regeneration. |

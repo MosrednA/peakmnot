@@ -116,12 +116,13 @@ lists them and `?level=` picks one. Each level after the first has its own board
 ## Analytics
 
 Every mini game uses cookieless Plausible at `stats.mosredna.eu`, all on one site, `peakmnot.mosredna.eu`. The
-tracker in each page's head (`peak.html`, `downhill.html`, `games.html`) counts pageviews, so **Top pages** splits
-them by game: `/`, `/downhill`, `/games`. Each game's goals carry its name in front, so they stay together in **Goal
-conversions** however many games there are: the climb's show as `Climb: …`, the downhill's are `Downhill: …`
-([peak/downhill/README.md](downhill/README.md#analytics)). A new game sends its goals as `<Game>: <goal>` through
-the kit's `goals()` (`peak/kit/analytics.js`, which counts on the public site only), from the `mini-game` skill's
-template ("Stats").
+tracker in each page's head (`peak.html`, `downhill.html`, `emoji.html`, `games.html`) counts pageviews, so **Top
+pages** splits them by game: `/`, `/downhill`, `/emoji`, `/games`. Each game's goals carry its name in front, so
+they stay together in **Goal conversions** however many games there are: the climb's show as `Climb: …`, the
+downhill's are `Downhill: …` ([peak/downhill/README.md](downhill/README.md#analytics)), Reaction Run's
+`Reaction Run: …` ([peak/emoji/README.md](emoji/README.md#high-scores-replays-and-stats)). A new game sends its
+goals as `<Game>: <goal>` through the kit's `goals()` (`peak/kit/analytics.js`, which counts on the public site
+only), from the `mini-game` skill's template ("Stats").
 
 The climb's `analytics.js` listens to the title, game and player events for these custom goals:
 
@@ -139,8 +140,9 @@ The climb's events kept their names from before the prefix, so the history stays
 their display name.
 
 The page of all the games (`/games`) counts which game a visitor goes to play: `peak/games/analytics.js` sends the
-`data-goal` of the link that was clicked (or middle-clicked), as `Games: Play Climb`, `Games: Play Downhill` and
-`Games: Viewer`. A new game's card names its own, `data-goal="Play <Game>"`, and gets its goal in Plausible. The goals are configured under
+`data-goal` of the link that was clicked (or middle-clicked), as `Games: Play Climb`, `Games: Play Downhill`,
+`Games: Play Reaction Run` and `Games: Viewer`. A new game's card names its own, `data-goal="Play <Game>"`, and
+gets its goal in Plausible. The goals are configured under
 [Settings → Goals](https://stats.mosredna.eu/peakmnot.mosredna.eu/settings/goals), with **Show in dashboard** enabled.
 Conversion counts appear after a matching event is received. When adding a goal, create the matching **Custom
 event** in Plausible too, with the event name exactly as sent and the display name with its game in front: sending
@@ -153,8 +155,8 @@ replays or scores. Only `peakmnot.mosredna.eu` is tracked; localhost, other host
 are excluded. Missing or blocked analytics does not stop the game. The production page's CSP allows only the
 Plausible host in addition to its existing script and connection sources; inline scripts still require hashes.
 
-Run `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs tools/check_games_analytics.mjs` for
-the event checks and
+Run `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs tools/check_games_analytics.mjs
+tools/check_emoji_analytics.mjs` for the event checks and
 `python -m unittest discover server` for the production CSP check.
 
 ## Modules

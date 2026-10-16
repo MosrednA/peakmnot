@@ -7,9 +7,10 @@
 | [Multi-game setup](multi-game.md) | Pages and routes, shared modules, game-specific code, replays, levels and adding a game |
 | [The team](agents.md) | Specialist ownership, shared-worktree coordination and checks before handing over |
 | [Making a level](making-a-level.md) | The climb's route, mechanics, test bots and score route export |
-| [Performance](performance.md) | Measurement tools, findings and remaining work for the climb and downhill |
+| [Performance](performance.md) | Measurement tools, findings and remaining work for every game |
 | [The climb](../peak/README.md) | Rules, controls, module reference, events, analytics and tests |
 | [The downhill](../peak/downhill/README.md) | Prototype rules, controls, chair physics, scores, modules and tests |
+| [Reaction Run](../peak/emoji/README.md) | Prototype rules, controls, the field and its emoji, scores, modules and tests |
 | [The mini-game kit](../peak/kit/README.md) | Shared stage, loop, HUD, title, party, controller and analytics APIs |
 | [The score server](../server/README.md) | Multi-game API, verification, SQLite, configuration and production serving |
 | [Mnot's model and viewer](../models/README.md) | Model generation, rig, clips, viewer tabs and animation checks |

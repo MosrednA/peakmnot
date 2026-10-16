@@ -24,6 +24,8 @@ not the names. Forks are welcome, but don't present yours as the official game o
 - [three.js](https://threejs.org) (MIT) and the [Fredoka](https://fonts.google.com/specimen/Fredoka) font (SIL Open
   Font License) are loaded from CDNs; they aren't part of this repository.
 - The sound effects were generated with ElevenLabs.
+- Reaction Run's emoji (`peak/emoji/emojis.webp`) are the community's Slack emoji, collected at
+  [mnot-emojis](https://mnot-emojis.mosredna.eu/). This license doesn't cover them.
 - The music was rendered with [FluidSynth](https://github.com/FluidSynth/fluidsynth) and S. Christian Collins'
   [GeneralUser GS](https://schristiancollins.com/generaluser.php). The GeneralUser GS license permits publishing music
   made with it.

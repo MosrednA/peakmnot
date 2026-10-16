@@ -21,9 +21,10 @@ score server. Each game has its own rules, page and Hall of Fame.
 |---|---|---|
 | Peak Mnot | [Climb the mountain](https://peakmnot.mosredna.eu/) | [The climb](peak/README.md): loose ledges, ice, wind, a gondola and balancing |
 | Mnot Downhill (prototype) | [Ride the office chair](https://peakmnot.mosredna.eu/downhill) | [The downhill](peak/downhill/README.md): steering, casters, pit stops, bowling and a ski jump |
+| Reaction Run (prototype) | [Fetch the reactions](https://peakmnot.mosredna.eu/emoji) | [Reaction Run](peak/emoji/README.md): a snowy field of the community's Slack emoji, fetched in the thread's order |
 
-The shared [animation viewer](https://peakmnot.mosredna.eu/viewer) shows Mnot's rig and clips, and the downhill's
-chair, moves and finish party in its own tab.
+The shared [animation viewer](https://peakmnot.mosredna.eu/viewer) shows Mnot's rig and clips, and in a tab for each
+game what it adds: the downhill's chair, moves and finish party, and Reaction Run's emoji, bumps, holes and finale.
 
 | | |
 |---|---|
@@ -31,7 +32,7 @@ chair, moves and finish party in its own tab.
 
 ## How to play
 
-These are the climb's controls; the downhill's are [below](#on-the-office-chair).
+These are the climb's controls; the downhill's and Reaction Run's are [below](#on-the-office-chair).
 
 | Key | |
 |---|---|
@@ -71,6 +72,23 @@ controller, the left stick or the D-pad steers, RT pushes off and tucks in, LT b
 new run. A hard hit or landing costs a caster, the pit stops put fresh ones on, and the bowling lane and the ski jump
 take time off the clock. The full rules are in [peak/downhill/README.md](peak/downhill/README.md).
 
+### In the emoji field
+
+| Key | |
+|---|---|
+| A / D, arrows | Steer |
+| W | Run |
+| S | Brake |
+| Space (held) | Look over the whole field; Mnot stops to look |
+| R | This field again |
+| N | A new field |
+
+On a touch screen, drag on the field to steer (up runs, down brakes) and hold the list to look over the field. With
+a controller, the left stick or the D-pad steers and runs, LB or RB looks, Y is this field again and X a new one.
+Fetch the emoji on the list in its order without touching any other: the third wrong one is out. Cracked snow gives
+way behind Mnot, and with the list done, :peak-mnot: drops into the middle of the field. The full rules are in
+[peak/emoji/README.md](peak/emoji/README.md).
+
 ## Run it yourself
 
 You need Python 3 and a browser with WebGL 2. Playing and changing the game needs no build and nothing to install:
@@ -81,9 +99,9 @@ python tools/dev_server.py
 ```
 
 Then open <http://127.0.0.1:5280/games.html> to choose a game. The climb is `peak.html`, the downhill is
-`downhill.html`, and the viewer is at `/` (`index.html`). The dev server reloads open tabs when watched code,
-models or sounds change. For the high scores, start the score server next to it (it listens on port 5281, and the
-games find it there):
+`downhill.html`, Reaction Run is `emoji.html`, and the viewer is at `/` (`index.html`). The dev server reloads open
+tabs when watched code, models or sounds change. For the high scores, start the score server next to it (it listens
+on port 5281, and the games find it there):
 
 ```bash
 python -X utf8 server/peak_scores.py
@@ -95,8 +113,8 @@ To serve all the source pages and their scores on one origin, with the same rout
 python -X utf8 server/peak_scores.py --static --port 5294
 ```
 
-Open <http://127.0.0.1:5294/games>. The climb is `/`, the downhill `/downhill`, and the viewer `/viewer`. The
-route table and shared modules are explained in [the multi-game guide](docs/multi-game.md).
+Open <http://127.0.0.1:5294/games>. The climb is `/`, the downhill `/downhill`, Reaction Run `/emoji`, and the
+viewer `/viewer`. The route table and shared modules are explained in [the multi-game guide](docs/multi-game.md).
 
 The live site runs a production build of the same files: [esbuild](https://esbuild.github.io/) bundles and minifies
 each page's code, three.js goes in a file of its own that browsers keep between releases, and every file is named
@@ -116,7 +134,7 @@ python -X utf8 server/peak_scores.py --static --port 8080
 
 In a POSIX shell, use `SITE_DIR=dist python -X utf8 server/peak_scores.py --static --port 8080` instead.
 
-Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/games` and `/viewer`.
+Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/emoji`, `/games` and `/viewer`.
 [`tools/build.mjs`](tools/build.mjs) explains what it does, including the one line that adds a new page.
 
 ## What's in here
@@ -126,6 +144,7 @@ Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/games
 | [`peak.html`, `peak/`](peak/README.md) | The climb, plus the shared modules that came from it: the look, Mnot, props, input, scores and replays |
 | [`peak/kit/`](peak/kit/README.md) | The base for new games: stage, loop, preloader, HUD, title, finish party, controller and analytics |
 | [`downhill.html`, `peak/downhill/`](peak/downhill/README.md) | The second mini game, a prototype in the same world: Mnot down the mountain on a very expensive office chair |
+| [`emoji.html`, `peak/emoji/`](peak/emoji/README.md) | The third, a prototype: Mnot fetches the community's Slack emoji from a snowy field, in the order the thread asks |
 | [`server/`](server/README.md) | One high-score server and SQLite database; each game's checker verifies runs for its own board |
 | [`models/`](models/README.md) | The shared Mnot model, rig and animation clips, built from code in Blender |
 | [`games.html`, `peak/games/`](games.html) | The page of all the games, at `/games`: cards, screenshots and navigation goals |
@@ -146,8 +165,9 @@ Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/games
 - **Small files.** Every module stays under about 400 lines and does one thing, and each folder documents its own.
 - **Test bots.** `peak.html?manual` stops the clock, and `peak/dev/bots.js` has test players that balance on beams,
   survey the jumps and climb the whole route; in `downhill.html?manual`, `downhill.autopilot(true)` rides the whole
-  piste. `tools/check_controls.js` runs deterministic browser checks on the viewer, and `tools/check_replays.js` and
-  `tools/check_downhill_replays.js` race and watch recorded runs in both games.
+  piste, and in `emoji.html?manual`, `emoji.autopilot(true)` fetches the list. `tools/check_controls.js` runs
+  deterministic browser checks on the viewer, and `tools/check_replays.js`, `tools/check_downhill_replays.js` and
+  `tools/check_emoji_replays.js` race and watch recorded runs in every game.
 - **AI agents.** Most of it was written by AI coding agents (Claude Code and Codex) working side by side in this
   folder, steered by a human with opinions. [AGENTS.md](AGENTS.md) is how they keep out of each other's way, and
   [docs/agents.md](docs/agents.md) introduces the team. The specialists (a level designer, an art director and
@@ -156,15 +176,17 @@ Then open <http://127.0.0.1:8080/>, with the other pages at `/downhill`, `/games
 ## About the high scores
 
 One server shares players and names across games, while each game keeps its own board and run checker. The climb
-uses `/api/peak/`, the downhill `/api/downhill/`; both use the same submission protocol and SQLite database.
+uses `/api/peak/`, the downhill `/api/downhill/` and Reaction Run `/api/emoji/`; all use the same submission
+protocol and SQLite database.
 
 The score server doesn't take the browser's word for anything. The climb records each run, and the server checks
 every step against the route and Mnot's physics: standing on rock that is there, never faster than its legs (or the
 ice, the wind and the gondola) allow, flying on real parabolas, and reaching every checkpoint. Only then does the
 time go on the board. The downhill's checker verifies the piste, chair physics, pit stops and bonus before its time
-counts. See [server/README.md](server/README.md#several-games).
+counts, and Reaction Run's the field, Mnot's slide on the snow, the list fetched in order and every hole. See
+[server/README.md](server/README.md#several-games).
 
-Every run on a Hall of Fame can be raced or watched back, in both games: **Race ghost** puts a see-through Mnot on
+Every run on a Hall of Fame can be raced or watched back, in every game: **Race ghost** puts a see-through Mnot on
 the recorded run beside yours, at your own clock, and **Watch run** plays it again with pause, half and double speed
 and a timeline. Watching never posts a score; a ghost race is a run like any other.
 
@@ -189,14 +211,15 @@ Ideas, bugs and pull requests are welcome.
 
 - **Changing the route or making a level:** start with [docs/making-a-level.md](docs/making-a-level.md). The score
   server checks climbs against an export of the route, so re-export `server/route.json` after a change (the
-  downhill's is `server/downhill.json`, and another level of a game gets a file of its own:
-  `python -X utf8 server/export_route.py <game> <level>`).
+  downhill's is `server/downhill.json` and Reaction Run's `server/emoji.json`, and another level of a game gets a
+  file of its own: `python -X utf8 server/export_route.py <game> <level>`).
 - **Adding a mini game:** start with [the multi-game guide](docs/multi-game.md) and follow the
   [mini-game skill and templates](.claude/skills/mini-game/SKILL.md). Build on the shared kit, then register the
   page, card, viewer tab, score checker, analytics and link preview together.
 - **Before a pull request:** climb the route with `bots.climb` in `peak.html?manual` (see
   [peak/README.md](peak/README.md#testing-by-hand)), ride the piste with `downhill.autopilot(true)` in
-  `downhill.html?manual` if the downhill or shared code changed, and run the score server's tests:
+  `downhill.html?manual` if the downhill or shared code changed, fetch a field with `emoji.autopilot(true)` in
+  `emoji.html?manual` if Reaction Run or shared code changed, and run the score server's tests:
 
   ```bash
   python -m unittest discover server
@@ -206,6 +229,8 @@ Ideas, bugs and pull requests are welcome.
 
 - Mnot and the "Peak Mnot" meme come from the [Met Nerds om Tafel](https://metnerdsomtafel.nl/) podcast and its
   listeners.
+- Reaction Run's emoji are the community's own Slack emoji, collected at
+  [mnot-emojis](https://mnot-emojis.mosredna.eu/).
 - Built with [three.js](https://threejs.org) and [Blender](https://www.blender.org). The font is
   [Fredoka](https://fonts.google.com/specimen/Fredoka).
 - The sound effects were generated with ElevenLabs. The music was rendered with

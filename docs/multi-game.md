@@ -14,6 +14,7 @@ run the project.
 | Choose a game | `/games.html` | `/games` | `peak/games/main.js` |
 | Peak Mnot, the climb | `/peak.html` | `/` | `peak/main.js` |
 | Mnot Downhill, prototype | `/downhill.html` | `/downhill` | `peak/downhill/main.js` |
+| Reaction Run, prototype | `/emoji.html` | `/emoji` | `peak/emoji/main.js` |
 | Model and animation viewer | `/` or `/index.html` | `/viewer` | `peak/viewer/main.js` |
 
 The site's root still opens the climb. `/games` is the shared selection page, with a card and an in-game screenshot
@@ -21,8 +22,9 @@ for each game. `games.html` stores the links and `data-goal`; `peak/games/main.j
 `THUMBS` and switches links to source filenames on the development servers (5280 and 5293).
 
 The viewer starts with Mnot's rig and clips. Additional tabs show what a game adds: the downhill's chair, rider
-moves and finish party. `peak/viewer/tabs.js` registers these in `GAMES` and loads each game's `viewer.js` on first
-use. `#downhill` opens that tab directly. The climb uses the base Mnot tab.
+moves and finish party; Reaction Run's emoji, bumps, holes and finale. `peak/viewer/tabs.js` registers these in
+`GAMES` and loads each game's `viewer.js` on first use. `#downhill` and `#emoji` open those tabs directly. The
+climb uses the base Mnot tab.
 
 `server/peak_scores.py` maps the public routes in `PAGES`; game names come from `server/games.py`. The build lists
 the source pages separately in `PAGES` in `tools/build.mjs`. Development needs no build; production bundles each
@@ -51,7 +53,8 @@ the props, jokes, sounds and mechanics; [the team guide](agents.md#the-mini-game
 
 ## Scores, stats and assets
 
-One score server provides `/api/peak/` for the climb and `/api/downhill/` for the downhill. Players and names are
+One score server provides `/api/peak/` for the climb, `/api/downhill/` for the downhill and `/api/emoji/` for
+Reaction Run. Players and names are
 shared; runs and rankings belong to their game's board. The browser uses `createRun()` and `createBoard()` from
 `peak/scores/scores.js`. Each game records its own run and exports its own route for its checker. See
 [the server reference](../server/README.md#several-games) for registration and verification.
@@ -59,7 +62,8 @@ shared; runs and rankings belong to their game's board. The browser uses `create
 Every run on a board can be raced and watched from its Hall of Fame. `peak/replays/controller.js` is shared: it
 loads `GET /api/<game>/replay/ID`, checks it with the game's `validate()`, and gives the page the controls (play,
 pause, speed, the timeline, Back to Hall, Hide ghost). The player on the recording is the game's own: the climb's
-`peak/replays/playback.js`, the downhill's `peak/downhill/playback.js` (passed as `createActor`). `?ghost=ID` races a
+`peak/replays/playback.js`, the downhill's `peak/downhill/playback.js` and Reaction Run's `peak/emoji/playback.js`
+(passed as `createActor`). `?ghost=ID` races a
 see-through copy at the player's clock; `?replay=ID` watches the run on the page's own player, and never records or
 posts anything.
 
@@ -72,12 +76,12 @@ its runs, replays and route: the first is the game itself (`/api/<game>/`, `serv
 `server/route.json`), so a game keeps its board when it grows a second level, and each other one is
 `/api/<game>-<level>/`, checked against `server/<game>-<level>.json` and listed in `LEVELS` in `server/games.py`.
 Links to a level, its Hall of Fame, a ghost or a replay keep its `?level=`, so a run is always raced and watched
-on the level it was made on. Both games have one level for now.
+on the level it was made on. Every game has one level for now.
 
-Plausible counts pageviews on the same site and groups goals by game: `Climb: …`, `Downhill: …` and navigation
-goals `Games: …`. New games use `goals('<Game>', { manual })` from `peak/kit/analytics.js`; the climb keeps its
-original event names with prefixed display names to preserve history. Local and manual tests send no goals. See
-[the analytics reference](../peak/README.md#analytics).
+Plausible counts pageviews on the same site and groups goals by game: `Climb: …`, `Downhill: …`, `Reaction Run: …`
+and navigation goals `Games: …`. New games use `goals('<Game>', { manual })` from `peak/kit/analytics.js`; the
+climb keeps its original event names with prefixed display names to preserve history. Local and manual tests send
+no goals. See [the analytics reference](../peak/README.md#analytics).
 
 Load code-owned assets with `new URL('…', import.meta.url)` so the production build finds and hashes them. Page
 assets linked by name, including `share-<game>.jpg`, go in `FILES` in `tools/build.mjs`. Keep exported route data
@@ -101,4 +105,5 @@ Follow [the mini-game skill](../.claude/skills/mini-game/SKILL.md) and its templ
    regression checks for other games when shared code changes.
 
 For another stretch of the climb, use [Making a level](making-a-level.md). For the downhill's course and physics,
-use [its README](../peak/downhill/README.md). Their route exports and server checkers must stay in step with the game.
+use [its README](../peak/downhill/README.md); for Reaction Run's field, [its own](../peak/emoji/README.md). Their
+route exports and server checkers must stay in step with the game.

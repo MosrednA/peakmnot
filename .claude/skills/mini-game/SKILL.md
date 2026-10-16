@@ -5,9 +5,10 @@ description: The recipe for a new Peak Mnot mini game, or a big change to one - 
 
 # A new mini game
 
-Peak Mnot is a handful of mini games in one world: the climb (`peak.html`, `peak/`) and the office-chair downhill
-(`downhill.html`, `peak/downhill/`), and more to come. They share the mountain, the look, Mnot, the HUD and the
-score server, so each new one feels like family and is built from the same base. This is the recipe. Read
+Peak Mnot is a handful of mini games in one world: the climb (`peak.html`, `peak/`), the office-chair downhill
+(`downhill.html`, `peak/downhill/`) and Reaction Run (`emoji.html`, `peak/emoji/`), and more to come. They share
+the mountain, the look, Mnot, the HUD and the score server, so each new one feels like family and is built from the
+same base. This is the recipe. Read
 [docs/agents.md](../../../docs/agents.md#the-mini-games) first (the rules for every game, the team) and
 [peak/kit/README.md](../../../peak/kit/README.md) (the shared base). The downhill is the worked example: when in doubt,
 do what it does.
@@ -119,7 +120,8 @@ A board of its own on the one score server (`server/README.md`, "Several games")
    no start until it has loaded) and `?replay=ID` (the page's own player on the recording, its events told again
    through the live handlers, so the sounds, toasts and finish card are the game's; nothing recorded or posted).
    The server's `Game.replay` lists the fields the replay endpoint gives (the inputs too, if they pose the player).
-   A check routes the board and the replay API to a run its test bot rode (`tools/check_downhill_replays.js`);
+   A check routes the board and the replay API to a run its test bot rode (`tools/check_downhill_replays.js`,
+   `tools/check_emoji_replays.js`);
 7. **levels**, from the start, even with one: `const LEVELS = ['']` and `pickLevel(LEVELS)` (`peak/kit/levels.js`) in
    `main.js`, the level passed to the scores (`apiBase(location, '<game>', level)`) and to the replays, and the world
    built for it. On the server the first level is the game's own board, `/api/<game>/`, and each other one has its
