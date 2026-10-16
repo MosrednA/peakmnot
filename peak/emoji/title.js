@@ -9,7 +9,7 @@ import { TitleScreen } from '../kit/title.js';
 // Each a real tip, said in the premise's words.
 const TIPS = [
   'Tip: the list is at the top. It is in order. The order is the whole point.',
-  'Tip: touch a wrong emoji and the thread is ruined. Walk round it.',
+  'Tip: you have three tries. A wrong emoji leaves Mnot seeing stars; the third ruins the thread.',
   'Tip: a listed emoji fetched too early is a wrong one too. Patience is a reaction.',
   'Tip: the snow walls are knee-high. Mnot can see over them, not step over them. It can bonk into them, though.',
   'Tip: the snow is slippery. Let go of W early, or brake with S, and steer round a wrong one in good time.',

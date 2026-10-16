@@ -1,8 +1,7 @@
 // The emojis on the field: thick die-cut tokens, each its sticker's outline (sheet.js, traced by tools/emoji_atlas.py)
 // extruded, with the sticker from the sheet (emojis.webp) on both faces and a white rim, inked like the rest of the
-// world. They hover over the snow and spin; one coming close turns to face Mnot, the next one on the list hops for
-// joy and the wrong ones tremble, so near the end it's a matter of nerve. The same sheet draws the list in the HUD
-// (cssSticker).
+// world. They hover over the snow and spin; one coming close slows down and turns to face Mnot, the next one on the
+// list hops for joy and the others lean back out of reach. The same sheet draws the list in the HUD (cssSticker).
 import * as THREE from 'three';
 import { toon } from '../look/look.js';
 import { SHEET, OUTLINES } from './sheet.js';
@@ -15,6 +14,8 @@ const HEIGHT = 1.05;               // m to a token's middle
 const SPIN = 1.1;                  // radians a second
 const TOUCH = 0.85;                // m from Mnot's middle: touched
 const NEAR = [3.6, 1.8];           // m: from here a token starts turning to face Mnot, and at this it does
+const FACE = 5;                    // how fast it turns to face (a second), close by
+const WARP = { out: 0.4, back: 1.1 };   // s: a touched wrong one twisting away, and a blinked one coming back
 const TILT = 1.2;                  // radians a token leans back while the camera peeks from high up, to be read
 const TAU = Math.PI * 2;
 const ease = (from, to, k) => THREE.MathUtils.smoothstep(k, from, to);
@@ -91,7 +92,8 @@ export class Stickers {
       holder.position.copy(e.at).setY(HEIGHT);
       holder.add(token);
       this.group.add(holder);
-      this.list.push({ emoji: e, holder, token, phase: i * 2.399, going: 0, how: null });
+      const phase = i * 2.399;
+      this.list.push({ emoji: e, holder, token, phase, yaw: phase, going: 0, how: null });
     }
   }
 
@@ -109,7 +111,9 @@ export class Stickers {
     return null;
   }
 
-  // A token going: 'taken' (it hops up, whirls and shrinks away) or 'wrong' (it swells and shakes, and stays).
+  // A token going: 'taken' (it hops up, whirls and shrinks away), 'warped' (a wrong one touched: it twists thin and
+  // is gone), 'blinked' (a listed one touched too early: it twists away and pops back a moment later) or 'wrong'
+  // (the touch that ends the run: it swells and shakes, and stays).
   go(s, how) {
     s.how = how;
     s.going = 0;
@@ -124,16 +128,18 @@ export class Stickers {
       if (emoji.taken) continue;
       const near = ease(NEAR[0], NEAR[1], Math.hypot(player.x - emoji.at.x, player.z - emoji.at.z));
       const close = Math.max(near, peek);
-      // spinning, and turning to face the camera as Mnot comes close
-      const spin = this.time * SPIN + s.phase;
+      // spinning, slowing down and turning to face the camera as Mnot comes close: eased all the way, the short way
+      // round, so it never snaps
       const face = Math.atan2(camera.position.x - holder.position.x, camera.position.z - holder.position.z);
-      token.rotation.y = spin + turn(face - spin) * close;
+      s.yaw += SPIN * dt * (1 - close);
+      s.yaw += turn(face - s.yaw) * (1 - Math.exp(-FACE * close * dt));
+      token.rotation.y = s.yaw;
       token.position.y = 0.08 * Math.sin(this.time * 2.1 + s.phase);
       token.rotation.z = 0.06 * Math.sin(this.time * 1.4 + s.phase * 2);
       token.rotation.x = -TILT * peek;
       if (!s.how) {
         if (emoji === next) token.position.y += 0.22 * near * Math.abs(Math.sin(this.time * 7));    // pick me
-        else token.rotation.z += 0.09 * near * Math.sin(this.time * 31 + s.phase);               // not me
+        else token.rotation.x -= 0.32 * near * (1 - peek);                    // not me: leaning back, out of reach
         continue;
       }
       s.going += dt;
@@ -144,9 +150,21 @@ export class Stickers {
         token.rotation.y += TAU * 2 * t * t;
         token.scale.setScalar(Math.max(0.001, (1 + 0.4 * Math.sin(Math.PI * Math.min(1, t * 2))) * (1 - t * t)));
         if (t >= 1) { holder.visible = false; emoji.taken = true; s.how = null; }
+      } else if (s.how === 'warped' || s.how === 'blinked') {
+        // twisting thin and tall, faster and faster, up a little and gone; a blinked one pops back where it was
+        const out = Math.min(1, k / WARP.out), back = s.how === 'blinked' ? ease(WARP.back, WARP.back + 0.3, k) : 0;
+        const thin = (1 - out * out) * (1 - back) + back * (1 + 0.25 * Math.sin(Math.PI * back));
+        const tall = (1 + 0.8 * out) * (1 - back) + back;
+        token.scale.set(Math.max(0.001, thin), Math.max(0.001, tall), Math.max(0.001, thin));
+        token.position.y += 0.5 * out * (1 - back);
+        s.yaw += 30 * out * out * dt * (1 - back);
+        token.rotation.y = s.yaw;
+        if (s.how === 'warped' && out >= 1) { holder.visible = false; emoji.taken = true; s.how = null; }
+        if (back >= 1) { token.scale.setScalar(1); s.how = null; }
       } else {
         token.scale.setScalar(1 + 0.5 * Math.min(1, k / 0.18));
-        token.rotation.y = face;
+        s.yaw += turn(face - s.yaw) * (1 - Math.exp(-12 * dt));
+        token.rotation.y = s.yaw;
         token.rotation.z = 0.3 * Math.sin(k * 38) * Math.exp(-k * 2.2);
       }
     }

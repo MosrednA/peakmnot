@@ -6,8 +6,9 @@ The thread wants its reactions, in order: Mnot slides about a snowy field full o
 fetches the ones on the list, one after the other, without touching any other. The emoji stand about as thick die-cut
 stickers, spinning over the snow between knee-high snow walls: a loose maze you can see over. Mnot is steered like a
 shopping trolley on fresh snow, so it drifts wide in the turns, glides on when you let go and bonks off the walls,
-and the wrong emoji are never far. Touch one, or a listed one too early, and it slips and goes over flat on its back:
-the thread is ruined. Fetch the last one and it dances.
+and the wrong emoji are never far. Touch one, or a listed one too early, and it warps away while Mnot bumps back
+off it and sees stars for a bit; the third time it slips and goes over flat on its back: the thread is ruined. Fetch
+the last one and it dances.
 
 It's built on the mini game kit (`peak/kit/`) and shares the climb's look and Mnot.
 
@@ -31,9 +32,11 @@ one.
 ## The rules
 
 - The list at the top (5 emoji, `?list=` 1 to 12) is the order. The one to fetch now is big and bobs; in the field it
-  hops when Mnot comes close, and the others tremble.
-- Touching any emoji that isn't the next on the list is out at once: one that isn't on it, or one that is but not
-  yet.
+  hops when Mnot comes close, and the others lean back out of reach.
+- Three tries (the hearts by the clock). Touching an emoji that isn't the next on the list costs one: one that isn't
+  on it warps away for good, a listed one too early warps away and pops back a moment later. Mnot bumps back off it,
+  reels for half a second and sees stars for two more, its steering wandering a little; for a moment after, no other
+  emoji counts. The third is out.
 - The clock runs from the first move to the last emoji, peeking included.
 - A field is dealt from a seed (`?seed=`, shown in the HUD): R brings the same one back, N the next. It's only ever
   dealt so that each next listed one can be reached from the one before past no wrong one (`Field.clear`), so a run
@@ -66,6 +69,8 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
 | `field.js` | The field from a seed: the maze, the emoji dealt on it, the ways round (`route`), the walls to bonk into |
 | `stickers.js` | The emoji as spinning extruded tokens, what they do near Mnot, taken and wrong; the list's stickers in CSS |
 | `sheet.js`, `emojis.webp` | Made by `tools/emoji_atlas.py`: the stickers and their outlines |
+| `dizzy.js` | The stars circling over Mnot's head after a wrong one |
+| `sfx.js`, `music.js` | The game's own sounds (cued by `main.js`: the list of cues is at the top of `sfx.js`) and its tune; Codex's. Only a placeholder buzzer for a wrong one so far |
 | `title.js` | The title screen: the shot at the start, the tips and Mnot's act |
 
 ## Testing
@@ -79,7 +84,8 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
 ## Not yet
 
 - High scores and a Hall of Fame (a board, a checker, replays), analytics, `?perf`.
-- Sound of its own (Codex): a pick-up blip, a bonk, a slip and fall, the list's ticks.
+- Sound of its own and a tune (Codex, `sfx.js` and `music.js`): for now the climb's landings and wave, and a
+  placeholder buzzer.
 - A tab in the viewer, a card on the games page, a share image, the final name.
 - The production build: `emoji.html` in `PAGES` in `tools/build.mjs`, and `.webp` in its `TYPES` (and in the server's
   hashed assets).

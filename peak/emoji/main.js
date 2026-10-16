@@ -27,6 +27,9 @@ import { Field } from './field.js';
 import { Stickers, loadSheet, cssSticker } from './stickers.js';
 import { SHEET } from './sheet.js';
 import { Title } from './title.js';
+import { Dizzy } from './dizzy.js';
+import { EmojiSfx } from './sfx.js';
+import { EmojiMusic } from './music.js';
 
 const params = new URLSearchParams(location.search);
 const manual = params.has('manual');
@@ -47,6 +50,11 @@ const RUN = { top: 4.2, turn: 2.7, steer: 9, grip: 3, glide: 1.1, brake: 6 };
 // (s) Mnot reels from a hard one; a reel spins it a little too (spin radians a second per m/s).
 const BONK = { bounce: 0.45, from: 1.3, reel: 0.55, spin: 0.35 };
 const SKID = 1.4;                                 // m/s of sideways slide from which the snow sprays
+// Three tries. A wrong emoji (or a listed one too early) costs one: it warps away, Mnot bumps back off it (bump
+// m/s), reels for `reel` s and sees stars for `dizzy` s, its steering wandering a little (wander, of full lock) and
+// no other emoji counting for `safe` s. The third is out.
+const LIVES = 3;
+const HIT = { bump: 3.4, reel: 0.5, dizzy: 2.4, wander: 0.4, safe: 0.9 };
 // Funny lines for a hard bonk, one at a time
 const OUCH = ['Bonk.', 'Ow. My glasses.', 'That wall wasn\'t there.', 'Snow in the can.', 'Who put that there?',
   'Totally meant that.'];
@@ -77,17 +85,22 @@ const [mnot, sheet] = await Promise.all([loadMnot(), loadSheet(renderer)]);
 scene.add(mnot.root);
 const stickers = new Stickers(sheet);
 scene.add(stickers.group);
+const dizzy = new Dizzy();
+scene.add(dizzy.group);
 const sounds = new MnotSounds({ effects: ['wave', 'land-soft', 'land-hard'] });
+const sfx = new EmojiSfx(sounds);                 // the game's own sounds and tune (Codex), through the same switch
+const music = new EmojiMusic(sounds);
 const input = new Input();
-// spin: how fast it turns now (radians a second); reel: seconds left reeling from a bonk; wobble: the bonk's squash
-// (amp) and how long ago (t); fall: seconds since it went over, when out
+// spin: how fast it turns now (radians a second); reel: seconds left reeling from a bonk or a wrong one; wobble: the
+// squash (amp) and how long ago (t); dizzy: seconds of stars left; safe: seconds no wrong one counts; fall: seconds
+// since it went over, when out
 const player = { pos: mnot.root.position, vel: new THREE.Vector3(), yaw: 0, spin: 0, done: false, out: false,
-  time: 0, next: 0, reel: 0, wobble: { amp: 0, t: 0 }, fall: 0, bonks: 0 };
+  time: 0, next: 0, lives: LIVES, reel: 0, wobble: { amp: 0, t: 0 }, dizzy: 0, safe: 0, fall: 0, bonks: 0 };
 
 // ------------------------------------------------------------------ the HUD
 
 const $ = id => document.getElementById(id);
-const hud = { time: $('time'), seed: $('seed'), list: $('list-row'), card: $('finish') };
+const hud = { time: $('time'), seed: $('seed'), lives: $('lives'), list: $('list-row'), card: $('finish') };
 const clock = t => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
 const toast = toaster($('toast'));
 soundSwitch(sounds, $('sound'));
@@ -102,6 +115,10 @@ function drawList() {
     return em;
   }));
   markList();
+}
+function drawLives() {
+  [...hud.lives.children].forEach((heart, i) => heart.classList.toggle('lost', i >= player.lives));
+  hud.lives.setAttribute('aria-label', `${player.lives} of ${LIVES} tries left`);
 }
 function markList() {
   [...hud.list.children].forEach((em, n) => {
@@ -129,7 +146,8 @@ function restart() {
   stickers.set(field.emojis);
   field.centre(...field.start, player.pos);
   player.vel.set(0, 0, 0);
-  Object.assign(player, { yaw: 0, spin: 0, done: false, out: false, time: 0, next: 0, reel: 0, fall: 0, bonks: 0 });
+  Object.assign(player, { yaw: 0, spin: 0, done: false, out: false, time: 0, next: 0, lives: LIVES, reel: 0, dizzy: 0,
+    safe: 0, fall: 0, bonks: 0 });
   player.wobble.amp = 0;
   mnot.root.rotation.y = 0;
   mnot.model.position.set(0, 0, 0);
@@ -139,12 +157,18 @@ function restart() {
   hud.card.hidden = true;
   follow.yaw = 0;
   if (playing) follow.intro = VIEW.intro;
+  sfx.reset();
+  music.reset();
+  if (playing) music.start();
   drawList();
+  drawLives();
 }
 function begin() {
   if (playing) return;
   playing = true;
   follow.intro = VIEW.intro;
+  sfx.cue({ type: 'start' });
+  music.start();
   toast('Go!', 'Fetch them in the list\'s order.');
 }
 
@@ -153,23 +177,50 @@ function take(s) {
   puffs.snow(s.emoji.at, { puffs: 5, flakes: 10, up: 1.2 });
   sounds.play('land-soft');
   pad.rumble('bump');
+  sfx.cue({ type: 'take', n: player.next + 1, of: field.order.length });
   player.next++;
   markList();
   pop(hud.list.children[player.next - 1]);
   if (player.next === field.order.length) finish();
 }
+// A wrong one touched: it costs a try. It warps away (a listed one too early pops back in a moment later), and Mnot
+// bumps back off it, reeling, and sees stars for a while. The third is out.
+const _off = new THREE.Vector3();
+function hit(s) {
+  player.lives--;
+  drawLives();                                    // the heart pops as it goes (emoji.html)
+  const early = s.emoji.listed > player.next, name = s.emoji.name;
+  if (!player.lives) return wrong(s, early);
+  stickers.go(s, early ? 'blinked' : 'warped');
+  puffs.poof(_off.copy(s.emoji.at).setY(1), { size: 0.3, count: 8 });
+  _off.set(player.pos.x - s.emoji.at.x, 0, player.pos.z - s.emoji.at.z);
+  if (_off.lengthSq() < 1e-6) ahead(player.yaw, _off).negate();
+  player.vel.copy(_off.normalize()).multiplyScalar(HIT.bump);
+  player.spin += (Math.random() < 0.5 ? -1 : 1) * 2.2;
+  Object.assign(player, { reel: HIT.reel, dizzy: HIT.dizzy, safe: HIT.safe });
+  Object.assign(player.wobble, { amp: 0.3, t: 0 });
+  sfx.cue({ type: early ? 'early' : 'wrong', lives: player.lives });
+  sounds.play('land-soft');
+  pad.rumble('hit');
+  said = time;                                    // no bonk lines over this one
+  const left = player.lives === 1 ? 'One try left.' : `${player.lives} tries left.`;
+  toast(early ? 'Not yet!' : 'Wrong!', `${early ? `:${name}: comes later.` : `:${name}: isn't on the list.`} ${left}`,
+    'oops');
+}
 // Out: the wrong emoji swells, and Mnot slips and goes over flat on its back, sliding on.
-function wrong(s) {
+function wrong(s, early) {
   const want = field.emojis[field.order[player.next]].name;
   stickers.go(s, 'wrong');
   player.out = true;
   player.fall = 0;
+  player.dizzy = 0;
   mnot.animator.play('Fall', 0.1);
   pad.rumble('hit');
+  sfx.cue({ type: 'out' });
+  music.duck(0.24);
   markList();
-  const early = s.emoji.listed > player.next;
   toast('Out!', early ? `:${s.emoji.name}: is on the list, but not yet.` : `:${s.emoji.name}: isn't on the list.`, 'oops');
-  showCard('Out!', `The list said :${want}:. The thread is ruined.`);
+  showCard('Out!', `The third wrong reaction. The list said :${want}:. The thread is ruined.`);
 }
 function finish() {
   player.done = true;
@@ -177,8 +228,12 @@ function finish() {
   confetti(puffs, player.pos);
   pad.rumble('cheer');
   mnot.animator.play('Dance', 0.3);
-  const bonks = player.bonks ? ` ${player.bonks} bonk${player.bonks > 1 ? 's' : ''}, but nobody noticed.` : ' Not one bonk.';
-  showCard('Thread complete!', `${field.order.length} reactions, in order.${bonks}`);
+  sfx.cue({ type: 'finish' });
+  music.finish();
+  const wrongs = LIVES - player.lives, plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
+  const after = wrongs ? ` ${plural(wrongs, 'wrong one')} in between, but who reads a whole thread?`
+    : player.bonks ? ` ${plural(player.bonks, 'bonk')}, but nobody noticed.` : ' Not one bonk, not one slip.';
+  showCard('Thread complete!', `${field.order.length} reactions, in order.${after}`);
 }
 function showCard(head, verdict) {
   hud.card.querySelector('h1').textContent = head;
@@ -291,8 +346,12 @@ function slide(dt) {
   // peeking, it slows
   const stuck = !playing || title.visible;
   const free = !stuck && !player.out && !player.done && player.reel <= 0 && !peeking();
-  if (free) controls();
-  else Object.assign(want, { steer: 0, throttle: 0, brake: player.out ? 0 : player.done ? 0.4 : player.reel > 0 ? 0.3 : 0.6 });
+  if (free) {
+    controls();
+    // seeing stars: the steering wanders a little
+    const daze = Math.min(1, player.dizzy);
+    if (daze > 0) want.steer = THREE.MathUtils.clamp(want.steer + HIT.wander * daze * Math.sin(time * 4.3), -1, 1);
+  } else Object.assign(want, { steer: 0, throttle: 0, brake: player.out ? 0 : player.done ? 0.4 : player.reel > 0 ? 0.3 : 0.6 });
   // turning: the spin eases to what's asked, so a tap is a nudge and a held key swings it right round
   player.spin += (want.steer * RUN.turn - player.spin) * (1 - Math.exp(-RUN.steer * dt));
   player.yaw += player.spin * dt;
@@ -332,6 +391,7 @@ function bonk(normal) {
   puffs.snow(_want.copy(player.pos).addScaledVector(normal, -BODY).setY(0.4), { puffs: 3 + 3 * hard, flakes: 8,
     up: 0.8 });
   sounds.play(hard > 0.5 ? 'land-hard' : 'land-soft');
+  sfx.cue({ type: 'bonk', speed: into, hard });
   pad.rumble(hard > 0.5 ? 'hit' : 'bump');
   if (hard > 0.35 && time - said > 4) {
     said = time;
@@ -342,7 +402,8 @@ function bonk(normal) {
 // Mnot's pose on top of the clip: leaning into a turn, squashed by a bonk, going over when out.
 function pose(dt, sideways) {
   const m = mnot.model, speed = player.vel.length();
-  const lean = player.out ? 0 : THREE.MathUtils.clamp(-player.spin * speed * 0.05, -0.32, 0.32);
+  const sway = 0.14 * Math.min(1, player.dizzy) * Math.sin(time * 6.5);          // seeing stars
+  const lean = player.out ? 0 : THREE.MathUtils.clamp(-player.spin * speed * 0.05, -0.32, 0.32) + sway;
   m.rotation.z += (lean - m.rotation.z) * (1 - Math.exp(-8 * dt));
   const w = player.wobble;
   w.t += dt;
@@ -356,6 +417,7 @@ function pose(dt, sideways) {
     m.position.y = 0.3 * Math.sin(over);
     if (f - dt < 0.42 && f >= 0.42) {
       sounds.play('land-hard');
+      sfx.cue({ type: 'fall' });
       puffs.snow(player.pos, { puffs: 6, flakes: 12, up: 0.9 });
     }
   } else {
@@ -375,7 +437,7 @@ function pose(dt, sideways) {
 
 // ------------------------------------------------------------------ the camera
 
-const follow = { look: new THREE.Vector3(), fov: VIEW.fov, yaw: 0, peek: 0, intro: 0 };
+const follow = { look: new THREE.Vector3(), fov: VIEW.fov, yaw: 0, peek: 0, up: false, intro: 0 };
 const _seat = new THREE.Vector3(), _look = new THREE.Vector3(), _high = new THREE.Vector3(), _highLook = new THREE.Vector3();
 function placeCamera(dt, snap = false) {
   const far = THREE.MathUtils.clamp(1.3 / camera.aspect, 1, 1.6);   // a tall screen: further back
@@ -399,6 +461,8 @@ function placeCamera(dt, snap = false) {
   if (!title.glide) follow.intro -= dt;
   const p = VIEW.peek;
   const up = !player.done && !player.out && ((follow.intro > 0 && !title.glide) || (playing && peeking()));
+  if (up !== follow.up && !snap) sfx.cue({ type: 'peek', up });
+  follow.up = up;
   follow.peek += ((up ? 1 : 0) - follow.peek) * (snap ? 1 : 1 - Math.exp(-p.rate * dt));
   const k = THREE.MathUtils.smoothstep(follow.peek, 0, 1);
   if (k > 1e-3) {
@@ -439,13 +503,17 @@ function step(dt) {
   if (playing && !player.done && !player.out) {
     player.time += dt;
     const s = stickers.touched(player.pos);
-    if (s) (s.emoji.listed === player.next ? take : wrong)(s);
+    if (s?.emoji.listed === player.next) take(s);
+    else if (s && player.safe <= 0) hit(s);
   }
+  player.safe -= dt;
+  player.dizzy = Math.max(0, player.dizzy - dt);
   input.pressed.clear();
   title.update(dt);                               // on the title, Mnot's act is the title's (title.js)
   mnot.root.rotation.y = player.yaw;
   pose(dt, sideways);
   mnot.animator.update(dt);
+  dizzy.update(dt, player.pos, player.out ? 0 : player.dizzy);
   stickers.update(dt, camera, player.pos, field.emojis[field.order[player.next]],
     THREE.MathUtils.smoothstep(follow.peek, 0.2, 0.9));
   for (const a of world.animated) a.update(dt);
@@ -454,6 +522,8 @@ function step(dt) {
   stage.aimSun(field.middle);
   scenery.update(camera, time);
   toast.update(dt);
+  sfx.update(dt, { speed: player.vel.length(), skid: sideways, braking: want.brake > 0, dizzy: player.dizzy,
+    peek: follow.peek });
   hud.time.textContent = clock(player.time);
 }
 
@@ -467,5 +537,5 @@ startLoop({ manual, post, step, render });
 
 // for debugging and tests
 expose('emoji', { THREE, renderer, scene, camera, post, stage, mnot, player, sounds, input, title, pad, padMenu,
-  level, puffs, stickers, follow, get field() { return field; }, deal, restart,
+  level, puffs, stickers, follow, sfx, music, dizzy, get field() { return field; }, deal, restart,
   autopilot(on = true) { autopilot = on; begin(); } }, { step, render });

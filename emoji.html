@@ -24,6 +24,14 @@
     font-weight: 600; transform: rotate(-2deg); }
   .rr-tag b { color: var(--red); }
   #stats #seed { color: var(--muted); font-weight: 500; }
+  /* the tries left: three hearts, a lost one grey and small (it pops as it goes, main.js) */
+  #lives { display: inline-flex; gap: 1px; }
+  #lives i { font-style: normal; font-size: 15px; line-height: 1; color: var(--red);
+    transition: transform 0.3s, opacity 0.3s, filter 0.3s; }
+  #lives i::before { content: '\2665'; }
+  #lives i.lost { opacity: 0.35; filter: grayscale(1); transform: scale(0.75); animation: life-lost 0.6s; }
+  @keyframes life-lost { 0% { opacity: 1; filter: none; transform: scale(1); }
+    30% { opacity: 1; filter: none; transform: scale(1.9) rotate(-12deg); } }
   /* the list: the emojis to fetch, in order; the one to fetch now big and bobbing, the fetched ones ticked off */
   /* holding it peeks over the field (main.js), so it takes the pointer */
   #list { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 330px);
@@ -62,7 +70,7 @@
 </div>
 <div id="hud">
   <div id="title" class="card"><b>Reaction Run</b>
-    <div id="stats"><span id="time">0:00.0</span><span id="seed"></span></div>
+    <div id="stats"><span id="lives" role="img" aria-label="3 of 3 tries left"><i></i><i></i><i></i></span><span id="time">0:00.0</span><span id="seed"></span></div>
   </div>
   <div id="list" class="card"><div class="say">React in this order</div><div id="list-row"></div></div>
   <button id="sound" class="card" aria-pressed="true">Sound</button>
@@ -84,8 +92,9 @@
         <dt>touch</dt><dd>drag sideways to steer, up to run, down to brake; hold the list to peek</dd>
       </dl>
       <p>The list at the top says which emojis the thread wants, and in what order. Fetch them from the field one by
-        one. Touch any other emoji, or a listed one too early, and you're out. The snow is slippery: Mnot slides on
-        when you let go, drifts wide in a turn and bonks off the walls.</p>
+        one. Touch any other emoji, or a listed one too early, and it costs one of your three tries: Mnot bumps off
+        it and sees stars for a bit. The third is out. The snow is slippery: Mnot slides on when you let go, drifts
+        wide in a turn and bonks off the walls.</p>
     </div>
     <div class="ts-bottom">
       <div class="ts-menu">
