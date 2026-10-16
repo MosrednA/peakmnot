@@ -9,7 +9,8 @@ three bots keep a lone visitor company, and one makes room for each person more.
 games: one server decides where every can is, and every page shows the same plaza.
 
 It's built on the mini game kit (`peak/kit/`) and shares the climb's look and Mnot, with sounds and music of its
-own. No title, party, scores or `?perf` yet: those come when it becomes a game (the `mini-game` skill).
+own, and its stats (see "Stats"). No title, party, scores or `?perf` yet: those come when it becomes a game (the
+`mini-game` skill).
 
 | Key | |
 |---|---|
@@ -56,6 +57,7 @@ but they come in over the line as people do, so the room's own make way for them
 | `peak/arena/main.js` | The page: the stage, the room as this page knows it, my can ahead of the server, the others, the camera |
 | `peak/arena/sim.js` | The rules, shared by the page and the server: a can's step, the wall, the snowmen, the bumps |
 | `peak/arena/protocol.js` | What goes over the line: inputs and snapshots in bytes, the rest JSON |
+| `peak/arena/analytics.js` | Its Plausible goals (see "Stats") |
 | `peak/arena/net.js` | The page's WebSocket: comes back when it drops, the round trip, `?lag` |
 | `peak/arena/cans.js` | The cans: Mnot's model cloned and painted one of 12 colours, its clips, the name tags and chat bubbles |
 | `peak/arena/plaza.js` | The plaza: the floor, the snow wall, three snowmen with glasses, the sign |
@@ -104,6 +106,16 @@ but they come in over the line as people do, so the room's own make way for them
 - **Joining a full room** costs no hitch: the warm-up draws twice (three.js builds the shadows' shaders before it
   counts the lights), so a can coming in builds no new shader.
 
+## Stats
+
+Cookieless Plausible, as in every game (`peak/README.md`, "Analytics"): the tracker in `arena.html`'s head counts
+the views of `/arena`, and `peak/arena/analytics.js` counts the moments of a visit, each once a page, on the public
+site only (not on localhost or in `?manual`): `Arena: Join` (in with a can), `Arena: Chat` (a first line),
+`Arena: Bump` (a first hard bump, into a can or the snow wall), `Arena: Wave`, `Arena: Dance`, and `Arena: Not
+Alone` (in, with another person on the plaza; the bots don't count). Only the goal's name goes: no names, ids or
+chat. Each is a Custom event goal in Plausible's settings. The tracker also counts the join and chat forms as
+`Form: Submission`, as Plausible does on every page with a form (a setting of the site, not the arena's).
+
 ## Checks
 
 - `npm test` in `arena/`: the room (joining, the bots, names, a full room, chat, walking, an uneven line, late and
@@ -118,6 +130,7 @@ but they come in over the line as people do, so the room's own make way for them
   without). About 90 s. Set `PLAYWRIGHT` to Playwright's `index.mjs` if it
   isn't installed here, and `CHROME` to a browser if Playwright's own doesn't match.
 - The sounds: `python tools/check_arena_audio.py`, and `npm run build`, then `node --test tools/check_arena_audio.mjs`.
+- The stats: `node --test tools/check_arena_analytics.mjs` (the goals, where the page counts them, the tracker).
 
 ## Live
 

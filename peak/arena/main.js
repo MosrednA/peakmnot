@@ -21,6 +21,7 @@ import { Cans, COLORS } from './cans.js';
 import { buildPlaza } from './plaza.js';
 import { ArenaMusic } from './music.js';
 import { ArenaSfx } from './sfx.js';
+import { hookAnalytics } from './analytics.js';
 
 const params = new URLSearchParams(location.search);
 const manual = params.has('manual');
@@ -40,6 +41,7 @@ const sounds = new MnotSounds({ effects: ['walk-1', 'walk-2', 'walk-3', 'run-1',
   'wave'] });
 const music = new ArenaMusic(sounds);
 const sfx = new ArenaSfx(sounds, music);
+const moment = hookAnalytics({ manual });         // the stats: each goal once a page, on the public site only
 
 const $ = id => document.getElementById(id);
 const cans = new Cans(scene, $('tags'));
@@ -84,6 +86,8 @@ net.on('joined', m => {
     offset: new THREE.Vector3() };
   wanted = null;
   try { localStorage.setItem(NAME_KEY, m.name); } catch { /* a private window */ }
+  moment('Join');
+  metSomeone();
   showJoin();
   toast(`Hi, ${m.name}!`, 'Walk over and say hello. Bumping is allowed.');
 });
@@ -96,6 +100,7 @@ net.on('add', p => {
   } else {
     sfx.cue('join', distanceTo(spawn(p.color)));
     line(null, `${p.name} came in.`);
+    metSomeone();
   }
   showJoin();
 });
@@ -121,6 +126,7 @@ net.on('chat', ({ id, text }) => {
   const p = room.players.get(id);
   if (!p) return;
   sfx.cue(id === me?.id ? 'chat-self' : 'chat', distanceOf(id));
+  if (id === me?.id) moment('Chat');
   cans.say(id, text);
   line(p, text);
 });
@@ -159,6 +165,11 @@ function distanceTo(at) {
   return me?.can && at ? Math.hypot(at.x-me.can.x, at.z-me.can.z) : Infinity;
 }
 function distanceOf(id) { return id === me?.id ? 0 : distanceTo(shown.get(id)); }
+
+// In, with another person on the plaza (not a bot): for the stats.
+function metSomeone() {
+  if (me && [...room.players.values()].some(p => !p.bot && p.id !== me.id)) moment('Not Alone');
+}
 
 function join(name) {
   if (!room.connected || me) return;
@@ -447,7 +458,10 @@ function step(dt) {
       if (e === 'bump') {
         puffs.snow(can.root.position, { puffs: 7, flakes: 12, up: 1.2 });
         sfx.cue('bump', distance);
-        if (can.mine) pad.rumble('bump');
+        if (can.mine) {
+          pad.rumble('bump');
+          moment('Bump');
+        }
       } else if (e === 'land') puffs.snow(can.root.position, { puffs: 3, flakes: 4, size: 0.6, up: 0.5 });
       if (!can.mine) continue;
       if (e === 'jump') sounds.play('jump');
@@ -458,6 +472,8 @@ function step(dt) {
       if (gait) sounds.step(gait);
       if (s.emote === EMOTE.wave && can.waved !== true) sounds.play('wave');
       can.waved = s.emote === EMOTE.wave;
+      if (s.emote === EMOTE.wave) moment('Wave');
+      else if (s.emote === EMOTE.dance) moment('Dance');
     }
   }
   sfx.update(audioMotion);

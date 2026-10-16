@@ -155,7 +155,7 @@ Every specialist runs the checks for its area. Before a commit, all of these pas
 | The whole downhill | `downhill.autopilot(true)` in `downhill.html?manual` reaches the finish ([peak/downhill/README.md](../peak/downhill/README.md#testing)) |
 | The whole emoji field | `emoji.autopilot(true)` in `emoji.html?manual` fetches the list and :peak-mnot: ([peak/emoji/README.md](../peak/emoji/README.md#testing)) |
 | The score server | `python -m unittest discover server` |
-| The analytics events | `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs tools/check_games_analytics.mjs tools/check_emoji_analytics.mjs` |
+| The analytics events | `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs tools/check_games_analytics.mjs tools/check_emoji_analytics.mjs tools/check_arena_analytics.mjs` |
 | The replay motion | `node --test tools/check_replay_playback.mjs`: samples, strides, turns, clip blends and deterministic seeks |
 | The replay controls | `tools/check_replays.js` with `python tools/replay_test_server.py` on 5291: watch, ghost race, scrubbing and moving ledges |
 | The downhill's replays | `tools/check_downhill_replays.js` on 5280, no score server: the autopilot's run raced and watched, events, jumps in time, the finish, the Hall's buttons |

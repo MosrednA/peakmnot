@@ -116,13 +116,14 @@ lists them and `?level=` picks one. Each level after the first has its own board
 ## Analytics
 
 Every mini game uses cookieless Plausible at `stats.mosredna.eu`, all on one site, `peakmnot.mosredna.eu`. The
-tracker in each page's head (`peak.html`, `downhill.html`, `emoji.html`, `games.html`) counts pageviews, so **Top
-pages** splits them by game: `/`, `/downhill`, `/emoji`, `/games`. Each game's goals carry its name in front, so
-they stay together in **Goal conversions** however many games there are: the climb's show as `Climb: …`, the
-downhill's are `Downhill: …` ([peak/downhill/README.md](downhill/README.md#analytics)), Reaction Run's
-`Reaction Run: …` ([peak/emoji/README.md](emoji/README.md#high-scores-replays-and-stats)). A new game sends its
-goals as `<Game>: <goal>` through the kit's `goals()` (`peak/kit/analytics.js`, which counts on the public site
-only), from the `mini-game` skill's template ("Stats").
+tracker in each page's head (`peak.html`, `downhill.html`, `emoji.html`, `arena.html`, `games.html`) counts
+pageviews, so **Top pages** splits them by game: `/`, `/downhill`, `/emoji`, `/arena`, `/games`. Each game's goals
+carry its name in front, so they stay together in **Goal conversions** however many games there are: the climb's
+show as `Climb: …`, the downhill's are `Downhill: …` ([peak/downhill/README.md](downhill/README.md#analytics)),
+Reaction Run's `Reaction Run: …` ([peak/emoji/README.md](emoji/README.md#high-scores-replays-and-stats)), the
+arena's `Arena: …` ([peak/arena/README.md](arena/README.md#stats)). A new game sends its goals as
+`<Game>: <goal>` through the kit's `goals()` (`peak/kit/analytics.js`, which counts on the public site only), from
+the `mini-game` skill's template ("Stats").
 
 The climb's `analytics.js` listens to the title, game and player events for these custom goals:
 
@@ -156,7 +157,7 @@ are excluded. Missing or blocked analytics does not stop the game. The productio
 Plausible host in addition to its existing script and connection sources; inline scripts still require hashes.
 
 Run `node --test tools/check_analytics.mjs tools/check_downhill_analytics.mjs tools/check_games_analytics.mjs
-tools/check_emoji_analytics.mjs` for the event checks and
+tools/check_emoji_analytics.mjs tools/check_arena_analytics.mjs` for the event checks and
 `python -m unittest discover server` for the production CSP check.
 
 ## Modules
