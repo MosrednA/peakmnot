@@ -1,0 +1,105 @@
+{
+  "theme": "Pocket Altitude \u2014 Plaza",
+  "key": "D major",
+  "soundfont": "GeneralUser GS 2.0.3",
+  "sounds": [
+    {
+      "name": "join-self",
+      "loop": false,
+      "seconds": 0.48,
+      "peak": 0.32,
+      "rms": 0.031371212700523204
+    },
+    {
+      "name": "join",
+      "loop": false,
+      "seconds": 0.32,
+      "peak": 0.32,
+      "rms": 0.03952598549459531
+    },
+    {
+      "name": "leave",
+      "loop": false,
+      "seconds": 0.36,
+      "peak": 0.32,
+      "rms": 0.06039521016122655
+    },
+    {
+      "name": "idle",
+      "loop": false,
+      "seconds": 0.6,
+      "peak": 0.32,
+      "rms": 0.0586463726522022
+    },
+    {
+      "name": "chat-self",
+      "loop": false,
+      "seconds": 0.12997732426303854,
+      "peak": 0.32,
+      "rms": 0.06419802367964655
+    },
+    {
+      "name": "chat",
+      "loop": false,
+      "seconds": 0.16,
+      "peak": 0.32,
+      "rms": 0.06741637338113271
+    },
+    {
+      "name": "bump",
+      "loop": false,
+      "seconds": 0.44997732426303855,
+      "peak": 0.32,
+      "rms": 0.05326491907016548
+    },
+    {
+      "name": "full",
+      "loop": false,
+      "seconds": 0.5500226757369614,
+      "peak": 0.32,
+      "rms": 0.05925910238949643
+    },
+    {
+      "name": "slow",
+      "loop": false,
+      "seconds": 0.5500226757369614,
+      "peak": 0.32,
+      "rms": 0.06153176937764673
+    },
+    {
+      "name": "lost",
+      "loop": false,
+      "seconds": 0.5500226757369614,
+      "peak": 0.3024420076117509,
+      "rms": 0.06999999999999999
+    },
+    {
+      "name": "back",
+      "loop": false,
+      "seconds": 0.5500226757369614,
+      "peak": 0.32,
+      "rms": 0.06536307885536399
+    },
+    {
+      "name": "reel",
+      "loop": true,
+      "seconds": 2.5,
+      "peak": 0.09833898603686515,
+      "rms": 0.045
+    },
+    {
+      "name": "dance",
+      "loop": true,
+      "seconds": 2.5,
+      "peak": 0.32,
+      "rms": 0.029648666523536548
+    }
+  ],
+  "music": {
+    "name": "plaza",
+    "seconds": 80.0,
+    "bpm": 96,
+    "bars": 32,
+    "loop": true
+  }
+}

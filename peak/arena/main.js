@@ -19,6 +19,8 @@ import { asSent, after } from './protocol.js';
 import { Net, serverUrl } from './net.js';
 import { Cans, COLORS } from './cans.js';
 import { buildPlaza } from './plaza.js';
+import { ArenaMusic } from './music.js';
+import { ArenaSfx } from './sfx.js';
 
 const params = new URLSearchParams(location.search);
 const manual = params.has('manual');
@@ -35,7 +37,9 @@ world.group.name = 'puffs';
 scene.add(world.group);
 const puffs = bursts(world);
 const sounds = new MnotSounds({ effects: ['walk-1', 'walk-2', 'walk-3', 'run-1', 'run-2', 'jump', 'land-soft',
-  'land-hard', 'wave'] });
+  'wave'] });
+const music = new ArenaMusic(sounds);
+const sfx = new ArenaSfx(sounds, music);
 
 const $ = id => document.getElementById(id);
 const cans = new Cans(scene, $('tags'));
@@ -47,12 +51,15 @@ const net = new Net(serverUrl(location), { lag: Number(params.get('lag')) || 0 }
 const room = { max: MAX_PLAYERS, players: new Map(), connected: false };
 let me = null;                                    // { id, name, color, can, prev, pending, seq, offset } while in
 let wanted = null;                                // the name to join again with when the line comes back
+let reconnecting = false;
 const snaps = [];                                 // the last snapshots: { tick (counting on), cans: Map id → can }
 const shown = new Map();                          // the others as drawn this frame (sim.js fields), by id
 let clockTick = 0, lastRaw = null, tickCount = 0;
 
 net.on('open', () => { room.connected = true; showJoin(); });
 net.on('close', ({ was }) => {
+  sfx.update({ reel: 0, dance: 0 });
+  if (was) { reconnecting = true; sfx.cue('lost', 0); }
   room.connected = false;
   if (me) wanted = me.name;
   me = null;
@@ -71,6 +78,8 @@ net.on('hello', m => {
   showJoin();
 });
 net.on('joined', m => {
+  sfx.cue(reconnecting ? 'back' : 'join-self', 0);
+  reconnecting = false;
   me = { id: m.id, name: m.name, color: 0, can: null, prev: null, pending: [], seq: 0,
     offset: new THREE.Vector3() };
   wanted = null;
@@ -84,11 +93,17 @@ net.on('add', p => {
     me.color = p.color;
     me.can = spawn(p.color);
     me.prev = copy(me.can);
-  } else line(null, `${p.name} came in.`);
+  } else {
+    sfx.cue('join', distanceTo(spawn(p.color)));
+    line(null, `${p.name} came in.`);
+  }
   showJoin();
 });
 net.on('remove', ({ id, why }) => {
   const p = room.players.get(id);
+  // Measure before removing its last drawn position. My own idle message has its own cue.
+  if (why !== 'idle' || id !== me?.id) sfx.cue(why === 'idle' ? 'idle' : 'leave', distanceOf(id));
+  if (id === me?.id) sfx.update({ reel: 0, dance: 0 });
   room.players.delete(id);
   cans.remove(id);
   shown.delete(id);
@@ -97,6 +112,7 @@ net.on('remove', ({ id, why }) => {
   showJoin();
 });
 net.on('full', () => {
+  sfx.cue('full', 0);
   wanted = null;
   $('join-note').textContent = `Full: ${room.max} cans already. A spot frees up soon.`;
   showJoin();
@@ -104,11 +120,16 @@ net.on('full', () => {
 net.on('chat', ({ id, text }) => {
   const p = room.players.get(id);
   if (!p) return;
+  sfx.cue(id === me?.id ? 'chat-self' : 'chat', distanceOf(id));
   cans.say(id, text);
   line(p, text);
 });
-net.on('slow', () => toast('', 'Easy on the chat: one line every second and a half.'));
+net.on('slow', () => {
+  sfx.cue('slow', 0);
+  toast('', 'Easy on the chat: one line every second and a half.');
+});
 net.on('idle', () => {
+  sfx.cue('idle', 0);
   $('join-note').textContent = 'Five minutes without a step: back to watching. Join again any time.';
 });
 net.on('snapshot', snap => {
@@ -132,6 +153,12 @@ function addPlayer(p) {
   room.players.set(p.id, p);
   if (!cans.list.has(p.id)) cans.add(p, !!me && p.id === me.id);
 }
+
+// Without my can there is no world listener. Network messages use the last drawn position.
+function distanceTo(at) {
+  return me?.can && at ? Math.hypot(at.x-me.can.x, at.z-me.can.z) : Infinity;
+}
+function distanceOf(id) { return id === me?.id ? 0 : distanceTo(shown.get(id)); }
 
 function join(name) {
   if (!room.connected || me) return;
@@ -374,6 +401,7 @@ const frameTime = () => document.timeline?.currentTime ?? performance.now();   /
 let lastReal = frameTime();
 function step(dt) {
   if (!(dt > 0)) return;
+  sfx.beginFrame();
   time += dt;
   shaderTime.value = time;
   const now = frameTime(), real = dt < 0.05 ? dt : Math.min(0.25, Math.max(dt, (now - lastReal) / 1000));
@@ -396,17 +424,22 @@ function step(dt) {
       y: p.y + (c.y - p.y) * t, yaw: p.yaw + wrap(c.yaw - p.yaw) * t });
   } else ahead = 0;
   // every can posed, with its jumps, landings and bumps heard and seen
-  let thud = false;
+  const audioMotion = { reel: 0, dance: 0 };
   for (const can of cans.list.values()) {
     const s = can.mine ? mine : shown.get(can.id);
     if (!s) { can.root.visible = false; continue; }
     can.root.visible = true;
     const events = cans.pose(can, s, dt);
-    const near = !mine || Math.hypot(s.x - mine.x, s.z - mine.z) < 7;
+    const distance = mine ? Math.hypot(s.x - mine.x, s.z - mine.z) : Infinity;
+    const level = sfx.level(distance);
+    if (s.daze > 0) audioMotion.reel = Math.max(audioMotion.reel, level);
+    if (s.emote === EMOTE.dance && s.daze <= 0 && s.ground) {
+      audioMotion.dance = Math.max(audioMotion.dance, level);
+    }
     for (const e of events) {
       if (e === 'bump') {
         puffs.snow(can.root.position, { puffs: 7, flakes: 12, up: 1.2 });
-        if (near && !thud) { sounds.play('land-hard'); thud = true; }
+        sfx.cue('bump', distance);
         if (can.mine) pad.rumble('bump');
       } else if (e === 'land') puffs.snow(can.root.position, { puffs: 3, flakes: 4, size: 0.6, up: 0.5 });
       if (!can.mine) continue;
@@ -420,6 +453,7 @@ function step(dt) {
       can.waved = s.emote === EMOTE.wave;
     }
   }
+  sfx.update(audioMotion);
   puffs.update(dt);
   placeCamera(dt, mine);
   cans.place(camera, innerWidth, innerHeight);
@@ -443,5 +477,5 @@ setInterval(showJoin, 1000);
 showJoin();
 
 // for debugging and tests
-expose('arena', { THREE, renderer, scene, camera, net, room, cans, snaps, shown, sounds, pad, puffs, join, latched,
+expose('arena', { THREE, renderer, scene, camera, net, room, cans, snaps, shown, sounds, music, sfx, pad, puffs, join, latched,
   keys, get me() { return me; }, drive(x, z) { driven = x === null ? null : { x, z }; } }, { step, render });
