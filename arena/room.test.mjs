@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Room, LIMITS } from './room.mjs';
 import { cleanName, cleanChat } from './words.mjs';
-import { TICK, MAX_PLAYERS, BUMP, PLAZA, BODY, MOVE, spawn, stepCan, keepIn, copy } from '../peak/arena/sim.js';
+import { TICK, MAX_PLAYERS, BUMP, PLAZA, BODY, MOVE, EMOTE, spawn, stepCan, keepIn, copy } from '../peak/arena/sim.js';
 import { encodeInput, decodeInput, asSent, after, encodeSnapshot, decodeSnapshot, kindOf, KIND }
   from '../peak/arena/protocol.js';
 
@@ -28,7 +28,17 @@ function setup(n = 0, options) {
   return { room, people, wait: s => { now += s; } };
 }
 
+// The same numbers every run, for the bots.
+const seeded = seed => () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32);
+
 const send = (room, session, input) => room.receive(session, Buffer.from(encodeInput(input)), true);
+
+// One input sent and the room stepped until the can has taken it: alone, it waits its turn (the can keeps a few in
+// hand before it walks on them, and goes on with fewer only after a while).
+function play(room, session, input) {
+  send(room, session, input);
+  for (let i = 0; i <= LIMITS.stale && session.player.ack !== input.seq; i++) room.tick();
+}
 
 test('a visitor watches first and hears who is in', () => {
   const { room } = setup(2);
@@ -57,6 +67,64 @@ test('joining gives a can, tells everyone, and twelve is full', () => {
   room.receive(session, JSON.stringify({ t: 'join', name: 'Thirteen' }), false);
   assert.equal(late.last('joined').name, 'Thirteen');
   assert.equal(session.player.color, color);
+});
+
+test('bots keep a lone visitor company: three, one fewer for each person more, back when one goes', () => {
+  const { room, wait } = setup(0, { bots: 3, random: seeded(1) });
+  const watcher = fake();
+  room.open(watcher);
+  const hello = watcher.last('hello');
+  assert.equal(hello.players.length, 3, 'there before anyone came');
+  assert.ok(hello.players.every(p => p.bot && p.name.endsWith(' (bot)')));
+  assert.equal(new Set(hello.players.map(p => p.name)).size, 3);
+  assert.deepEqual(hello.players.map(p => p.color), [11, 10, 9], 'the colours from the far end');
+  assert.equal(room.playing, 0);
+  assert.equal(room.watching, 1);
+  const people = [];
+  const come = name => {
+    const client = fake(), session = room.open(client);
+    room.receive(session, JSON.stringify({ t: 'join', name }), false);
+    people.push(session);
+    return session;
+  };
+  const first = come('Alone');
+  assert.equal(first.player.color, 0, 'the first colour for the first person');
+  assert.equal(room.crowd.length, 3);
+  assert.equal(watcher.last('add').bot, undefined);
+  room.tick();
+  assert.ok(room.crowd.some(b => b.can.emote === EMOTE.wave), 'one waves hello');
+  assert.ok(watcher.text.some(m => m.t === 'chat' && room.crowd.some(b => b.id === m.id)), 'and says it');
+  come('Two');
+  assert.equal(room.crowd.length, 2);
+  assert.equal(watcher.last('remove').why, 'room', 'one made room');
+  come('Three');
+  come('Four');
+  come('Five');
+  assert.equal(room.crowd.length, 0);
+  assert.equal(room.playing, 5);
+  room.close(people.pop());
+  room.close(people.pop());
+  assert.equal(room.crowd.length, 1, 'back when people go');
+  assert.equal(watcher.last('add').bot, true);
+  // they walk about the plaza, never doze off, and are in the snapshot like everyone
+  room.close(people.pop());
+  room.close(people.pop());
+  const bots = room.crowd.map(b => ({ bot: b, from: copy(b.can) }));
+  for (let i = 0; i < 300; i++) {
+    room.tick();
+    for (const { bot } of bots) assert.ok(Math.hypot(bot.can.x, bot.can.z) <= PLAZA.radius - BODY + 1e-9);
+  }
+  assert.ok(bots.every(({ bot, from }) => Math.hypot(bot.can.x - from.x, bot.can.z - from.z) > 1), 'walked about');
+  wait(LIMITS.idle + 1);
+  room.tick();
+  assert.equal(room.crowd.length, 3, 'the last person dozed off: still three');
+  assert.equal(room.playing, 0);
+  assert.equal(decodeSnapshot(watcher.binary.at(-1)).players.length, 3);
+  // a room for fewer than four: the bots leave room for the people it holds
+  const small = new Room({ max: 2, bots: 3, random: seeded(2) });
+  assert.equal(small.crowd.length, 2);
+  small.receive(small.open(fake()), JSON.stringify({ t: 'join', name: 'One' }), false);
+  assert.equal(small.crowd.length, 1);
 });
 
 test('names are tidy, polite and one of a kind', () => {
@@ -116,30 +184,37 @@ test('the stick walks the can, and the snapshot says so', () => {
     send(room, session, { seq, x: 0, z: -1, jump: false, emote: 0 });
     room.tick();
   }
+  room.tick();                                    // the last one it kept in hand
   assert.ok(player.can.z < start.z - 2, `walked to the middle: ${player.can.z}`);
   const snap = decodeSnapshot(client.binary.at(-1));
-  assert.equal(snap.tick, 30);
+  assert.equal(snap.tick, 31);
   assert.equal(snap.players[0].id, player.id);
   assert.equal(snap.players[0].ack, 30);
   assert.ok(Math.abs(snap.players[0].can.z - player.can.z) < 0.001);
 });
 
-test('a can waits a moment for a late input, catches up, and goes on without a page that stopped', () => {
+test('a can keeps inputs in hand, waits where it is when they run out, and goes on without a page that stopped', () => {
   const { room, people } = setup(1);
   const { session, player } = people[0];
-  send(room, session, { seq: 1, x: 1, z: 0, jump: true, emote: 0 });
+  const walk = seq => send(room, session, { seq, x: 1, z: 0, jump: seq === 1, emote: 0 });
+  walk(1);
   room.tick();
-  assert.equal(player.can.ground, false);
+  assert.equal(player.ack, 0, 'one in hand is not enough to start on');
+  walk(2);
+  room.tick();
+  assert.equal(player.ack, 1);
+  assert.equal(player.can.ground, false, 'jumped');
+  room.tick();
+  assert.equal(player.ack, 2);
   const held = copy(player.can);
   room.tick();
-  assert.deepEqual(player.can, held, 'waiting where it was');
-  send(room, session, { seq: 2, x: 1, z: 0, jump: false, emote: 0 });
-  send(room, session, { seq: 3, x: 1, z: 0, jump: false, emote: 0 });
-  send(room, session, { seq: 4, x: 1, z: 0, jump: false, emote: 0 });
+  assert.deepEqual(player.can, held, 'ran dry: waiting where it was');
+  for (let seq = 3; seq <= 5; seq++) walk(seq);
   room.tick();
-  assert.equal(player.ack, 3, 'two at once');
+  assert.equal(player.ack, 3, 'on again, one a step');
   room.tick();
-  assert.equal(player.ack, 4);
+  room.tick();
+  assert.equal(player.ack, 5);
   for (let i = 0; i < LIMITS.stale; i++) room.tick();
   assert.equal(player.can.ground, false, 'still waiting, in the air');
   for (let i = 0; i < 40; i++) room.tick();
@@ -147,16 +222,60 @@ test('a can waits a moment for a late input, catches up, and goes on without a p
   assert.equal(player.can.ground, true);
 });
 
-test('a burst after a hiccup is caught up, but sending more never makes a can faster', () => {
+test('an uneven line: one step a step all the same, a deeper buffer only for short gaps, and back when calm', () => {
+  const { room, people } = setup(1);
+  const { session, player } = people[0];
+  const { min, gap, calm } = LIMITS.buffer;
+  let seq = 0;
+  const walk = () => send(room, session, { seq: ++seq, x: 1, z: 0, jump: false, emote: 0 });
+  walk();
+  walk();
+  room.tick();
+  const steps = [];
+  for (let i = 0; i < 90; i++) {                 // two, none, one, two, none, one: as many as steps, unevenly
+    for (let k = 0; k < [2, 0, 1][i % 3]; k++) walk();
+    const ack = player.ack;
+    room.tick();
+    steps.push(player.ack - ack);
+  }
+  assert.ok(steps.every(n => n === 1), `one a step: ${steps.join('')}`);
+  assert.equal(player.buffer, min);
+  // one comes in a step late: the can waits where it is, and keeps one more in hand from then on
+  while (player.queue.length) room.tick();
+  const held = copy(player.can);
+  room.tick();
+  assert.deepEqual(player.can, held, 'waiting where it was');
+  for (let k = 0; k <= min; k++) walk();
+  room.tick();
+  assert.equal(player.buffer, min + 1, 'a short gap: an uneven line');
+  for (let i = 0; i < calm; i++) {
+    walk();
+    room.tick();
+  }
+  assert.equal(player.buffer, min, 'calm again: one fewer');
+  // a long gap, a hiccup or a page in the background, is no sign of an uneven line
+  while (player.queue.length) room.tick();
+  for (let i = 0; i <= gap + 1; i++) room.tick();
+  for (let k = 0; k < 6; k++) walk();
+  room.tick();
+  assert.equal(player.buffer, min);
+});
+
+test('a burst after a hiccup is caught up a few steps at a time, but sending more never makes a can faster', () => {
   const { room, people } = setup(1);
   const { session, player } = people[0];
   for (let i = 0; i < 5; i++) room.tick();       // the page stalled: the can waited, and saved up
-  for (let seq = 1; seq <= 6; seq++) send(room, session, { seq, x: 1, z: 0, jump: false, emote: 0 });
-  room.tick();
-  assert.equal(player.ack, 6, 'all caught up in one step');
+  for (let seq = 1; seq <= 9; seq++) send(room, session, { seq, x: 1, z: 0, jump: false, emote: 0 });
+  const steps = [];
+  while (player.ack < 9) {
+    const ack = player.ack;
+    room.tick();
+    steps.push(player.ack - ack);
+  }
+  assert.ok(steps[0] > 1 && steps.every(n => n <= LIMITS.catchUp), `caught up: ${steps.join(' ')}`);
   // a page sending three times too many: a step each, and the rest waits (then goes, its presses kept)
-  let seq = 6;
-  const x0 = player.can.x;
+  let seq = 9;
+  const x0 = player.can.x, saved = player.credit;
   send(room, session, { seq: ++seq, x: 0, z: 0, jump: true, emote: 0 });
   let jumped = false;
   for (let i = 0; i < 20; i++) {
@@ -164,7 +283,7 @@ test('a burst after a hiccup is caught up, but sending more never makes a can fa
     room.tick();
     jumped ||= !player.can.ground;
   }
-  const most = MOVE.run * TICK * 20;
+  const most = MOVE.run * TICK * (20 + saved);
   assert.ok(Math.abs(player.can.x - x0) <= most, `no faster than a step a step: ${player.can.x - x0} m`);
   assert.ok(player.queue.length <= LIMITS.queue);
   assert.ok(jumped, 'the jump went through');
@@ -173,16 +292,14 @@ test('a burst after a hiccup is caught up, but sending more never makes a can fa
 test('waving and dancing, and walking off stops them', () => {
   const { room, people } = setup(1);
   const { session, player } = people[0];
-  send(room, session, { seq: 1, x: 0, z: 0, jump: false, emote: 1 });
-  room.tick();
+  play(room, session, { seq: 1, x: 0, z: 0, jump: false, emote: 1 });
   assert.equal(player.can.emote, 1);
   for (let i = 0; i < 80; i++) room.tick();
   assert.equal(player.can.emote, 0, 'a wave ends');
   send(room, session, { seq: 2, x: 0, z: 0, jump: false, emote: 2 });
   for (let i = 0; i < 80; i++) room.tick();
   assert.equal(player.can.emote, 2, 'a dance goes on');
-  send(room, session, { seq: 3, x: 1, z: 0, jump: false, emote: 0 });
-  room.tick();
+  play(room, session, { seq: 3, x: 1, z: 0, jump: false, emote: 0 });
   assert.equal(player.can.emote, 0);
 });
 
@@ -225,8 +342,7 @@ test('nobody walks for five minutes: back to watching', () => {
   const { room, people, wait } = setup(2);
   const [a, b] = people;
   wait(LIMITS.idle - 1);
-  send(room, b.session, { seq: 1, x: 1, z: 0, jump: false, emote: 0 });
-  room.tick();
+  play(room, b.session, { seq: 1, x: 1, z: 0, jump: false, emote: 0 });
   wait(2);
   room.tick();
   assert.ok(a.client.last('idle'));
@@ -274,5 +390,6 @@ test('the page running its own can ahead lands where the server does', () => {
     send(room, session, input);
     room.tick();
   }
+  room.tick();                                    // the last one it kept in hand
   assert.ok(Math.hypot(mine.x - player.can.x, mine.z - player.can.z) < 0.01, 'same place');
 });

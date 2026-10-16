@@ -108,7 +108,7 @@ net.on('remove', ({ id, why }) => {
   cans.remove(id);
   shown.delete(id);
   if (me && id === me.id) me = null;
-  else if (p) line(null, `${p.name} ${why === 'idle' ? 'dozed off' : 'left'}.`);
+  else if (p) line(null, `${p.name} ${why === 'idle' ? 'dozed off' : why === 'room' ? 'made room' : 'left'}.`);
   showJoin();
 });
 net.on('full', () => {
@@ -285,7 +285,9 @@ const toast = toaster($('toast'));
 soundSwitch(sounds, $('sound'));
 
 function showJoin() {
-  const card = $('join'), button = $('join-go'), count = room.players.size;
+  // the people: the bots that keep a lone visitor company make room for them
+  const card = $('join'), button = $('join-go'), count = [...room.players.values()].filter(p => !p.bot).length;
+  const bots = room.players.size - count;
   $('count').textContent = `${count}/${room.max}`;
   $('ping').textContent = net.rtt === null ? '' : ` · ${Math.round(net.rtt)} ms`;
   document.body.classList.toggle('in', !!me);
@@ -298,8 +300,8 @@ function showJoin() {
   button.disabled = !room.connected || full || !!wanted;
   $('join-status').textContent = !room.connected ? 'Finding the plaza…'
     : full ? `Full: ${count} of ${room.max} cans. Watch for a moment, a spot frees up.`
-      : count === 0 ? 'Nobody here yet. Be the first can on the plaza.'
-        : `${count} of ${room.max} cans on the plaza.`;
+      : count === 0 ? `${bots ? 'Only bots here so far' : 'Nobody here yet'}. Be the first can on the plaza.`
+        : `${count} of ${room.max} cans on the plaza${bots ? `, and ${bots === 1 ? 'a bot' : `${bots} bots`}` : ''}.`;
 }
 $('join-form').addEventListener('submit', e => {
   e.preventDefault();
@@ -337,9 +339,14 @@ $('jump').addEventListener('click', () => { latched.jump = true; $('jump').blur(
 function line(player, text) {
   const row = document.createElement('div');
   if (player) {
-    const who = document.createElement('b');
+    const who = document.createElement('b'), color = COLORS[player.color % COLORS.length];
     who.textContent = player.name;
-    who.style.color = COLORS[player.color % COLORS.length];
+    // a light can's name (yellow, sky, silver) can't be read on the cream: in ink, underlined in its colour, as its tag
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16) / 255);
+    if (0.2126 * r + 0.7152 * g + 0.0722 * b > 0.65) {
+      who.className = 'light';
+      who.style.setProperty('--can', color);
+    } else who.style.color = color;
     row.append(who, document.createTextNode(` ${text}`));
   } else {
     row.className = 'note';

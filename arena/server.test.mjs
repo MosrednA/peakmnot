@@ -59,7 +59,7 @@ test('one address keeps at most four lines open; this computer as many as it lik
   assert.equal(await from('6.6.6.6, 203.0.113.7').result, 429);
   const other = from('198.51.100.2');
   assert.equal(await other.result, 'open');
-  assert.deepEqual(await health(port), { ok: true, playing: 0, watching: 5, max: 12, addresses: 2 });
+  assert.deepEqual(await health(port), { ok: true, playing: 0, watching: 5, bots: 3, max: 12, addresses: 2 });
 
   await closed(four[0].ws);
   await new Promise(r => setTimeout(r, 50));

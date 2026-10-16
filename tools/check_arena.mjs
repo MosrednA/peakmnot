@@ -17,6 +17,18 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
   '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp',
   '.m4a': 'audio/mp4', '.json': 'application/json' };
 const wait = ms => new Promise(r => setTimeout(r, ms));
+// the ports past 1023 that Chromium refuses (ERR_UNSAFE_PORT): Windows may hand out free ports from 1024 up
+const UNSAFE = new Set([1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668,
+  6669, 6679, 6697, 10080]);
+
+// on a free port a browser will open
+async function listen(server) {
+  for (;;) {
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    if (!UNSAFE.has(server.address().port)) return server;
+    await new Promise(r => server.close(r));
+  }
+}
 
 function files() {
   const server = http.createServer((req, res) => {
@@ -33,11 +45,13 @@ function files() {
     res.writeHead(200, { 'Content-Type': TYPES[extname(path)] ?? 'application/octet-stream' });
     createReadStream(path).pipe(res);
   });
-  return new Promise(r => server.listen(0, '127.0.0.1', () => r(server)));
+  return listen(server);
 }
 
-function roomServer(port) {
-  const child = spawn(process.execPath, ['arena/server.mjs'], { cwd: ROOT, env: { ...process.env, PORT: port } });
+// without the bots that keep a lone visitor company, unless asked for
+function roomServer(port, bots = 0) {
+  const child = spawn(process.execPath, ['arena/server.mjs'],
+    { cwd: ROOT, env: { ...process.env, PORT: port, ARENA_BOTS: String(bots) } });
   return new Promise((resolve, reject) => {
     child.stdout.on('data', d => { if (String(d).includes('Mnot arena')) resolve(child); });
     child.on('exit', code => reject(new Error(`room server stopped (${code})`)));
@@ -45,14 +59,13 @@ function roomServer(port) {
 }
 
 async function freePort() {
-  const s = http.createServer();
-  await new Promise(r => s.listen(0, '127.0.0.1', r));
+  const s = await listen(http.createServer());
   const { port } = s.address();
   await new Promise(r => s.close(r));
   return port;
 }
 
-test('the arena: joining, walking, chat, emotes, bumps, a full room, leaving and the line coming back', async t => {
+test('the arena: joining, walking, chat, emotes, bumps, a full room, leaving, the line lost, the bots', async t => {
   const pages = await files(), port = await freePort();
   let room = await roomServer(port), browser = null;
   const errors = [];
@@ -228,6 +241,28 @@ test('the arena: joining, walking, chat, emotes, bumps, a full room, leaving and
       await until(b, () => !arena.room.connected && !arena.me);
       room = await roomServer(port);
       await until(b, () => arena.me?.name === 'alpha 2', null, 15000);
+    });
+
+    await t.test('alone, three bots keep me company, and one makes room for each person more', async () => {
+      room.kill();
+      await until(b, () => !arena.room.connected);
+      room = await roomServer(port, 3);
+      await until(b, () => arena.me?.name === 'alpha 2', null, 15000);
+      const botsOn = page => page.evaluate(() => [...arena.room.players.values()].filter(p => p.bot).map(p => p.id));
+      await until(a, () => arena.room.connected && arena.room.players.size === 4, null, 15000);
+      const ids = await botsOn(a);
+      assert.equal(ids.length, 3);
+      assert.equal(await a.textContent('#count'), '1/12');
+      assert.match(await a.textContent('#join-status'), /1 of 12 cans on the plaza, and 3 bots/);
+      const where = () => a.evaluate(list => list.map(id => ({ ...arena.shown.get(id) })), ids);
+      const from = await where();
+      await wait(2000);
+      const to = await where();
+      assert.ok(to.some((p, i) => Math.hypot(p.x - from[i].x, p.z - from[i].z) > 0.3), 'they walk about');
+      await joinAs(a, 'Alpha');
+      await until(b, () => [...arena.room.players.values()].filter(p => p.bot).length === 2);
+      await until(b, () => document.getElementById('log').textContent.includes('made room'));
+      assert.equal(await b.textContent('#count'), '2/12');
     });
 
     assert.deepEqual(errors.filter(e => !/ERR_CONNECTION_REFUSED|WebSocket/.test(e)), []);

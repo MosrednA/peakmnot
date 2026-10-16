@@ -1,6 +1,7 @@
 // The arena's room server: one Room (room.mjs) behind a WebSocket at /arena/ws, stepped TICK at a time on a steady
 // clock, and /arena/health for a look at who's in. `node server.mjs`, or `npm start`; PORT (5298) and HOST
-// (127.0.0.1) say where it listens, ARENA_ORIGINS (comma separated) which pages may connect besides local ones.
+// (127.0.0.1) say where it listens, ARENA_ORIGINS (comma separated) which pages may connect besides local ones, and
+// ARENA_BOTS (3) how many bots keep a lone visitor company (room.mjs, fill).
 // Live, the score server passes the page's WebSocket on to it (server/arena.py), with the visitor's address, and
 // BESIDE (host:port) is that score server, whose network this shares (see "Beside the score server" below).
 import http from 'node:http';
@@ -16,6 +17,7 @@ const ORIGINS = new Set((process.env.ARENA_ORIGINS ?? 'https://peakmnot.mosredna
 const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
 const LOOPBACK = /^(127\.|::1$|::ffff:127\.)/;
 const BESIDE = process.env.BESIDE ?? '';
+const BOTS = Number(process.env.ARENA_BOTS ?? 3);
 
 const HEARTBEAT = 20;           // s between pings; a connection that didn't answer the last one is gone
 const SNAPSHOT_BACKLOG = 64 * 1024;   // bytes waiting to go out before a slow connection skips snapshots
@@ -23,7 +25,7 @@ const MESSAGES = { second: 120 };     // messages a connection may send in a sec
 const PER_ADDRESS = 4;                // connections from one address (players and watchers); this computer has none
 const KNOCK = { every: 2, missed: 3 };   // s between knocks on BESIDE, and knocks in a row unanswered before stopping
 
-const room = new Room();
+const room = new Room({ bots: BOTS });
 const addresses = new Map();          // connections open, by address
 
 // Who's at the other end. Live, that's the score server on this container's network, which passes the visitor's
@@ -37,8 +39,8 @@ function addressOf(req) {
 const server = http.createServer((req, res) => {
   if (req.url === '/arena/health') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify({ ok: true, playing: room.playing, watching: room.watching, max: room.max,
-      addresses: addresses.size }));
+    res.end(JSON.stringify({ ok: true, playing: room.playing, watching: room.watching, bots: room.crowd.length,
+      max: room.max, addresses: addresses.size }));
     return;
   }
   res.writeHead(404, { 'Content-Type': 'text/plain' });

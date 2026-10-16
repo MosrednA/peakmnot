@@ -4,8 +4,9 @@ A proof of concept, on the site at `/arena` (with a push, see "Live"), but not o
 
 A plaza in the snow, a little way up the mountain, where every visitor is a can. Type a name and you're in: walk
 about, say something (it shows in the log and over your can), wave, dance, jump, and bump into the others; a hard
-bump sends both cans reeling. Up to 12 cans; everyone else watches until a spot frees up. It's the first online
-piece of the games: one server decides where every can is, and every page shows the same plaza.
+bump sends both cans reeling. Up to 12 cans; everyone else watches until a spot frees up. Nobody is alone there:
+three bots keep a lone visitor company, and one makes room for each person more. It's the first online piece of the
+games: one server decides where every can is, and every page shows the same plaza.
 
 It's built on the mini game kit (`peak/kit/`) and shares the climb's look and Mnot, with sounds and music of its
 own. No title, party, scores or `?perf` yet: those come when it becomes a game (the `mini-game` skill).
@@ -34,7 +35,8 @@ The page and the room server are two things:
   shared dev server (`python tools/dev_server.py`, then <http://127.0.0.1:5280/arena.html>);
 - the room server, `arena/server.mjs` (Node 22 or newer, `npm install` in `arena/` once): the `arena-server` entry
   (port 5298), or `npm start` in `arena/`. `PORT` and `HOST` say where it listens; `ARENA_ORIGINS` (comma separated)
-  which pages may connect besides local ones. `/arena/health` says who's in.
+  which pages may connect besides local ones; `ARENA_BOTS` (3) how many bots keep a lone visitor company.
+  `/arena/health` says who's in.
 
 A page from a local dev server talks to the room server on this computer, port 5298; anywhere else, to its own host.
 `?server=host:port` points it at another one; `?lag=200` holds every message 100 ms each way, to play as if the
@@ -43,7 +45,8 @@ server, then `ARENA_UPSTREAM=127.0.0.1:5298 SITE_DIR=dist python -X utf8 server/
 and <http://127.0.0.1:8080/arena?server=127.0.0.1:8080>.
 
 To fill the room: `node bots.mjs 5` in `arena/` (count, then the server's address if it isn't the local one). The
-bots wander, run at someone to bump them, jump, wave, dance and say something now and then. Ctrl+C takes them home.
+bots wander, run at someone to bump them, jump, wave, dance and say something now and then, as the room's own do,
+but they come in over the line as people do, so the room's own make way for them. Ctrl+C takes them home.
 
 ## The files
 
@@ -60,7 +63,8 @@ bots wander, run at someone to bump them, jump, wave, dance and say something no
 | `arena/server.mjs` | The room server: a WebSocket at `/arena/ws`, the steady clock, the limits per connection |
 | `arena/room.mjs` | The room: who's in, joining, chat, the step and its snapshot. Knows nothing of sockets |
 | `arena/words.mjs` | Names and chat lines made safe and polite (the score server's word lists) |
-| `arena/bots.mjs` | Cans that aren't people, for testing |
+| `arena/brain.mjs` | What a bot does: wander, bump someone, jump, wave, dance, say something, greet a newcomer |
+| `arena/bots.mjs` | Cans that aren't people, coming in over the line, for testing |
 | `arena/room.test.mjs` | The room's tests |
 | `arena/server.test.mjs` | The room server over real sockets: who may connect, and how many from one address |
 | `arena/Dockerfile` | The room server's container, live (see "Live") |
@@ -72,10 +76,14 @@ bots wander, run at someone to bump them, jump, wave, dance and say something no
 - **The server decides.** It steps the room 30 times a second (`TICK`) with `sim.js` and sends every page a
   snapshot: 4 bytes and 21 a can, so a full room is about 7.7 KB a second to each visitor.
 - **A page sends what its player does**, every step: 6 bytes (the stick, a jump, an emote, a number). The server
-  steps a can once for each input its page sent, never more: it saves up to 8 steps (`LIMITS.bank`) for inputs that
-  came in late or all at once after a hiccup, so sending more never makes a can faster. With none, the can waits
-  where it is, and after 8 steps it goes on without (standing still, coming down from a jump): a page in the
-  background.
+  steps a can once for each input its page sent, never more, and one a step: it keeps a few in hand before it walks
+  on them (`LIMITS.buffer`), so inputs that come in unevenly (wifi, a page's uneven frames) still make an even walk
+  for the others. It starts with 2; each time the can runs dry after a short gap it keeps one more (up to 6, 200
+  ms), and after 10 calm seconds one fewer. A long gap (a hiccup, a page in the background) doesn't count: after
+  one, the can catches up at most 3 steps a step (`LIMITS.catchUp`), no more than it saved up while it waited (20,
+  `LIMITS.bank`), so sending more never makes a can faster. With none, the can waits where it is, and after 15
+  steps it goes on without (standing still, coming down from a jump). My own can doesn't wait for any of this (next
+  point): the buffer only puts the others' view of it a few steps behind.
 - **My can doesn't wait for the server.** The page runs it ahead with the same `sim.js`, on the frames' own clock
   (the time they show on the screen, so it moves as evenly as they come; past the kit's cap on a slow frame, all
   the time that went by). Each snapshot says which of my inputs the server has used: the page starts again from the
@@ -83,6 +91,12 @@ bots wander, run at someone to bump them, jump, wave, dance and say something no
   eases out in a tenth of a second. Mostly there's none.
 - **The others** are drawn 3 steps (100 ms) behind the server's clock, between two snapshots, so they move
   smoothly however the snapshots arrive.
+- **The bots** are the server's own (`fill` in `room.mjs`, thinking with `brain.mjs`): 3 with one person or nobody
+  yet, one fewer for each person more, none from four. The last to come makes room when a person joins (the line
+  says so), and one comes back when a person goes. They're cans like any other in the snapshot, named "(bot)", with
+  the colours from the far end, so people get the first ones; one waves and says hello when a person comes in. They
+  never doze off, don't count as people (the page's count, a full room, `/arena/health`'s `playing`), and with
+  nobody connected the room doesn't step, so they wait where they are.
 - **The limits** (`LIMITS` in `room.mjs`, `server.mjs`): 12 cans, 48 connections in all, names 16 characters and
   chat lines 140 (rude words fizz), 4 lines in a row then one every 1.5 s, 120 messages a second a connection, 2 KB a
   message, 5 minutes without walking or talking and a can goes back to watching, 4 connections from one address
@@ -92,15 +106,16 @@ bots wander, run at someone to bump them, jump, wave, dance and say something no
 
 ## Checks
 
-- `npm test` in `arena/`: the room (joining, names, a full room, chat, walking, late and bursty inputs, emotes,
-  bumps, the wall, idling, the wire, and the page's prediction against the server), and the room server on a port
-  of its own (the pages that may connect, the limit per address).
+- `npm test` in `arena/`: the room (joining, the bots, names, a full room, chat, walking, an uneven line, late and
+  bursty inputs, emotes, bumps, the wall, idling, the wire, and the page's prediction against the server), and the
+  room server on a port of its own (the pages that may connect, the limit per address, the bots).
 - The score server's tests (`server/test_arena.py`): the WebSocket passed on both ways with the visitor's address,
   `/arena/health`, the room server down, too many lines at once, the page's policy.
 - `node --test tools/check_arena.mjs`: four visitors in headless Chromium against a room server of its own, on free
   ports: the join card, joining, a name taken, chat, walking (my can and what the others see agree), jumping, waving,
   dancing, a bump both pages agree on, playing from far away (`?lag=200`), a full room and a spot freeing up,
-  leaving, and the line dropping and coming back. About 80 s. Set `PLAYWRIGHT` to Playwright's `index.mjs` if it
+  leaving, the line dropping and coming back, and the bots (on a room server started with them; the rest runs
+  without). About 90 s. Set `PLAYWRIGHT` to Playwright's `index.mjs` if it
   isn't installed here, and `CHROME` to a browser if Playwright's own doesn't match.
 - The sounds: `python tools/check_arena_audio.py`, and `npm run build`, then `node --test tools/check_arena_audio.mjs`.
 

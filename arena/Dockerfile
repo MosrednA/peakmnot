@@ -11,7 +11,7 @@ RUN echo '{ "type": "module" }' > package.json
 COPY arena/package.json arena/package-lock.json ./arena/
 RUN cd arena && npm ci --omit=dev --no-audit --no-fund
 COPY peak/arena/sim.js peak/arena/protocol.js ./peak/arena/
-COPY arena/server.mjs arena/room.mjs arena/words.mjs ./arena/
+COPY arena/server.mjs arena/room.mjs arena/brain.mjs arena/words.mjs ./arena/
 
 USER node
 EXPOSE 5298
