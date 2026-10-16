@@ -50,8 +50,9 @@ do what it does.
 | `share-<game>.jpg` | Its link preview (Slack, Discord, WhatsApp): the title screen at 1200 x 630, a JPEG, with the logo, Mnot clear of it, and the tagline in place of the menu, linked from the page's `og:` and `twitter:` tags (the template has them), in `FILES` in `tools/build.mjs` and in the server test's list of plain files. The climb's `share.jpg` and the downhill's are the examples |
 | `games.html`, `peak/games/<game>.jpg` | Its card on the page of all the games (`/games`), with `data-goal="Play <Game>"` (a `Games: Play <Game>` goal in Plausible too), in place of the "?" card or before it, and its shot from about a quarter of the way in (800 x 500, a JPEG, never the title or the finish: no spoilers) in `THUMBS` in `peak/games/main.js` |
 
-**Every new game updates the page of all the games and the viewer**: a card and a shot on `games.html`, a tab in the
-viewer, so neither is left showing only the games before it.
+**Every new game updates the page of all the games and the viewer**: a card and a shot on `games.html`, the page's
+link preview (something of the game in `share-games.jpg`, its name in the `description` and `og:description`, the
+`og:image:alt` to match), a tab in the viewer, so none is left showing only the games before it.
 
 Also: one line in `PAGES` in `tools/build.mjs`, its own port in `.claude/launch.json` while it's being made (copy
 the `downhill` entry), a row in the table in `docs/agents.md` ("The mini games"), and in `peak/README.md` if it adds
