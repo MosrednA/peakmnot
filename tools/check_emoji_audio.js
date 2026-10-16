@@ -27,7 +27,7 @@ async page => {
     && pcm.edges.every(e => e<.02), pcm);
   const cues = [{type:'start'}, {type:'take',n:1,of:5}, {type:'wrong',lives:2}, {type:'early',lives:1},
     {type:'out'}, {type:'fall'}, {type:'bonk',speed:8,hard:.8}, {type:'peek',up:true}, {type:'peek',up:false},
-    {type:'clear'}, {type:'peak'}, {type:'finish'}, {type:'crack'}, {type:'quake'}, {type:'hole',under:true},
+    {type:'clear'}, {type:'peak'}, {type:'finish'}, {type:'crack'}, {type:'quake',holes:4}, {type:'hole',under:true,finale:true},
     {type:'pit',fresh:false}, {type:'climb'}];
   for (const cue of cues) {
     const result = await page.evaluate(event => {

@@ -25,9 +25,9 @@
 // The state: { speed (m/s), skid (m/s sideways), braking, dizzy (s of stars left), peek (0..1) }
 import { unpadLoop } from '../../sounds.js';
 /** @typedef {'start'|'take'|'wrong'|'early'|'out'|'fall'|'bonk'|'peek-up'|'peek-down'|'clear'|'peak'|'finish'|'crack'|'quake'|'hole'|'pit'|'climb'|'slide'|'skid'} SoundId */
-/** @typedef {{type:'start'|'out'|'fall'|'clear'|'peak'|'finish'|'crack'|'quake'|'climb'} | {type:'take', n:number, of:number} |
+/** @typedef {{type:'start'|'out'|'fall'|'clear'|'peak'|'finish'|'crack'|'climb'} | {type:'take', n:number, of:number} |
  * {type:'wrong'|'early', lives:number} | {type:'bonk', speed:number, hard:number} | {type:'peek', up:boolean} |
- * {type:'hole', under:boolean} | {type:'pit', fresh:boolean}} EmojiCue */
+ * {type:'quake', holes:number} | {type:'hole', under:boolean, finale:boolean} | {type:'pit', fresh:boolean}} EmojiCue */
 /** @typedef {{speed:number, skid:number, braking:boolean, dizzy:number, peek:number}} Motion */
 /** @typedef {{source:AudioBufferSourceNode, gain:GainNode}} Voice */
 /** @type {ReadonlyArray<SoundId>} */
