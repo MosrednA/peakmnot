@@ -1,0 +1,17 @@
+{
+  "name": "mnot-arena",
+  "private": true,
+  "description": "The arena's room server: one room of up to 12 cans over a WebSocket (README in peak/arena/).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "ws": "8.22.0"
+  }
+}

@@ -30,6 +30,18 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-c", "import sys; sys.path.insert(0, 'tools'); import dev_server as d; d.DevServer(('127.0.0.1', 5296), d.DevHandler).serve_forever()"],
       "port": 5296
+    },
+    {
+      "name": "arena",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-c", "import sys; sys.path.insert(0, 'tools'); import dev_server as d; d.DevServer(('127.0.0.1', 5297), d.DevHandler).serve_forever()"],
+      "port": 5297
+    },
+    {
+      "name": "arena-server",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["arena/server.mjs"],
+      "port": 5298
     }
   ]
 }

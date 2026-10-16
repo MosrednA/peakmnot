@@ -1,0 +1,140 @@
+<!doctype html>
+<!-- The arena (peak/arena/README.md): a plaza where up to twelve visitors meet as cans. A proof of concept, local
+     only for now: the page needs the room server (arena/server.mjs) running too. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mnot Arena</title>
+<meta name="description" content="A snowy plaza on Mnot's mountain where up to twelve cans meet: walk, jump, wave, dance, chat and bump.">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="peak/ui/preload.css">
+<link rel="preload" href="models/mnot.glb" as="fetch" crossorigin>
+<link rel="stylesheet" href="peak/kit/kit.css">
+<link rel="stylesheet" href="peak/kit/pad.css">
+<style>
+  /* The HUD is the kit's (peak/kit/kit.css); the arena's own parts: the join card, the names and chat bubbles over
+     the cans, the chat, and the buttons for a mouse or a thumb. */
+  #count-card { position: absolute; top: 12px; left: 14px; padding: 5px 12px 6px; }
+  #count-card b { display: block; font-size: 19px; font-weight: 700; color: var(--red); text-shadow: 0 1.5px 0 #ffd9c2; }
+  #count-card span { font-size: 13px; font-weight: 600; }
+  #leave { position: absolute; top: 12px; right: 96px; pointer-events: auto; font: 600 13px Fredoka, sans-serif;
+    color: var(--ink); padding: 6px 12px; cursor: pointer; }
+  body:not(.in) #leave, body:not(.in) #help, body:not(.in) #actions { display: none; }
+
+  #join { pointer-events: auto; }
+  #join h1 { margin-bottom: 2px; }
+  #join .tag-line { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+  #join form { display: flex; gap: 8px; }
+  #join input { flex: 1; min-width: 0; padding: 8px 12px; border: 2.5px solid var(--ink); border-radius: 11px;
+    font: 600 17px Fredoka, sans-serif; color: var(--ink); background: #fff; user-select: text; }
+  #join input:focus { outline: 3px solid var(--gold); outline-offset: 1px; }
+  .btn { pointer-events: auto; padding: 8px 16px; border: 2.5px solid var(--ink); border-radius: 11px;
+    box-shadow: 0 3px 0 var(--ink); background: var(--gold); color: var(--ink); font: 700 17px Fredoka, sans-serif;
+    cursor: pointer; }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+  .btn:disabled { background: #e7e1d4; color: var(--muted); cursor: default; }
+  #join-status { margin: 12px 0 0; font-size: 14px; font-weight: 600; color: var(--muted); }
+  #join-note { margin: 4px 0 0; font-size: 14px; font-weight: 600; color: var(--red); }
+  #join-note:empty { display: none; }
+  #join .keys { margin: 10px 0 0; font-size: 12.5px; color: var(--muted); }
+
+  #tags { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .tag { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+  .tag b { position: absolute; bottom: 0; left: 0; transform: translateX(-50%); padding: 1px 8px 2px;
+    border: 2px solid var(--ink); border-radius: 9px; background: rgba(255, 247, 232, 0.9);
+    box-shadow: inset 0 -3px 0 var(--can); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .tag.mine b { background: var(--gold); }
+  .tag .bubble { position: absolute; bottom: 30px; left: 0; transform: translateX(-50%); width: max-content;
+    max-width: 210px; padding: 5px 11px 6px; border: 2.5px solid var(--ink); border-radius: 14px; background: #fff;
+    box-shadow: 0 3px 0 var(--ink); font-size: 14px; font-weight: 500; line-height: 1.25; text-align: center;
+    overflow-wrap: anywhere; animation: pop 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+  .tag .bubble::after { content: ''; position: absolute; left: 50%; bottom: -9px; width: 12px; height: 12px;
+    margin-left: -7px; background: #fff; border: solid var(--ink); border-width: 0 2.5px 2.5px 0;
+    transform: rotate(45deg); }
+
+  #chat { position: absolute; left: 14px; bottom: 44px; width: min(360px, calc(100% - 28px)); }
+  #log div { width: fit-content; max-width: 100%; margin-top: 3px; padding: 2px 9px 3px; border-radius: 9px;
+    background: rgba(255, 247, 232, 0.88); font-size: 13.5px; overflow-wrap: anywhere; transition: opacity 1s; }
+  #log div.note { color: var(--muted); font-style: italic; }
+  #log div.old { opacity: 0; }
+  #chat-form { margin-top: 6px; pointer-events: auto; }
+  #chat-text { box-sizing: border-box; width: 100%; padding: 7px 11px; border: 2.5px solid var(--ink);
+    border-radius: 11px; font: 500 15px Fredoka, sans-serif; color: var(--ink); background: #fff; user-select: text; }
+  #chat-text:focus { outline: 3px solid var(--gold); outline-offset: 1px; }
+
+  #actions { position: absolute; right: 14px; bottom: 44px; display: flex; gap: 8px; }
+  #actions .btn { padding: 6px 12px; font-size: 15px; background: var(--card); }
+  @media (max-width: 560px) {
+    #leave { right: 90px; }
+    #chat { bottom: 96px; }
+    #actions { left: 14px; right: 14px; justify-content: flex-end; }
+  }
+  @media (hover: none) and (pointer: coarse) { #help { display: none; } #chat, #actions { bottom: 16px; } #chat { bottom: 66px; } }
+</style>
+</head>
+<body class="preloading">
+<div id="preload" role="status" aria-label="Loading">
+  <div class="pl-can"><i></i><i></i></div>
+  <div class="pl-shadow"></div>
+  <div class="pl-name">Mnot Arena</div>
+  <div class="pl-bar card"><i></i></div>
+</div>
+<div id="tags"></div>
+<div id="hud">
+  <div id="count-card" class="card"><b>Mnot Arena</b><span><span id="count">0/12</span> cans<span id="ping"></span></span></div>
+  <button id="leave" class="card" type="button">Leave</button>
+  <button id="sound" class="card" aria-pressed="true">Sound</button>
+  <div id="toast"><b></b><small class="card"></small></div>
+  <div id="chat">
+    <div id="log" aria-live="polite"></div>
+    <form id="chat-form" hidden><input id="chat-text" maxlength="140" autocomplete="off" placeholder="Say something nice…" aria-label="Chat"></form>
+  </div>
+  <div id="actions">
+    <button type="button" class="btn" id="wave">👋 Wave</button>
+    <button type="button" class="btn" id="dance">🕺 Dance</button>
+    <button type="button" class="btn" id="jump">Jump</button>
+    <button type="button" class="btn" id="chat-open">💬 Chat</button>
+  </div>
+  <div id="help"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> walk (<kbd>Shift</kbd> slow) · <kbd>Space</kbd> jump · <kbd>E</kbd> wave · <kbd>Q</kbd> dance · <kbd>Enter</kbd> chat</div>
+  <div id="join" class="card panel" hidden>
+    <h1>Mnot Arena</h1>
+    <p class="tag-line">A plaza full of cans. Say hi. Bump gently.</p>
+    <form id="join-form">
+      <input id="join-name" maxlength="16" autocomplete="nickname" placeholder="Your name" aria-label="Your name">
+      <button class="btn" id="join-go" type="submit">Join</button>
+    </form>
+    <p id="join-status"></p>
+    <p id="join-note"></p>
+    <p class="keys">Walk with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>, jump with <kbd>Space</kbd>, wave with <kbd>E</kbd>, dance with <kbd>Q</kbd>, chat with <kbd>Enter</kbd>.</p>
+  </div>
+</div>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+<script type="module" src="peak/arena/main.js"></script>
+<script>
+// The local development server disables caching and watches code, models and sound assets.
+if (['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) && !location.search.includes('manual')) {
+  let version;
+  async function checkUpdates() {
+    try {
+      const response = await fetch('/__dev_version', { cache: 'no-store' });
+      if (!response.ok) return;
+      const update = await response.json();
+      if (version !== undefined && update.version !== version) location.reload();
+      version = update.version;
+    } catch { /* The game stays playable while the development server restarts. */ }
+  }
+  checkUpdates();
+  setInterval(checkUpdates, 750);
+}
+</script>
+</body>
+</html>
