@@ -4,7 +4,7 @@
 // list hops for joy and the others lean back out of reach. When the list is done they all twist away and the prize,
 // a big one, drops from the sky into the middle. The same sheet draws the list in the HUD (cssSticker).
 import * as THREE from 'three';
-import { toon } from '../look/look.js';
+import { noOutline, toon } from '../look/look.js';
 import { SHEET, OUTLINES } from './sheet.js';
 
 export const SHEET_URL = new URL('./emojis.webp', import.meta.url);
@@ -18,10 +18,14 @@ const NEAR = [3.6, 1.8];           // m: from here a token starts turning to fac
 const FACE = 5;                    // how fast it turns to face (a second), close by
 const WARP = { out: 0.4, back: 1.1 };   // s: a touched wrong one twisting away, and a blinked one coming back
 const TILT = 1.2;                  // radians a token leans back while the camera peeks from high up, to be read
-const SWEEP = 0.03;                // s a metre from Mnot: the list done, the emojis twist away one after another
+const SWEEP = 0.012;               // s a metre from Mnot: the list done, the emojis twist away one after another
 // The prize: how big, how high its middle hovers (m), from how high it drops and in how long (s), how near to
 // touch it (m from Mnot's middle); won, it floats over Mnot's head (held: how big then)
-const PRIZE = { scale: 1.7, height: 1.6, drop: 16, fall: 0.55, touch: 1.2, held: 0.95 };
+const PRIZE = { scale: 1.7, height: 1.6, drop: 9, fall: 0.4, touch: 1.2, held: 0.95 };
+// Its beacon, so the way there shows from anywhere: a pale gold beam up from the middle, fading out high up and
+// pulsing, from the moment the prize drops until it's won (fade: s in or out), and a ring rippling out over the snow
+// under it once it's down, every `ripple` s, from `rings[0]` to `rings[1]` m round
+const BEACON = { radius: 0.6, height: 12, color: '#ffd45c', alpha: 0.34, fade: 0.25, ripple: 1.1, rings: [0.7, 2.4] };
 const TAU = Math.PI * 2;
 const ease = (from, to, k) => THREE.MathUtils.smoothstep(k, from, to);
 const turn = a => Math.atan2(Math.sin(a), Math.cos(a));
@@ -82,6 +86,8 @@ export class Stickers {
     this.geometries = new Map();
     this.list = [];
     this.time = 0;
+    this.beacon = beacon();
+    this.group.add(this.beacon.group);
   }
 
   // the field's emojis, all of them standing again
@@ -103,6 +109,7 @@ export class Stickers {
     this.list = [];
     this.prize?.holder.removeFromParent();
     this.prize = null;
+    this.beacon.group.visible = false;
   }
 
   token(name) {
@@ -150,7 +157,8 @@ export class Stickers {
     holder.add(token);
     this.group.add(holder);
     this.prize = { at: at.clone(), holder, token, t: -wait, yaw: Math.PI, landed: 0, won: false, to: new THREE.Vector3(),
-      land };
+      land, lit: 0 };
+    this.beacon.group.position.copy(at).setY(0);
   }
 
   // Has Mnot at `pos` reached the prize (landed)?
@@ -239,6 +247,7 @@ export class Stickers {
       }
     }
     if (p.landed) p.landed += dt;
+    this.light(dt, p);
     const near = p.won ? 1 : ease(NEAR[0], NEAR[1], Math.hypot(player.x - p.at.x, player.z - p.at.z));
     const close = Math.max(near, peek);
     const face = Math.atan2(camera.position.x - holder.position.x, camera.position.z - holder.position.z);
@@ -251,4 +260,38 @@ export class Stickers {
     token.scale.set(1 + 0.5 * k, 1 - k, 1 + 0.5 * k);
     token.position.y = 0.1 * Math.sin(this.time * 2.1) - SIZE / 2 * k;
   }
+
+  // the beacon over the prize: lit from its drop, out once it's won
+  light(dt, p) {
+    const { group, beam, ring } = this.beacon;
+    p.lit = THREE.MathUtils.clamp(p.lit + (p.won ? -dt : dt) / BEACON.fade, 0, 1);
+    group.visible = p.lit > 0;
+    if (!group.visible) return;
+    beam.material.opacity = BEACON.alpha * p.lit * (0.8 + 0.2 * Math.sin(this.time * 5));
+    const k = p.landed ? (p.landed / BEACON.ripple) % 1 : 0;
+    ring.visible = p.landed > 0 && !p.won;
+    ring.scale.setScalar(BEACON.rings[0] + (BEACON.rings[1] - BEACON.rings[0]) * k);
+    ring.material.opacity = 0.8 * (1 - k) * p.lit;
+  }
+}
+
+// The beacon's beam (a tube, open at both ends, see-through from the snow up) and its ring, hidden till a prize drops.
+function beacon() {
+  const ramp = new Uint8Array(4 * 64);
+  for (let i = 0; i < 64; i++) ramp.fill(Math.round(255 * (1 - i / 63) ** 1.5), 4 * i, 4 * i + 4);
+  const fade = new THREE.DataTexture(ramp, 1, 64);
+  fade.needsUpdate = true;
+  const glow = more => noOutline(new THREE.MeshBasicMaterial({ color: BEACON.color, transparent: true,
+    depthWrite: false, fog: false, ...more }));
+  const { radius, height } = BEACON;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.3, radius, height, 32, 1, true)
+    .translate(0, height / 2, 0), glow({ alphaMap: fade, side: THREE.DoubleSide }));
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.88, 1, 48).rotateX(-Math.PI / 2), glow());
+  ring.position.y = 0.04;
+  beam.renderOrder = ring.renderOrder = 5;
+  const group = new THREE.Group();
+  group.name = 'the prize\'s beacon';
+  group.visible = false;
+  group.add(beam, ring);
+  return { group, beam, ring };
 }

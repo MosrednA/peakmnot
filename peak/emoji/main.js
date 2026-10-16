@@ -45,16 +45,17 @@ const number = (name, fallback, min, max) => {
   return params.has(name) && Number.isFinite(v) ? THREE.MathUtils.clamp(v, min, max) : fallback;
 };
 const DEAL = { list: number('list', 5, 1, 12), wrong: number('wrong', 24, 0, 50), open: number('open', 0.5, 0, 1),
-  cracks: number('cracks', 3, 0, 6) };
-// The prize at the end of every list, never dealt on the field; it drops after `drop` s, while the camera looks over
-// the field for `look` s.
+  cracks: number('cracks', 3, 0, 6), finale: params.has('finale') ? number('finale', 3, 0, 8) : null };
+// The prize at the end of every list, never dealt on the field; it drops after `drop` s. Meanwhile the camera looks
+// over the field for `look` s, and Mnot stops and flails, as the snow shakes for `shake` s and a few passages give
+// way (field.js, collapse()).
 const PEAK = 'peak-mnot';
 const NAMES = SHEET.names.filter(name => name !== PEAK);
-const FINALE = { drop: 0.5, look: 2 };
+const FINALE = { drop: 0.2, look: 1.2, shake: 0.9 };
 // Random fields, but about as hard as each other: one is dealt from random seeds until one rates (field.js, rate())
 // in BAND, the middle of what the first RATED seeds' fields rate with this DEAL (as parts of them, low to high), and
-// has at least CRACKED cracks (or as many as asked for).
-const RATED = 48, BAND = [0.35, 0.65], TRIES = 80, CRACKED = 2;
+// has at least CRACKED cracks and GIVEN passages giving way at the end (or as many as asked for).
+const RATED = 48, BAND = [0.35, 0.65], TRIES = 80, CRACKED = 2, GIVEN = 3;
 const BODY = 0.38;                                // m: Mnot's round against the walls
 // How Mnot gets about: A and D turn it (turn radians a second at most, reached at `steer` a second), W runs (top m/s),
 // S brakes. Its speed only slowly follows where it faces (grip, a second), so a sharp turn drifts wide; let go and it
@@ -82,7 +83,8 @@ const OUCH = ['Bonk.', 'Ow. My glasses.', 'That wall wasn\'t there.', 'Snow in t
 // the camera rises to look over the whole field from behind Mnot, and Mnot stops to look. At the start it peeks by
 // itself for `intro` seconds. When it's over, the camera comes round to the front (front: dist, h m).
 const VIEW = { back: 4.4, h: 2.4, side: 0.55, ahead: 3.4, look: 0.8, swing: 3.2, fov: 56,
-  peek: { h: 18, back: 7, toward: 0.4, fov: 50, rate: 4 }, intro: 1.6, front: { dist: 4, h: 1.6, look: 0.9 } };
+  peek: { h: 18, back: 7, toward: 0.4, fov: 50, rate: 4, rush: 8 }, intro: 1.6, front: { dist: 4, h: 1.6, look: 0.9 },
+  shake: 0.3 };
 const turn = a => Math.atan2(Math.sin(a), Math.cos(a));
 const ahead = (yaw, to = new THREE.Vector3()) => to.set(Math.sin(yaw), 0, Math.cos(yaw));
 
@@ -164,7 +166,8 @@ function randomSeed() {
   let best = 0, off = Infinity;
   for (let i = 0; i < TRIES; i++) {
     const s = 1 + Math.floor(Math.random() * 1e6), planned = plan(s), rate = planned.rate();
-    const few = planned.cracks.length < Math.min(CRACKED, DEAL.cracks);
+    const few = planned.cracks.length < Math.min(CRACKED, DEAL.cracks)
+      || planned.finale.length < Math.min(GIVEN, DEAL.finale ?? GIVEN);
     const o = Math.max(band[0] - rate, rate - band[1], 0) + (few ? 100 : 0);
     if (o === 0) return s;
     if (o < off) [best, off] = [s, o];
@@ -201,7 +204,7 @@ function restart() {
   mnot.model.scale.setScalar(1);
   mnot.animator.play('Idle', 0);
   hud.card.hidden = true;
-  follow.yaw = 0;
+  Object.assign(follow, { yaw: 0, rush: 0, shake: 0 });
   if (playing) follow.intro = VIEW.intro;
   sfx.reset();
   music.reset();
@@ -229,20 +232,32 @@ function take(s) {
   pop(hud.list.children[player.next - 1]);
   if (player.next === field.order.length) toThePeak();
 }
-// The list done: every other emoji twists away, from Mnot outwards, the camera rises to watch, and :peak-mnot: drops
-// into the middle of the field with a bump. The clock runs on: fetching it is the finish.
+// The list done: every other emoji twists away, from Mnot outwards, the camera shoots up to watch, the snow shakes
+// and cracks open across a few passages on the way to the middle (cracks.js, quake()), and :peak-mnot: drops into
+// the middle of the field with a bump, in a beam of light. Mnot stops and flails a moment. The clock runs on:
+// fetching it is the finish.
 const _peak = new THREE.Vector3();
 function toThePeak() {
   stickers.sweep(player.pos);
+  cracks.quake(player.pos);
   stickers.drop(PEAK, field.centre(...field.peak, _peak), FINALE.drop, () => {
     puffs.snow(_peak, { puffs: 8, flakes: 18, up: 1.4 });
     sounds.play('land-hard');
     sfx.cue({ type: 'peak' });
     pad.rumble('bump');
   });
-  follow.intro = FINALE.look;
+  Object.assign(follow, { intro: FINALE.look, rush: FINALE.look + 0.8 });
+  player.reel = FINALE.look;
+  Object.assign(player.wobble, { amp: 0.2, t: 0 });
   sfx.cue({ type: 'clear' });
-  toast(`All ${field.order.length}!`, 'Now :peak-mnot:, in the middle of the field. The clock is running.');
+  const holes = field.finale.length;
+  if (holes) {
+    follow.shake = FINALE.shake;
+    sfx.cue({ type: 'quake', holes });
+    pad.rumble('hit');
+  }
+  toast(`All ${field.order.length}!`, holes ? 'Now :peak-mnot:, in the middle! The snow gives way: find a way round.'
+    : 'Now :peak-mnot:, in the middle of the field. The clock is running.');
 }
 // A wrong one touched: it costs a try. It warps away (a listed one too early pops back in a moment later), and Mnot
 // bumps back off it, reeling, and sees stars for a while. The third is out.
@@ -301,17 +316,18 @@ function finish() {
   showCard('Thread complete!', `${field.order.length} reactions in order, and :peak-mnot: on top.${after}`);
 }
 // The cracks (cracks.js): one stepped on creaks; given way, its passage is shut for good (field.holes, so the bot and
-// the checks go round); and Mnot over a hole drops in.
+// the checks go round), the same for those giving way at the end; and Mnot over a hole drops in.
 function crackle(happened) {
   for (const [what, k] of happened) {
     if (what === 'stepped') sfx.cue({ type: 'crack' });
     else if (what === 'opened') {
       const under = cracks.over(k, player.pos);
       field.holes.add(k.key);
-      player.holes++;
       sounds.play('land-soft');
-      sfx.cue({ type: 'hole', under });
+      sfx.cue({ type: 'hole', under, finale: k.finale });
       pad.rumble('bump');
+      if (k.finale) continue;
+      player.holes++;
       if (!under && player.holes === 1 && time - said > 1.5) {
         said = time;
         toast('Made it!', 'The snow gave way behind you: no way back through there.');
@@ -330,7 +346,8 @@ function fallIn(k) {
   sfx.cue({ type: 'pit', fresh });
   pad.rumble('hit');
   said = time;
-  toast(fresh ? 'Too slow!' : PLOP[plop++ % PLOP.length],
+  if (fresh && k.finale) toast('Whoops!', 'The snow gave way right under you.', 'oops');
+  else toast(fresh ? 'Too slow!' : PLOP[plop++ % PLOP.length],
     fresh ? 'Run across: the snow holds just long enough.' : 'That way is gone. Find another way round.', 'oops');
 }
 // In a hole: dropping in up to its glasses, flailing, then a hop out onto the side it came from, dizzy.
@@ -577,11 +594,13 @@ function pose(dt, sideways) {
 
 // ------------------------------------------------------------------ the camera
 
-const follow = { look: new THREE.Vector3(), fov: VIEW.fov, yaw: 0, peek: 0, up: false, intro: 0 };
+const follow = { look: new THREE.Vector3(), fov: VIEW.fov, yaw: 0, peek: 0, up: false, intro: 0, rush: 0, shake: 0,
+  jolt: new THREE.Vector3() };
 const _seat = new THREE.Vector3(), _look = new THREE.Vector3(), _high = new THREE.Vector3(), _highLook = new THREE.Vector3();
 function placeCamera(dt, snap = false) {
   const far = THREE.MathUtils.clamp(1.3 / camera.aspect, 1, 1.6);   // a tall screen: further back
   const at = player.pos;
+  camera.position.sub(follow.jolt);               // last frame's shake off
   follow.yaw += turn(player.yaw - follow.yaw) * (snap ? 1 : 1 - Math.exp(-VIEW.swing * dt));
   ahead(follow.yaw, _ahead);
   _side.set(-_ahead.z, 0, _ahead.x);              // Mnot's right
@@ -603,7 +622,8 @@ function placeCamera(dt, snap = false) {
   const up = !player.done && !player.out && ((follow.intro > 0 && !title.glide) || (playing && peeking()));
   if (up !== follow.up && !snap) sfx.cue({ type: 'peek', up });
   follow.up = up;
-  follow.peek += ((up ? 1 : 0) - follow.peek) * (snap ? 1 : 1 - Math.exp(-p.rate * dt));
+  follow.rush -= dt;                              // at the end of the list, up and back down quicker
+  follow.peek += ((up ? 1 : 0) - follow.peek) * (snap ? 1 : 1 - Math.exp(-(follow.rush > 0 ? p.rush : p.rate) * dt));
   const k = THREE.MathUtils.smoothstep(follow.peek, 0, 1);
   if (k > 1e-3) {
     const pfar = THREE.MathUtils.clamp(1.5 / camera.aspect, 1, 1.8);
@@ -620,6 +640,11 @@ function placeCamera(dt, snap = false) {
     camera.position.lerp(_seat, 1 - Math.exp(-7 * dt));
     follow.look.lerp(_look, 1 - Math.exp(-9 * dt));
   }
+  // the snow shaking as it gives way at the end: the camera with it, dying down
+  follow.shake = Math.max(0, follow.shake - dt);
+  const shake = VIEW.shake * Math.min(1, follow.shake / 0.3);
+  follow.jolt.set(Math.sin(time * 53), Math.sin(time * 61 + 1), Math.sin(time * 47 + 2)).multiplyScalar(shake);
+  camera.position.add(follow.jolt);
   camera.lookAt(follow.look);
   if (Math.abs(camera.fov - follow.fov) > 0.01 && !title.visible) {
     camera.fov = follow.fov;

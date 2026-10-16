@@ -22,6 +22,10 @@ const WALL = { h: 0.62, t: 0.42 };        // the snow walls: how high, how thick
 const SPREAD = 3;                         // cells (rows and columns added) at least between one listed emoji and the next
 const FREE = 1;                           // cells round the start kept free
 const STRIDE = 3;                         // steps at least between two cracks on the way through
+// The run from the list's last one to the middle, about as long on every field: that one is dealt in a side column, its
+// way to the middle (walls only) as near `side` steps as there is, and when it's fetched passages on the way give way
+// (collapse()), the way round then at most `most` steps.
+const FAR = { side: 5, aim: 11, most: 12 };
 const EDGE = 1.5;                         // m of floor round the outer walls, for their shadows to fall on
 // The baked light: px texels a metre; soft: how soft the walls' shadows are (m); reach, dark: how far the contact
 // shade spreads from a wall's foot and how dark it is there; onSun: how much of it shades the sunlit snow too (on
@@ -52,9 +56,10 @@ export function seeded(seed) {
 export class Field {
   // cols × rows cells; open: the part of a perfect maze's inner walls knocked through (0 a real maze, 1 no walls);
   // list: how many emojis to fetch; wrong: how many others stand about; cracks: how many cracked passages at most;
-  // names: the sticker sheet's names; look: false only plans the field (the maze and the deal) without making its
-  // snow and walls, to rate it
-  constructor({ cols = 9, rows = 7, seed = 1, open = 0.5, list = 5, wrong = 24, cracks = 3, names, look = true }) {
+  // finale: how many passages give way when the list is done (null: three to five); names: the sticker sheet's
+  // names; look: false only plans the field (the maze and the deal) without making its snow and walls, to rate it
+  constructor({ cols = 9, rows = 7, seed = 1, open = 0.5, list = 5, wrong = 24, cracks = 3, finale = null, names,
+    look = true }) {
     Object.assign(this, { cols, rows, seed });
     const rand = seeded(seed);
     this.start = [Math.floor(cols / 2), 0];
@@ -63,6 +68,7 @@ export class Field {
     this.walls = this.maze(rand, open);
     this.deal(rand, names, list, wrong);
     this.crack(rand, cracks);
+    this.collapse(rand, finale ?? 3 + Math.floor(rand() * 3));
     this.group = new THREE.Group();
     this.group.name = 'the emoji field';
     if (look) this.boxes = this.build();
@@ -188,13 +194,14 @@ export class Field {
     return [...this.order.map((i, n) => [this.emojis[i].cell, this.standing(n)]), [this.peak, new Set()]];
   }
 
-  // The steps of a run that goes right, the shortest way: [from, to] cells, through the list and on to the middle.
+  // The steps of a run that goes right, the shortest way: [from, to, leg] (cells, and which leg), through the list and
+  // on to the middle.
   path() {
     const steps = [];
     let at = this.start;
-    for (const [goal, blocked] of this.legs()) {
+    for (const [leg, [goal, blocked]] of this.legs().entries()) {
       for (const cell of this.route(at, goal, blocked, new Set()) ?? []) {
-        steps.push([at, cell]);
+        steps.push([at, cell, leg]);
         at = cell;
       }
       at = goal;
@@ -244,13 +251,48 @@ export class Field {
     }
   }
 
+  // The passages that give way when the list is done (main.js opens them), as wall keys: `count` of them, each on
+  // the shortest way left from the list's last one to the middle (round the cracks crossed by then, on the shortest
+  // way through), so Mnot has to find another; none cracked or right out of that one's cell, the way round at most
+  // FAR.most steps, and only so that the middle can still be reached from anywhere Mnot can get to then, every crack
+  // gone.
+  collapse(rand, count) {
+    this.finale = [];
+    const last = this.emojis[this.order[this.order.length - 1]]?.cell;
+    if (!last) return;
+    const none = new Set(), cracked = new Set(this.cracks), from = this.key(...last), end = this.order.length;
+    const gone = new Set(this.path().filter(([a, b, leg]) => leg < end && cracked.has(this.edge(a, b)))
+      .map(([a, b]) => this.edge(a, b)));
+    const fine = finale => {
+      const back = this.reach(this.peak, none, new Set([...cracked, ...finale]));
+      for (const k of this.reach(last, none, new Set(finale))) if (!back.has(k)) return false;
+      return true;
+    };
+    for (let n = 0; n < count; n++) {
+      const shut = new Set([...gone, ...this.finale]), way = this.route(last, this.peak, none, shut) ?? [];
+      // each cut a share of the way still to go to FAR.aim steps, so the last ends there or near
+      const want = way.length + (FAR.aim - way.length) / (count - n), cuts = [];
+      let at = last;
+      for (const cell of way) {
+        const key = this.edge(at, cell);
+        const length = this.key(...at) !== from && !cracked.has(key)
+          && this.route(last, this.peak, none, new Set([...shut, key]))?.length;
+        if (length && length <= FAR.most && fine([...this.finale, key])) cuts.push([Math.abs(length - want), key]);
+        at = cell;
+      }
+      if (!cuts.length) break;
+      this.finale.push(shuffled(cuts, rand).sort((a, b) => a[0] - b[0])[0][1]);
+    }
+  }
+
   // How hard the field is to play: the cells on the shortest way through the list and on to the middle (round the
-  // cracks crossed already), each one that passes right by an emoji to stay off (one in a cell next to it, no wall
-  // between) counted twice more, and each turn on the way half more.
+  // cracks crossed already, and the passages given way at the end), each one that passes right by an emoji to stay
+  // off (one in a cell next to it, no wall between) counted twice more, and each turn on the way half more.
   rate() {
     let at = this.start, cells = 0, close = 0, turns = 0;
     const gone = new Set(), cracked = new Set(this.cracks);
     for (const [goal, blocked] of this.legs()) {
+      if (goal === this.peak) for (const key of this.finale) gone.add(key);
       let from = at, heading = null;
       for (const cell of this.route(at, goal, blocked, gone) ?? []) {
         const way = `${cell[0] - from[0]},${cell[1] - from[1]}`;
@@ -266,9 +308,9 @@ export class Field {
     return cells + 2 * close + 0.5 * turns;
   }
 
-  // The emojis: `list` of them to fetch, spread over the field, then up to `wrong` others, each kept only if the
-  // list can still be fetched past them (a later listed one can shut the way to an earlier one too). Every sticker
-  // is on the field once.
+  // The emojis: `list` of them to fetch, spread over the field (the last in a side column, FAR.side steps from the
+  // middle or as near as there is), then up to `wrong` others, each kept only if the list can still be fetched past
+  // them (a later listed one can shut the way to an earlier one too). Every sticker is on the field once.
   deal(rand, names, list, wrong) {
     const shuffle = a => shuffled(a, rand);
     const near = ([c, r], [a, b]) => Math.abs(c - a) + Math.abs(r - b);
@@ -292,10 +334,10 @@ export class Field {
         return ok;
       };
       // the first cell far enough from the last that keeps the list fetchable, else the first that keeps it so
-      let i = cells.findIndex(cell => near(cell, last) >= SPREAD && fits(cell));
-      if (i < 0) i = cells.findIndex(fits);
-      if (i < 0) break;
-      const [cell] = cells.splice(i, 1);
+      const from = n === list - 1 && n > 0 ? this.sides(cells) : cells;
+      const cell = from.find(cell => near(cell, last) >= SPREAD && fits(cell)) ?? from.find(fits) ?? cells.find(fits);
+      if (!cell) break;
+      cells.splice(cells.indexOf(cell), 1);
       this.order.push(this.emojis.length);
       this.emojis.push({ name: pool.pop(), cell, listed: n });
       last = cell;
@@ -308,6 +350,15 @@ export class Field {
       this.emojis.push(emoji);
     }
     for (const e of this.emojis) e.at = this.centre(...e.cell);
+  }
+
+  // Of `cells`, those in the field's side columns, nearest first to FAR.side steps from the middle (walls only; a step
+  // either way is as near, so it isn't always the same few cells).
+  sides(cells) {
+    const none = new Set(), steps = cell => this.route(cell, this.peak, none, none)?.length ?? Infinity;
+    const off = cell => Math.max(0, Math.abs(steps(cell) - FAR.side) - 1);
+    return cells.filter(([c]) => c === 0 || c === this.cols - 1).map(cell => [off(cell), cell])
+      .sort((a, b) => a[0] - b[0]).map(([, cell]) => cell);
   }
 
   // ------------------------------------------------------------------ the snow

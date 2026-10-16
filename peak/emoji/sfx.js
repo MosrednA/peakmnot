@@ -12,11 +12,14 @@
 //   fall                       ... and lands flat on its back
 //   bonk    { speed, hard }    into a snow wall (m/s, and 0..1 how hard)
 //   peek    { up }             the camera rising over the field (up true) or coming back down
-//   clear                      the list done: every other emoji twists away, one after another (over ~0.6 s)
-//   peak                       :peak-mnot: lands in the middle of the field with a bump, half a second later
+//   clear                      the list done: every other emoji twists away, one after another (over ~0.7 s)
+//   quake   { holes }          ... and the snow shakes for ~0.9 s, cracking across `holes` passages (3 to 5) that
+//                              give way one after another over the next ~0.7 s (a `hole` cue each, finale true)
+//   peak                       :peak-mnot: lands in the middle of the field with a bump, 0.6 s later, in a beam
 //   finish                     :peak-mnot: fetched: the clock stops, the dance
 //   crack                      Mnot steps on a cracked passage: the snow creaks, and holds for half a second
-//   hole    { under }          ... then gives way into a hole, behind Mnot (made it) or right under it (under true)
+//   hole    { under, finale }  ... then gives way into a hole, behind Mnot (made it) or right under it (under true);
+//                              finale: one of the passages giving way at the end of the list, not stepped on
 //   pit     { fresh }          Mnot drops into a hole up to its glasses (fresh: it gave way under it just now)
 //   climb                      ... and lands back on the snow after a hop out, on the side it came from
 // The state: { speed (m/s), skid (m/s sideways), braking, dizzy (s of stars left), peek (0..1) }

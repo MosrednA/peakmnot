@@ -12,6 +12,7 @@ const TIPS = [
   'Tip: you have three tries. A wrong emoji leaves Mnot seeing stars; the third ruins the thread.',
   'Tip: a listed emoji fetched too early is a wrong one too. Patience is a reaction.',
   'Tip: the list done, :peak-mnot: drops into the middle of the field. The clock stops when you fetch it.',
+  'Tip: the list done, the snow gives way here and there. Watch where from up high, then find the way round.',
   'Tip: a crack in the snow holds for a moment. Run across, and don\'t count on coming back that way.',
   'Tip: the snow walls are knee-high. Mnot can see over them, not step over them. It can bonk into them, though.',
   'Tip: the snow is slippery. Let go of W early, or brake with S, and steer round a wrong one in good time.',

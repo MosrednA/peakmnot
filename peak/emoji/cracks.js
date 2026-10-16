@@ -2,6 +2,7 @@
 // Mnot steps on it, then gives way into a hole, shut both ways from then on. Running, Mnot is over before it goes;
 // too slow, it drops in and scrambles out on the side it came from (main.js), and the way round is the only way now.
 // update() says what happened; main.js does the rest (the fall, the sounds, telling the field the passage is shut).
+// When the list is done, a few more passages crack open by themselves and give way (field.js, collapse(); quake()).
 // The hole is flat, painted on the snow, but its far wall and bottom shift with the camera as a real pit's would.
 import * as THREE from 'three';
 import { noOutline } from '../look/look.js';
@@ -10,6 +11,9 @@ import { CELL, seeded } from './field.js';
 // depth: m across the hole at its middle; hold: s the snow holds once stepped on; near: m before the hole's edge that
 // Mnot's middle sets it off
 export const CRACK = { depth: 1.05, hold: 0.45, near: 0.15 };
+// the list done: s before the first of the passages giving way cracks, between one and the next (the nearest to Mnot
+// first), and how long each holds
+const QUAKE = { wait: 0.1, apart: 0.08, hold: 0.3 };
 const WIDE = CELL;                                // m along the passage: wall to wall
 const OPEN = 0.22;                                // s the hole takes to open
 const PIT = 0.8;                                  // m deep, as the camera sees it
@@ -69,11 +73,12 @@ export class Cracks {
     this.list = [];
   }
 
-  // The field's cracks, all whole again. state: 'whole', 'going' (stepped on) or 'open'; t: s in it; side: the side
-  // of it Mnot was last on, off it (-1 or 1, across)
+  // The field's cracks, all whole again, and the passages that give way at the end, not cracked yet. state: 'whole',
+  // 'going' (stepped on, or quaking), 'open' or 'hidden' (one of those at the end); t: s in it; hold: s it holds once
+  // going; side: the side of it Mnot was last on, off it (-1 or 1, across)
   set(field) {
     this.clear();
-    for (const key of field.cracks) {
+    for (const key of [...field.cracks, ...field.finale]) {
       const { at, axis } = field.boundary(key);
       const holder = new THREE.Group();
       holder.position.copy(at).setY(0.012);
@@ -87,7 +92,9 @@ export class Cracks {
       hole.add(mesh('rim'), mesh('wall', 'hole'), low, deep);
       holder.add(line, hole);
       this.group.add(holder);
-      const k = { key, at, axis, holder, line, hole, low, deep, state: 'whole', t: 0, side: 0, puff: 0 };
+      const finale = field.finale.includes(key);
+      const k = { key, at, axis, holder, line, hole, low, deep, finale, state: finale ? 'hidden' : 'whole', t: 0,
+        hold: CRACK.hold, side: 0, puff: 0 };
       this.list.push(k);
       this.look(k, 0, null);
     }
@@ -119,7 +126,14 @@ export class Cracks {
 
   // The crack not given way yet that `pos` is over, or within `near` m of, if any.
   near(pos, near) {
-    return this.list.find(k => k.state !== 'open' && this.over(k, pos, near)) ?? null;
+    return this.list.find(k => (k.state === 'whole' || k.state === 'going') && this.over(k, pos, near)) ?? null;
+  }
+
+  // The list done: the passages that give way at the end crack, one after another from `pos` out, and go.
+  quake(pos) {
+    const far = k => Math.hypot(k.at.x - pos.x, k.at.z - pos.z);
+    this.list.filter(k => k.finale).sort((a, b) => far(a) - far(b)).forEach((k, i) =>
+      Object.assign(k, { state: 'going', t: -QUAKE.wait - i * QUAKE.apart, hold: QUAKE.hold }));
   }
 
   // Where Mnot (radius r) in the crack's hole climbs out: on the side it came from, clear of the edge.
@@ -149,7 +163,7 @@ export class Cracks {
       if (k.state === 'whole' && pos && this.over(k, pos, CRACK.near)) {
         Object.assign(k, { state: 'going', t: 0 });
         happened.push(['stepped', k]);
-      } else if (k.state === 'going' && k.t >= CRACK.hold) {
+      } else if (k.state === 'going' && k.t >= k.hold) {
         Object.assign(k, { state: 'open', t: 0 });
         happened.push(['opened', k]);
         this.burst(k, 7, { puffs: 2, flakes: 6, up: 0.9 });
@@ -161,12 +175,12 @@ export class Cracks {
   }
 
   look(k, dt, camera) {
-    const going = k.state === 'going', open = k.state === 'open';
-    k.line.visible = !open;
+    const going = k.state === 'going' && k.t >= 0, open = k.state === 'open';
+    k.line.visible = k.state === 'whole' || going;
     k.hole.visible = open;
     if (going) {
       // the crack widening and trembling, the snow crumbling along it
-      const g = Math.min(1, k.t / CRACK.hold);
+      const g = Math.min(1, k.t / k.hold);
       k.line.scale.z = 1 + 2.5 * g * g;
       k.line.position.z = 0.03 * g * Math.sin(k.t * 90);
       k.puff -= dt;

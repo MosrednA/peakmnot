@@ -8,8 +8,9 @@ stickers, spinning over the snow between knee-high snow walls: a loose maze you 
 shopping trolley on fresh snow, so it drifts wide in the turns, glides on when you let go and bonks off the walls,
 and the wrong emoji are never far. Touch one, or a listed one too early, and it warps away while Mnot bumps back
 off it and sees stars for a bit; the third time it slips and goes over flat on its back: the thread is ruined. Fetch
-the last one and every other emoji twists away, the camera rises, and a big :peak-mnot: drops into the middle of the
-field; fetch that one and the clock stops, and Mnot dances with it over its head. Here and there the snow is
+the last one (always out at a side) and every other emoji twists away, the snow shakes and gives way across a few
+passages, and a big :peak-mnot: drops into the middle of the field in a beam of light; find the way round to it and
+fetch it, and the clock stops, and Mnot dances with it over its head. Here and there the snow is
 cracked across a passage: it holds just long enough to run across, then gives way behind Mnot, and that way back is
 gone.
 
@@ -40,9 +41,14 @@ one.
   on it warps away for good, a listed one too early warps away and pops back a moment later. Mnot bumps back off it,
   reels for half a second and sees stars for two more, its steering wandering a little; for a moment after, no other
   emoji counts. The third is out.
-- With the list done (the ▲ at its end), every other emoji twists away, one after another from Mnot outwards, and
-  :peak-mnot: drops into the middle cell (kept free of emoji), while the camera looks over the field for two seconds;
-  Mnot can steer on meanwhile. Fetching it is the finish.
+- The list's last one is always dealt in a side column, as near five steps from the middle as there is (`FAR` in
+  `field.js`), so the run on to :peak-mnot: is about as long on every field.
+- With the list done (the ▲ at its end), every other emoji twists away, from Mnot outwards, the camera shoots up to
+  look over the field, and Mnot stops and flails for 1.2 s as the snow shakes: three to five passages on the way to
+  the middle crack and give way one after another (`?finale=` 0 to 8 for a set number; `Field.collapse`), and
+  :peak-mnot: drops into the middle cell (kept free of emoji) in a pale gold beam. Each one given way is on the
+  shortest way left, so the way there is round them now, about eleven cells (twelve at most), and the middle can
+  still be reached from anywhere, every crack gone. Fetching it is the finish.
 - The clock runs from the first move to :peak-mnot:, peeking included.
 - Two or three passages on the way are cracked (`?cracks=` at most, 0 to 6; 3). Stepped on, a crack holds for 0.45 s
   and then gives way into a hole: at a run Mnot is over by then, and the hole opens behind it. Too slow (or walking
@@ -53,11 +59,12 @@ one.
   one of them gone (`Field.crack`, `Field.finishable`), at worst the long way round.
 - A field is dealt from a seed (shown in the HUD): R brings the same one back, N a new one. A new one is random, but
   about as hard as any other: random seeds are rated (`Field.rate`: the cells on the shortest way through the list
-  and on to the middle, round the cracks crossed already, those right by an emoji to stay off counted twice more,
-  turns half more) until one lands in the middle of what the first 48 seeds' fields rate (35% to 65% of the way from
-  easiest to hardest; `RATED`, `BAND` in `main.js`) and has at least two cracks (`CRACKED`). The bot's times on such
-  fields are within a few seconds of each other. `?seed=` deals that one, and N then the next seed, so a test or a
-  shared link stays put (a seed's field may have fewer cracks).
+  and on to the middle, round the cracks crossed already and the passages given way at the end, those right by an
+  emoji to stay off counted twice more, turns half more) until one lands in the middle of what the first 48 seeds'
+  fields rate (35% to 65% of the way from easiest to hardest; `RATED`, `BAND` in `main.js`) and has at least two
+  cracks (`CRACKED`) and three passages giving way at the end (`GIVEN`). The bot's times on such fields are within a
+  few seconds of each other. `?seed=` deals that one, and N then the next seed, so a test or a shared link stays put
+  (a seed's field may have fewer of either).
 - It's only ever dealt so that each next listed one can be reached from the one before past no wrong one
   (`Field.clear`), so a run is never lost before it starts. `?wrong=` sets how many others stand about (24), `?open=`
   how open the maze is (0 a real maze, 1 no walls; 0.5).
@@ -86,9 +93,9 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
 | Module | What |
 |---|---|
 | `main.js` | The page: the stage, Mnot on the snow (steering, sliding, bonks, the fall), the camera over the shoulder and the peek, the list, the controls, the test bot and the loop |
-| `field.js` | The field from a seed: the maze, the emoji dealt on it, the ways round (`route`), how hard it is (`rate`), the walls to bonk into. The walls cast no live shadow: their shadows and contact shade are baked into the floor once a field is dealt (`bake`, a canvas texture as its `aoMap`), so they stay clean; Mnot's and the emojis' shadows stay live |
-| `stickers.js` | The emoji as spinning extruded tokens, what they do near Mnot, taken and wrong, swept away; the prize dropping in, and held up; the list's stickers in CSS |
-| `cracks.js` | The cracks in the snow: stepped on, giving way, the holes (flat on the snow, their far wall and bottom shifting with the camera as a pit's would); says what happened, and `main.js` drops Mnot in and hops it out |
+| `field.js` | The field from a seed: the maze, the emoji dealt on it, the cracks (`crack`) and the passages giving way at the end (`collapse`), the ways round (`route`), how hard it is (`rate`), the walls to bonk into. The walls cast no live shadow: their shadows and contact shade are baked into the floor once a field is dealt (`bake`, a canvas texture as its `aoMap`), so they stay clean; Mnot's and the emojis' shadows stay live |
+| `stickers.js` | The emoji as spinning extruded tokens, what they do near Mnot, taken and wrong, swept away; the prize dropping in, its beacon, and held up; the list's stickers in CSS |
+| `cracks.js` | The cracks in the snow: stepped on, giving way, the holes (flat on the snow, their far wall and bottom shifting with the camera as a pit's would), and the passages cracking by themselves at the end (`quake`); says what happened, and `main.js` drops Mnot in and hops it out |
 | `sheet.js`, `emojis.webp` | Made by `tools/emoji_atlas.py`: the stickers and their outlines |
 | `dizzy.js` | The stars circling over Mnot's head after a wrong one |
 | `sfx.js`, `music.js` | Cartoon cues and speed/skid snow loops, plus Pocket Altitude at 112 BPM with a finish answer over the continuing tune; all through the shared Sound switch. Assets, rebuild and QA: [audio/emoji/README.md](../../audio/emoji/README.md) |
@@ -100,9 +107,10 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
   `emoji.step(seconds, dt)` steps it and `emoji.render()` draws a frame.
 - `emoji.autopilot(true)` lets the test bot play: the shortest way to the next listed one past every other
   (`field.route`, round the holes), then to :peak-mnot:, steering and braking for the corners, and flat out across a
-  crack. It finishes fields 1 to 12 and random ones without a bonk, a wrong one or a hole; with every crack open from
-  the start (`k.state = 'open'` and `field.holes`), or with `CRACK.hold` near 0 so that it drops into every one, it
-  still finishes them all, the long way round.
+  crack. It finishes fields 1 to 12 and random ones without a wrong one or a hole (a bonk at most), the run from the
+  last listed one to :peak-mnot: 10 to 15 s on every one; with every crack open from the start (`k.state = 'open'`
+  and `field.holes`), or with `CRACK.hold` near 0 so that it drops into every one, it still finishes them all, the
+  long way round.
 - A local server of its own: the `emoji` entry in `.claude/launch.json` (port 5296).
 
 ## Not yet
