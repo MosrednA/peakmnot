@@ -1,0 +1,115 @@
+{
+  "sounds": [
+    {
+      "name": "start",
+      "loop": false,
+      "seconds": 0.3
+    },
+    {
+      "name": "take",
+      "loop": false,
+      "seconds": 0.32
+    },
+    {
+      "name": "wrong",
+      "loop": false,
+      "seconds": 0.46
+    },
+    {
+      "name": "early",
+      "loop": false,
+      "seconds": 0.42
+    },
+    {
+      "name": "out",
+      "loop": false,
+      "seconds": 0.7500226757369615
+    },
+    {
+      "name": "fall",
+      "loop": false,
+      "seconds": 0.44997732426303855
+    },
+    {
+      "name": "bonk",
+      "loop": false,
+      "seconds": 0.24
+    },
+    {
+      "name": "peek-up",
+      "loop": false,
+      "seconds": 0.28
+    },
+    {
+      "name": "peek-down",
+      "loop": false,
+      "seconds": 0.24997732426303854
+    },
+    {
+      "name": "clear",
+      "loop": false,
+      "seconds": 0.7500226757369615
+    },
+    {
+      "name": "peak",
+      "loop": false,
+      "seconds": 0.5
+    },
+    {
+      "name": "finish",
+      "loop": false,
+      "seconds": 0.4
+    },
+    {
+      "name": "crack",
+      "loop": false,
+      "seconds": 0.46
+    },
+    {
+      "name": "quake",
+      "loop": false,
+      "seconds": 1.1
+    },
+    {
+      "name": "hole",
+      "loop": false,
+      "seconds": 0.6499773242630386
+    },
+    {
+      "name": "pit",
+      "loop": false,
+      "seconds": 0.44997732426303855
+    },
+    {
+      "name": "climb",
+      "loop": false,
+      "seconds": 0.3
+    },
+    {
+      "name": "slide",
+      "loop": true,
+      "seconds": 2.0
+    },
+    {
+      "name": "skid",
+      "loop": true,
+      "seconds": 2.0
+    }
+  ],
+  "music": [
+    {
+      "name": "run",
+      "seconds": 68.57138321995465,
+      "bpm": 112,
+      "loop": true
+    },
+    {
+      "name": "answer",
+      "seconds": 4.628571428571429,
+      "bpm": 112,
+      "loop": false
+    }
+  ],
+  "theme": "Pocket Altitude \u2014 Reaction Run",
+  "soundfont": "GeneralUser GS 2.0.3"
+}

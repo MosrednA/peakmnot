@@ -91,7 +91,7 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
 | `cracks.js` | The cracks in the snow: stepped on, giving way, the holes (flat on the snow, their far wall and bottom shifting with the camera as a pit's would); says what happened, and `main.js` drops Mnot in and hops it out |
 | `sheet.js`, `emojis.webp` | Made by `tools/emoji_atlas.py`: the stickers and their outlines |
 | `dizzy.js` | The stars circling over Mnot's head after a wrong one |
-| `sfx.js`, `music.js` | The game's own sounds (cued by `main.js`: the list of cues is at the top of `sfx.js`) and its tune; Codex's. Only a placeholder buzzer for a wrong one so far |
+| `sfx.js`, `music.js` | Cartoon cues and speed/skid snow loops, plus Pocket Altitude at 112 BPM with a finish answer over the continuing tune; all through the shared Sound switch. Assets, rebuild and QA: [audio/emoji/README.md](../../audio/emoji/README.md) |
 | `title.js` | The title screen: the shot at the start, the tips and Mnot's act |
 
 ## Testing
@@ -108,8 +108,6 @@ Mnot (`peak/mnot/`), the keys (`peak/controls/input.js`) and the sound switch (`
 ## Not yet
 
 - High scores and a Hall of Fame (a board, a checker, replays), analytics, `?perf`.
-- Sound of its own and a tune (Codex, `sfx.js` and `music.js`): for now the climb's landings and wave, and a
-  placeholder buzzer.
 - A tab in the viewer, a card on the games page, a share image, the final name.
 - The production build: `emoji.html` in `PAGES` in `tools/build.mjs`, and `.webp` in its `TYPES` (and in the server's
   hashed assets).
