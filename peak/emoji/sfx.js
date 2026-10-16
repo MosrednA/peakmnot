@@ -14,6 +14,10 @@
 //   clear                      the list done: every other emoji twists away, one after another (over ~0.6 s)
 //   peak                       :peak-mnot: lands in the middle of the field with a bump, half a second later
 //   finish                     :peak-mnot: fetched: the clock stops, the dance
+//   crack                      Mnot steps on a cracked passage: the snow creaks, and holds for half a second
+//   hole    { under }          ... then gives way into a hole, behind Mnot (made it) or right under it (under true)
+//   pit     { fresh }          Mnot drops into a hole up to its glasses (fresh: it gave way under it just now)
+//   climb                      ... and lands back on the snow after a hop out, on the side it came from
 // The state: { speed (m/s), skid (m/s sideways), braking, dizzy (s of stars left), peek (0..1) }
 const LEVEL = 0.32;
 

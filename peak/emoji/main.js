@@ -3,11 +3,13 @@
 // order; touching any other, or a listed one too early, costs one of three tries. With the list done, every other
 // emoji twists away and :peak-mnot: drops into the middle of the field: fetching it stops the clock. Seen over Mnot's
 // shoulder, steered like a shopping trolley on fresh snow: it slides, drifts wide in a turn and bonks off the walls,
-// and the wrong emojis are never far. Built on the mini game kit (peak/kit/README.md); no scores, stats or ?perf yet
-// (README.md, "Not yet").
+// and the wrong emojis are never far. A few passages are cracked (cracks.js): the snow holds just long enough to run
+// across, then gives way, and there's no way back through. Built on the mini game kit (peak/kit/README.md); no
+// scores, stats or ?perf yet (README.md, "Not yet").
 // Open emoji.html?manual to stop the loop and step it from the console (window.emoji.step), for tests;
 // emoji.autopilot(true) lets a bot play. ?seed= deals a given field (else it's a random one), ?list= how many to fetch
-// (5), ?wrong= how many others stand about (24), ?open= how open the maze is (0 a real maze, 1 no walls at all).
+// (5), ?wrong= how many others stand about (24), ?open= how open the maze is (0 a real maze, 1 no walls at all),
+// ?cracks= how many cracked passages at most (3).
 import * as THREE from 'three';
 import { MnotSounds } from '../../sounds.js';
 import { buildScenery } from '../look/scenery.js';
@@ -25,6 +27,7 @@ import { GamepadInput, BUTTON } from '../kit/gamepad.js';
 import { PadMenu } from '../kit/padmenu.js';
 import { pickLevel } from '../kit/levels.js';
 import { Field } from './field.js';
+import { Cracks, CRACK } from './cracks.js';
 import { Stickers, loadSheet, cssSticker } from './stickers.js';
 import { SHEET } from './sheet.js';
 import { Title } from './title.js';
@@ -41,15 +44,17 @@ const number = (name, fallback, min, max) => {
   const v = Number(params.get(name));
   return params.has(name) && Number.isFinite(v) ? THREE.MathUtils.clamp(v, min, max) : fallback;
 };
-const DEAL = { list: number('list', 5, 1, 12), wrong: number('wrong', 24, 0, 50), open: number('open', 0.5, 0, 1) };
+const DEAL = { list: number('list', 5, 1, 12), wrong: number('wrong', 24, 0, 50), open: number('open', 0.5, 0, 1),
+  cracks: number('cracks', 3, 0, 6) };
 // The prize at the end of every list, never dealt on the field; it drops after `drop` s, while the camera looks over
 // the field for `look` s.
 const PEAK = 'peak-mnot';
 const NAMES = SHEET.names.filter(name => name !== PEAK);
 const FINALE = { drop: 0.5, look: 2 };
 // Random fields, but about as hard as each other: one is dealt from random seeds until one rates (field.js, rate())
-// in BAND, the middle of what the first RATED seeds' fields rate with this DEAL (as parts of them, low to high).
-const RATED = 48, BAND = [0.35, 0.65], TRIES = 60;
+// in BAND, the middle of what the first RATED seeds' fields rate with this DEAL (as parts of them, low to high), and
+// has at least CRACKED cracks (or as many as asked for).
+const RATED = 48, BAND = [0.35, 0.65], TRIES = 80, CRACKED = 2;
 const BODY = 0.38;                                // m: Mnot's round against the walls
 // How Mnot gets about: A and D turn it (turn radians a second at most, reached at `steer` a second), W runs (top m/s),
 // S brakes. Its speed only slowly follows where it faces (grip, a second), so a sharp turn drifts wide; let go and it
@@ -64,6 +69,11 @@ const SKID = 1.4;                                 // m/s of sideways slide from 
 // no other emoji counting for `safe` s. The third is out.
 const LIVES = 3;
 const HIT = { bump: 3.4, reel: 0.5, dizzy: 2.4, wander: 0.4, safe: 0.9 };
+// A cracked passage gone under Mnot (cracks.js): it drops in up to its glasses (sink m, in `down` s), flails for
+// `stay` s and scrambles out on the side it came from (out s, a hop `hop` m high), seeing stars for `dizzy` s. No
+// try lost: only the way through, and the time.
+const PIT = { sink: 0.85, down: 0.22, stay: 0.75, out: 0.45, hop: 0.9, dizzy: 1.2 };
+const PLOP = ['Plop.', 'Mind the gap.', 'Not that way any more.', 'Snow in the glasses.'];
 // Funny lines for a hard bonk, one at a time
 const OUCH = ['Bonk.', 'Ow. My glasses.', 'That wall wasn\'t there.', 'Snow in the can.', 'Who put that there?',
   'Totally meant that.'];
@@ -96,15 +106,18 @@ const stickers = new Stickers(sheet);
 scene.add(stickers.group);
 const dizzy = new Dizzy();
 scene.add(dizzy.group);
-const sounds = new MnotSounds({ effects: ['wave', 'land-soft', 'land-hard'] });
+const cracks = new Cracks(puffs);
+scene.add(cracks.group);
+const sounds = new MnotSounds({ effects: ['wave', 'land-soft', 'land-hard', 'jump'] });
 const sfx = new EmojiSfx(sounds);                 // the game's own sounds and tune (Codex), through the same switch
 const music = new EmojiMusic(sounds);
 const input = new Input();
 // spin: how fast it turns now (radians a second); reel: seconds left reeling from a bonk or a wrong one; wobble: the
 // squash (amp) and how long ago (t); dizzy: seconds of stars left; safe: seconds no wrong one counts; fall: seconds
-// since it went over, when out
+// since it went over, when out; pit: in a hole (climb()); holes: cracks given way, plops: holes dropped into
 const player = { pos: mnot.root.position, vel: new THREE.Vector3(), yaw: 0, spin: 0, done: false, out: false,
-  time: 0, next: 0, lives: LIVES, reel: 0, wobble: { amp: 0, t: 0 }, dizzy: 0, safe: 0, fall: 0, bonks: 0 };
+  time: 0, next: 0, lives: LIVES, reel: 0, wobble: { amp: 0, t: 0 }, dizzy: 0, safe: 0, fall: 0, bonks: 0, pit: null,
+  holes: 0, plops: 0 };
 
 // ------------------------------------------------------------------ the HUD
 
@@ -150,9 +163,10 @@ function randomSeed() {
   }
   let best = 0, off = Infinity;
   for (let i = 0; i < TRIES; i++) {
-    const s = 1 + Math.floor(Math.random() * 1e6), rate = plan(s).rate();
-    if (rate >= band[0] && rate <= band[1]) return s;
-    const o = Math.max(band[0] - rate, rate - band[1]);
+    const s = 1 + Math.floor(Math.random() * 1e6), planned = plan(s), rate = planned.rate();
+    const few = planned.cracks.length < Math.min(CRACKED, DEAL.cracks);
+    const o = Math.max(band[0] - rate, rate - band[1], 0) + (few ? 100 : 0);
+    if (o === 0) return s;
     if (o < off) [best, off] = [s, o];
   }
   return best;
@@ -161,7 +175,7 @@ function randomSeed() {
 const another = () => deal(params.has('seed') ? seed + 1 : randomSeed());
 
 let field = null, seed = params.has('seed') ? number('seed', 1, 0, 2 ** 31) : randomSeed();
-let playing = manual, time = 0, autopilot = false, ouch = 0, said = 0;
+let playing = manual, time = 0, autopilot = false, ouch = 0, plop = 0, said = 0;
 
 function deal(next = seed) {
   seed = next;
@@ -174,10 +188,12 @@ function deal(next = seed) {
 function restart() {
   for (const e of field.emojis) e.taken = false;
   stickers.set(field.emojis);
+  field.holes.clear();
+  cracks.set(field);
   field.centre(...field.start, player.pos);
   player.vel.set(0, 0, 0);
   Object.assign(player, { yaw: 0, spin: 0, done: false, out: false, time: 0, next: 0, lives: LIVES, reel: 0, dizzy: 0,
-    safe: 0, fall: 0, bonks: 0 });
+    safe: 0, fall: 0, bonks: 0, pit: null, holes: 0, plops: 0 });
   player.wobble.amp = 0;
   mnot.root.rotation.y = 0;
   mnot.model.position.set(0, 0, 0);
@@ -278,11 +294,74 @@ function finish() {
   music.finish();
   const wrongs = LIVES - player.lives, plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`;
   const after = wrongs ? ` ${plural(wrongs, 'wrong one')} in between, but who reads a whole thread?`
+    : player.plops ? ` Fell in ${player.plops > 1 ? `${player.plops} holes` : 'a hole'}, but nobody saw.`
     : player.bonks ? ` ${plural(player.bonks, 'bonk')}, but nobody noticed.` : ' Not one bonk, not one slip.';
   markList();
   pop(hud.list.lastElementChild);
   showCard('Thread complete!', `${field.order.length} reactions in order, and :peak-mnot: on top.${after}`);
 }
+// The cracks (cracks.js): one stepped on creaks; given way, its passage is shut for good (field.holes, so the bot and
+// the checks go round); and Mnot over a hole drops in.
+function crackle(happened) {
+  for (const [what, k] of happened) {
+    if (what === 'stepped') sfx.cue({ type: 'crack' });
+    else if (what === 'opened') {
+      const under = cracks.over(k, player.pos);
+      field.holes.add(k.key);
+      player.holes++;
+      sounds.play('land-soft');
+      sfx.cue({ type: 'hole', under });
+      pad.rumble('bump');
+      if (!under && player.holes === 1 && time - said > 1.5) {
+        said = time;
+        toast('Made it!', 'The snow gave way behind you: no way back through there.');
+      }
+    } else if (what === 'under' && !player.pit) fallIn(k);
+  }
+}
+function fallIn(k) {
+  const fresh = k.t < 0.1;                        // it gave way under Mnot just now, rather than walked into
+  player.pit = { k, t: 0, from: player.pos.clone(), in: cracks.inside(k, player.pos),
+    to: cracks.outside(k, player.pos, BODY), hop: false };
+  player.vel.set(0, 0, 0);
+  Object.assign(player, { reel: 0, dizzy: 0, plops: player.plops + 1 });
+  puffs.snow(player.pos, { puffs: 6, flakes: 14, up: 1.1 });
+  sounds.play('land-soft');
+  sfx.cue({ type: 'pit', fresh });
+  pad.rumble('hit');
+  said = time;
+  toast(fresh ? 'Too slow!' : PLOP[plop++ % PLOP.length],
+    fresh ? 'Run across: the snow holds just long enough.' : 'That way is gone. Find another way round.', 'oops');
+}
+// In a hole: dropping in up to its glasses, flailing, then a hop out onto the side it came from, dizzy.
+function climb(dt) {
+  const p = player.pit, m = mnot.model, { sink, down, stay, out } = PIT;
+  p.t += dt;
+  if (p.t < down + stay) {
+    const k = Math.min(1, p.t / down);
+    player.pos.lerpVectors(p.from, p.in, k);
+    m.position.y = -sink * k * k + (p.t > down ? 0.06 * Math.sin((p.t - down) * 13) : 0);
+    return;
+  }
+  if (!p.hop) {
+    p.hop = true;
+    sounds.play('jump');
+  }
+  const k = Math.min(1, (p.t - down - stay) / out);
+  player.pos.lerpVectors(p.in, p.to, k);
+  m.position.y = -sink * (1 - k) + PIT.hop * 4 * k * (1 - k);
+  player.yaw += turn(Math.atan2(p.to.x - p.in.x, p.to.z - p.in.z) - player.yaw) * (1 - Math.exp(-12 * dt));
+  if (k < 1) return;
+  player.pit = null;
+  m.position.y = 0;
+  player.spin = 0;
+  Object.assign(player, { dizzy: PIT.dizzy, reel: 0.25 });
+  Object.assign(player.wobble, { amp: 0.28, t: 0 });
+  puffs.snow(player.pos, { puffs: 4, flakes: 8, up: 0.7 });
+  sounds.play('land-soft');
+  sfx.cue({ type: 'climb' });
+}
+
 function showCard(head, verdict) {
   hud.card.querySelector('h1').textContent = head;
   hud.card.querySelector('.time').textContent = clock(player.time);
@@ -384,6 +463,17 @@ function autoSteer(w) {
   // too fast for the corner coming: brake
   const speed = player.vel.length();
   w.brake = Math.abs(off) > 0.6 && speed > 1.6 ? 1 : 0;
+  // a crack on the way (or already underfoot): flat out across it, before it goes
+  const k = cracks.near(player.pos, 0.9);
+  const across = k && (cracks.over(k, player.pos, CRACK.near)
+    || (way?.length > 0 && field.edge(field.cellAt(player.pos), way[0]) === k.key));
+  if (across) {
+    cracks.beyond(k, player.pos, _to);
+    w.steer = THREE.MathUtils.clamp(turn(Math.atan2(_to.x - player.pos.x, _to.z - player.pos.z) - player.yaw) * 2.5,
+      -1, 1);
+    w.throttle = 1;
+    w.brake = 0;
+  }
 }
 
 // ------------------------------------------------------------------ Mnot on the snow
@@ -391,9 +481,9 @@ function autoSteer(w) {
 const _ahead = new THREE.Vector3(), _want = new THREE.Vector3(), _side = new THREE.Vector3();
 let skidClock = 0;
 function slide(dt) {
-  // on the title Mnot stands still; out, it slides on on its back; done, it dances to a stop; reeling from a bonk or
-  // peeking, it slows
-  const stuck = !playing || title.visible;
+  // on the title (or in a hole) Mnot stands still; out, it slides on on its back; done, it dances to a stop; reeling
+  // from a bonk or peeking, it slows
+  const stuck = !playing || title.visible || !!player.pit;
   const free = !stuck && !player.out && !player.done && player.reel <= 0 && !peeking();
   if (free) {
     controls();
@@ -476,6 +566,7 @@ function pose(dt, sideways) {
   // the clip: still, walking or running by the speed along where it faces; arms wheeling in a glide or a skid
   const along = Math.max(0, player.vel.dot(ahead(player.yaw, _ahead)));
   const anim = mnot.animator;
+  if (player.pit) return anim.play('Teeter', 0.1);   // flailing, in a hole
   if (player.reel > 0 || (sideways > SKID * 1.3 && speed > 2) || (want.throttle === 0 && speed > 2.2)) {
     anim.play('Teeter', 0.12);
   } else if (along > 0.3) {
@@ -549,8 +640,11 @@ function step(dt) {
   readPad(dt);
   player.reel -= dt;
   const sideways = slide(dt);
-  if (playing && !player.done && !player.out) {
-    player.time += dt;
+  if (player.pit) climb(dt);
+  const free = playing && !title.visible && !player.done && !player.out && !player.pit;
+  crackle(cracks.update(dt, free ? player.pos : null, camera));
+  if (playing && !player.done && !player.out) player.time += dt;     // on in a hole, too
+  if (free) {
     if (player.next === field.order.length) {
       if (stickers.reached(player.pos)) finish();
     } else {
@@ -592,5 +686,5 @@ startLoop({ manual, post, step, render });
 
 // for debugging and tests
 expose('emoji', { THREE, renderer, scene, camera, post, stage, mnot, player, sounds, input, title, pad, padMenu,
-  level, puffs, stickers, follow, sfx, music, dizzy, get field() { return field; }, deal, restart,
+  level, puffs, stickers, cracks, follow, sfx, music, dizzy, get field() { return field; }, deal, restart,
   autopilot(on = true) { autopilot = on; begin(); } }, { step, render });

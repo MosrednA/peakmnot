@@ -6,7 +6,9 @@
 // listed one fetched too early. The field is only ever dealt so that each next one on the list can be reached from
 // the one before without passing a cell with a wrong one on it (`clear`), so a run is never lost before it starts.
 // The middle cell is kept free: when the list is done, the prize drops there (main.js). `rate` says how hard a field
-// is to play, so random fields can be dealt alike.
+// is to play, so random fields can be dealt alike. A few passages on the way are cracked (`crack`): crossed once,
+// the snow gives way behind Mnot (cracks.js), so there's no way back through them; the field stays finishable with
+// all of them gone, at worst the long way round.
 //
 // The walls cast no shadow while playing: their shadows from the sun and their contact shade are baked into the
 // field's floor once it is dealt (`bake`), soft and clean; Mnot's and the emojis' shadows stay live.
@@ -19,11 +21,21 @@ export const CELL = 3;                    // m a cell
 const WALL = { h: 0.62, t: 0.42 };        // the snow walls: how high, how thick (m); Mnot can't step over them
 const SPREAD = 3;                         // cells (rows and columns added) at least between one listed emoji and the next
 const FREE = 1;                           // cells round the start kept free
+const STRIDE = 3;                         // steps at least between two cracks on the way through
 const EDGE = 1.5;                         // m of floor round the outer walls, for their shadows to fall on
 // The baked light: px texels a metre; soft: how soft the walls' shadows are (m); reach, dark: how far the contact
 // shade spreads from a wall's foot and how dark it is there; onSun: how much of it shades the sunlit snow too (on
 // the sky's light it is all); foot: how dark a wall itself is at its foot
 const BAKE = { px: 32, soft: 0.07, reach: 0.3, dark: 0.5, onSun: 0.45, foot: 0.84 };
+
+// shuffled in place, with a random 0..1
+function shuffled(a, rand) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 // mulberry32: a small seeded random, 0..1
 export function seeded(seed) {
@@ -39,15 +51,18 @@ export function seeded(seed) {
 
 export class Field {
   // cols × rows cells; open: the part of a perfect maze's inner walls knocked through (0 a real maze, 1 no walls);
-  // list: how many emojis to fetch; wrong: how many others stand about; names: the sticker sheet's names; look: false
-  // only plans the field (the maze and the deal) without making its snow and walls, to rate it
-  constructor({ cols = 9, rows = 7, seed = 1, open = 0.5, list = 5, wrong = 24, names, look = true }) {
+  // list: how many emojis to fetch; wrong: how many others stand about; cracks: how many cracked passages at most;
+  // names: the sticker sheet's names; look: false only plans the field (the maze and the deal) without making its
+  // snow and walls, to rate it
+  constructor({ cols = 9, rows = 7, seed = 1, open = 0.5, list = 5, wrong = 24, cracks = 3, names, look = true }) {
     Object.assign(this, { cols, rows, seed });
     const rand = seeded(seed);
     this.start = [Math.floor(cols / 2), 0];
     this.peak = [Math.floor(cols / 2), Math.floor(rows / 2)];
+    this.holes = new Set();                       // the cracked passages given way in this run (main.js): shut
     this.walls = this.maze(rand, open);
     this.deal(rand, names, list, wrong);
+    this.crack(rand, cracks);
     this.group = new THREE.Group();
     this.group.name = 'the emoji field';
     if (look) this.boxes = this.build();
@@ -67,12 +82,20 @@ export class Field {
 
   // the wall between a cell and the next to its east (+c) or north (+r)
   wallKey(c, r, side) { return `${side}${c},${r}`; }
-  // the cells next to a cell that a wall doesn't shut off
-  *ways(c, r) {
-    if (c + 1 < this.cols && !this.walls.has(this.wallKey(c, r, 'e'))) yield [c + 1, r];
-    if (c > 0 && !this.walls.has(this.wallKey(c - 1, r, 'e'))) yield [c - 1, r];
-    if (r + 1 < this.rows && !this.walls.has(this.wallKey(c, r, 'n'))) yield [c, r + 1];
-    if (r > 0 && !this.walls.has(this.wallKey(c, r - 1, 'n'))) yield [c, r - 1];
+  // the wall between two cells next to each other (where there is one or not)
+  edge([c, r], [a, b]) { return c !== a ? this.wallKey(Math.min(c, a), r, 'e') : this.wallKey(c, Math.min(r, b), 'n'); }
+  // where a wall stands (or would): the middle of the line between its two cells, and the axis across that line
+  boundary(key) {
+    const [c, r] = key.slice(1).split(',').map(Number), at = this.centre(c, r);
+    return key[0] === 'e' ? { at: at.setX(at.x - CELL / 2), axis: 'x' } : { at: at.setZ(at.z + CELL / 2), axis: 'z' };
+  }
+  // the cells next to a cell that no wall and no shut passage (a Set of wall keys) shuts off
+  *ways(c, r, shut = this.holes) {
+    const open = (a, b, side) => !this.walls.has(this.wallKey(a, b, side)) && !shut.has(this.wallKey(a, b, side));
+    if (c + 1 < this.cols && open(c, r, 'e')) yield [c + 1, r];
+    if (c > 0 && open(c - 1, r, 'e')) yield [c - 1, r];
+    if (r + 1 < this.rows && open(c, r, 'n')) yield [c, r + 1];
+    if (r > 0 && open(c, r - 1, 'n')) yield [c, r - 1];
   }
 
   // A perfect maze (a depth-first carve from the start), then a part of its inner walls knocked through, so there
@@ -100,9 +123,9 @@ export class Field {
     return walls;
   }
 
-  // The shortest way from one cell to another past no blocked cell (a Set of keys; the goal itself may be one), as
-  // a list of cells from the first step to the goal, or null.
-  route(from, to, blocked = new Set()) {
+  // The shortest way from one cell to another past no blocked cell (a Set of keys; the goal itself may be one) and no
+  // shut passage, as a list of cells from the first step to the goal, or null.
+  route(from, to, blocked = new Set(), shut = this.holes) {
     const goal = this.key(...to), back = new Map([[this.key(...from), null]]), queue = [from];
     for (let i = 0; i < queue.length; i++) {
       const [c, r] = queue[i];
@@ -111,7 +134,7 @@ export class Field {
         for (let at = [c, r]; at && this.key(...at) !== this.key(...from); at = back.get(this.key(...at))) way.unshift(at);
         return way;
       }
-      for (const [a, b] of this.ways(c, r)) {
+      for (const [a, b] of this.ways(c, r, shut)) {
         const k = this.key(a, b);
         if (back.has(k) || (blocked.has(k) && k !== goal)) continue;
         back.set(k, [c, r]);
@@ -145,21 +168,98 @@ export class Field {
     return true;
   }
 
-  // How hard the field is to play: the cells on the shortest way through the list and on to the middle, each one
-  // that passes right by an emoji to stay off (one in a cell next to it, no wall between) counted twice more, and
-  // each turn on the way half more.
+  // Every cell Mnot can get to from `from` past no blocked cell and no shut passage, as keys.
+  reach(from, blocked, shut) {
+    const seen = new Set([this.key(...from)]), queue = [from];
+    for (let i = 0; i < queue.length; i++) {
+      for (const [a, b] of this.ways(...queue[i], shut)) {
+        const k = this.key(a, b);
+        if (seen.has(k) || blocked.has(k)) continue;
+        seen.add(k);
+        queue.push([a, b]);
+      }
+    }
+    return seen;
+  }
+
+  // The legs of a run that goes right: each goal (the listed ones, then the middle) and the cells to stay off on the
+  // way to it.
+  legs() {
+    return [...this.order.map((i, n) => [this.emojis[i].cell, this.standing(n)]), [this.peak, new Set()]];
+  }
+
+  // The steps of a run that goes right, the shortest way: [from, to] cells, through the list and on to the middle.
+  path() {
+    const steps = [];
+    let at = this.start;
+    for (const [goal, blocked] of this.legs()) {
+      for (const cell of this.route(at, goal, blocked, new Set()) ?? []) {
+        steps.push([at, cell]);
+        at = cell;
+      }
+      at = goal;
+    }
+    return steps;
+  }
+
+  // Can the field still be finished with the passages in `shut` gone, from anywhere Mnot can get to on the way? On
+  // each leg, every cell it can reach with them all still there (and the emojis to stay off stood clear of) must
+  // reach the leg's goal without them.
+  finishable(shut) {
+    let at = this.start;
+    for (const [goal, blocked] of this.legs()) {
+      const back = this.reach(goal, blocked, shut);
+      for (const k of this.reach(at, blocked, new Set())) if (!back.has(k)) return false;
+      at = goal;
+    }
+    return true;
+  }
+
+  // The cracked passages (wall keys), up to `count`: on the shortest way through, crossed at most twice (the second
+  // time, it's the way round), the first time straight on (a cell's run-up before it), not out of the start nor into
+  // the middle, a few steps apart, and only so that the field stays finishable with all of them gone.
+  crack(rand, count) {
+    const steps = this.path(), crossed = new Map(), first = new Map();
+    steps.forEach((step, i) => {
+      const key = this.edge(...step);
+      crossed.set(key, (crossed.get(key) ?? 0) + 1);
+      if (!first.has(key)) first.set(key, i);
+    });
+    const start = this.key(...this.start), peak = this.key(...this.peak);
+    const picks = [];
+    for (const [key, i] of first) {
+      const [a, b] = steps[i], before = steps[i - 1]?.[0];
+      const straight = before && b[0] - a[0] === a[0] - before[0] && b[1] - a[1] === a[1] - before[1];
+      if (straight && crossed.get(key) <= 2 && this.key(...a) !== start && this.key(...b) !== peak) picks.push(i);
+    }
+    this.cracks = [];
+    const taken = [];
+    for (const i of shuffled(picks, rand)) {
+      if (this.cracks.length >= count) break;
+      if (taken.some(j => Math.abs(i - j) < STRIDE)) continue;
+      const key = this.edge(...steps[i]);
+      if (!this.finishable(new Set([...this.cracks, key]))) continue;
+      this.cracks.push(key);
+      taken.push(i);
+    }
+  }
+
+  // How hard the field is to play: the cells on the shortest way through the list and on to the middle (round the
+  // cracks crossed already), each one that passes right by an emoji to stay off (one in a cell next to it, no wall
+  // between) counted twice more, and each turn on the way half more.
   rate() {
     let at = this.start, cells = 0, close = 0, turns = 0;
-    const legs = [...this.order.map((i, n) => [this.emojis[i].cell, this.standing(n)]), [this.peak, new Set()]];
-    for (const [goal, blocked] of legs) {
+    const gone = new Set(), cracked = new Set(this.cracks);
+    for (const [goal, blocked] of this.legs()) {
       let from = at, heading = null;
-      for (const cell of this.route(at, goal, blocked) ?? []) {
+      for (const cell of this.route(at, goal, blocked, gone) ?? []) {
         const way = `${cell[0] - from[0]},${cell[1] - from[1]}`;
         if (heading && way !== heading) turns++;
         heading = way;
+        if (cracked.has(this.edge(from, cell))) gone.add(this.edge(from, cell));
         from = cell;
         cells++;
-        if ([...this.ways(...cell)].some(([c, r]) => blocked.has(this.key(c, r)))) close++;
+        if ([...this.ways(...cell, gone)].some(([c, r]) => blocked.has(this.key(c, r)))) close++;
       }
       at = goal;
     }
@@ -170,7 +270,7 @@ export class Field {
   // list can still be fetched past them (a later listed one can shut the way to an earlier one too). Every sticker
   // is on the field once.
   deal(rand, names, list, wrong) {
-    const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+    const shuffle = a => shuffled(a, rand);
     const near = ([c, r], [a, b]) => Math.abs(c - a) + Math.abs(r - b);
     const cells = [];
     const peak = this.key(...this.peak);
