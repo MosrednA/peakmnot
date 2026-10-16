@@ -167,20 +167,23 @@ function simulate(can, input) {
 }
 
 // The server's word on my can: from there, my inputs it hasn't had yet again. Where it lands differs a little from
-// where I was; the difference eases out on screen (offset) instead of jumping.
+// where I was (mostly not at all); the step being drawn moves by that difference as a whole, and the difference
+// eases out on screen (offset) instead of jumping. (Close to the server it may have had all my inputs already: the
+// step being drawn still runs to its end.)
 function reconcile({ ack, can }) {
   me.pending = me.pending.filter(i => after(i.seq, ack));
-  const was = copy(me.can);
-  let state = { ...can }, prev = copy(state);
-  for (const input of me.pending) {
-    prev = copy(state);
-    simulate(state, input);
-  }
-  me.offset.x += was.x - state.x;
-  me.offset.z += was.z - state.z;
-  if (me.offset.length() > 2) me.offset.set(0, 0, 0);    // far off (a long stall): just go there
+  const state = { ...can };
+  for (const input of me.pending) simulate(state, input);
+  const was = me.can, prev = me.prev, dx = state.x - was.x, dz = state.z - was.z;
+  me.offset.x -= dx;
+  me.offset.z -= dz;
   me.can = state;
-  me.prev = prev;
+  me.prev = { ...prev, x: prev.x + dx, z: prev.z + dz, y: Math.max(0, prev.y + state.y - was.y),
+    yaw: prev.yaw + wrap(state.yaw - was.yaw) };
+  if (me.offset.length() > 2) {                   // far off (a long stall): just go there
+    me.offset.set(0, 0, 0);
+    me.prev = copy(state);
+  }
 }
 
 // ------------------------------------------------------------------ the controls
@@ -364,14 +367,16 @@ function interpolate() {
   }
 }
 
-// The room keeps the server's time, not the frames': a slow frame (the loop steps the look by at most 50 ms) still
-// moves my can and the others' clock on by the time that went by.
-let lastReal = performance.now();
+// The room keeps the server's time: the frame's own (its time on the screen, so my can moves as evenly as the
+// frames come), but a slow frame, which the loop steps by at most 50 ms, moves my can and the others' clock on by
+// all the time that went by.
+const frameTime = () => document.timeline?.currentTime ?? performance.now();   // the frame's, in a frame
+let lastReal = frameTime();
 function step(dt) {
   if (!(dt > 0)) return;
   time += dt;
   shaderTime.value = time;
-  const now = performance.now(), real = Math.min(0.25, (now - lastReal) / 1000);
+  const now = frameTime(), real = dt < 0.05 ? dt : Math.min(0.25, Math.max(dt, (now - lastReal) / 1000));
   lastReal = now;
   readPad();
   clockTick += real / TICK;

@@ -70,10 +70,11 @@ bots wander, run at someone to bump them, jump, wave, dance and say something no
   came in late or all at once after a hiccup, so sending more never makes a can faster. With none, the can waits
   where it is, and after 8 steps it goes on without (standing still, coming down from a jump): a page in the
   background.
-- **My can doesn't wait for the server.** The page runs it ahead with the same `sim.js`, on the real clock (not the
-  frame's, which the kit caps). Each snapshot says which of my inputs the server has used: the page starts again
-  from the server's can, plays the inputs it hasn't used yet on top, and eases out any difference in a tenth of a
-  second. Mostly there's none.
+- **My can doesn't wait for the server.** The page runs it ahead with the same `sim.js`, on the frames' own clock
+  (the time they show on the screen, so it moves as evenly as they come; past the kit's cap on a slow frame, all
+  the time that went by). Each snapshot says which of my inputs the server has used: the page starts again from the
+  server's can, plays the inputs it hasn't used yet on top, and moves the step being drawn by any difference, which
+  eases out in a tenth of a second. Mostly there's none.
 - **The others** are drawn 3 steps (100 ms) behind the server's clock, between two snapshots, so they move
   smoothly however the snapshots arrive.
 - **The limits** (`LIMITS` in `room.mjs`, `server.mjs`): 12 cans, 48 connections in all, names 16 characters and

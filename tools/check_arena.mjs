@@ -120,13 +120,29 @@ test('the arena: joining, walking, chat, emotes, bumps, a full room, leaving and
       assert.equal(await b.evaluate(id => arena.cans.list.get(id).bubble.textContent, alpha.id), 'hallo daar');
     });
 
-    await t.test('walking: my can answers at once, the others see it where the server has it', async () => {
-      const start = await a.evaluate(() => arena.me.can.z);
+    await t.test('walking: my can answers at once and evenly, the others see it where the server has it', async () => {
+      // where my can is drawn, every frame, at the frame's time
+      const start = await a.evaluate(() => {
+        const root = arena.cans.list.get(arena.me.id).root;
+        window.trail = [];
+        window.walkFrom = document.timeline.currentTime;
+        const f = ts => {
+          trail.push([ts, root.position.x, root.position.z]);
+          if (trail.length < 300) requestAnimationFrame(f);
+        };
+        requestAnimationFrame(f);
+        return arena.me.can.z;
+      });
       await a.keyboard.down('KeyS');
       await wait(900);
       await a.keyboard.up('KeyS');
       const moved = await a.evaluate(() => arena.me.can.z);
       assert.ok(start - moved > 1.5, `walked ${start - moved} m`);
+      // at full speed (from 0.4 s in), as fast in every frame: no frame ahead of the others, none standing still
+      const speeds = await a.evaluate(() => trail.slice(1).map(([ts, x, z], i) => [ts - walkFrom,
+        Math.hypot(x - trail[i][1], z - trail[i][2]) / ((ts - trail[i][0]) / 1000)])
+        .filter(([at]) => at > 400 && at < 750).map(([, v]) => +v.toFixed(2)));
+      assert.ok(speeds.length >= 2 && speeds.every(v => Math.abs(v - 3.2) < 0.15), `m/s a frame: ${speeds}`);
       await wait(600);
       const [mine, seen] = [await a.evaluate(() => ({ ...arena.me.can, offset: arena.me.offset.length() })),
         await b.evaluate(id => ({ ...arena.shown.get(id) }), alpha.id)];
