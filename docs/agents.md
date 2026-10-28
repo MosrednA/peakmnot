@@ -147,7 +147,8 @@ A specialist starts with an empty head, so give it everything it can't find in t
 
 ## Checks before handing over
 
-Every specialist runs the checks for its area. Before a commit, all of these pass:
+While iterating, run the checks for the area you changed. Before a push, all of these pass. Give `node --test` the
+`--test-reporter=dot` flag, so a pass prints dots and only failures print in full:
 
 | Check | How |
 |---|---|

@@ -27,7 +27,8 @@ and animated for a three.js browser game. These rules are for every agent workin
   new page is one line in its `PAGES`. Load files from code with `new URL('…', import.meta.url)`, so the build finds
   them.
 - **Checks:** `tools/check_controls.js` and `tools/check_gondola.js` (deterministic Playwright checks), and the rest in
-  [docs/agents.md](docs/agents.md#checks-before-handing-over). They all pass before you hand work over.
+  [docs/agents.md](docs/agents.md#checks-before-handing-over). While iterating, run the ones for the area you
+  changed; they all pass before a push.
 - **Line endings:** keep each file's own. `index.html` and `tools/build_mnot.py` use CRLF; the rest LF.
 
 ## Working alongside other agents
